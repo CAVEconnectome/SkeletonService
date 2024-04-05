@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block header %}
+<h1>{% block title %}Datastack:{% endblock %}</h1>
+{% endblock %}
+
+{% block content %}
+<p>{{datastack.name}}</p>
+<p>
+<h4>Description:</h4>
+{{datastack.description}}
+</p>
+<a href={{ng_url}}>viewer link</a><br>
+<a href={{cave_explorer_url}}>cave-explorer viewer</a><br>
+<a href={{spelunker_url}}>[beta] spelunker viewer</a><br>
+<a href="{{url_for('api.Skeletonservice_data_stack_name_full_resource', datastack=datastack.name)}}">api
+  description</a>
+<p>
+<table>
+  <tr>
+    <td>Service Links</td>
+  </tr>
+  <tr>
+    <td><a href="{{datastack.local_server}}/skeleton/views/aligned_volume/{{datastack.aligned_volume.name}}">
+        Skeleton Engine</a></td>
+  </tr>
+  <tr>
+    <td><a href="{{datastack.local_server}}/materialize/views/datastack/{{datastack.name}}">
+        Materialization Engine</a>
+    </td>
+  </tr>
+  <tr>
+    <td><a href="{{datastack.local_server}}/dash/datastack/{{datastack.name}}">
+        Dash Apps</a>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <a href="/schema">
+        Schema Service</a>
+    </td>
+  </tr>
+</table>
+</p>
+{% endblock %}

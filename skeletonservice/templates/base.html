@@ -1,0 +1,37 @@
+<!doctype html>
+<title>{% block title %}{% endblock %} - SkeletonService - v.{{version}}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<nav>
+  <ul><li>
+     <a href="{{url_for('datastacks.index')}}">SkeletonService - v.{{version}}</a>
+  </li>
+
+    <li>
+          <a href="{{url_for('datastacks.index')}}">Datastack</a>    
+    </li>
+    <li>
+      <a href="/info/api/doc">API Doc</a>    
+    </li>
+    
+    {% if is_admin %}
+    <li>
+        <a href="{{ url_for ('admin.index')}}">Admin</a>
+    </li>
+    {% endif %}
+
+
+  <!-- {% if user %}
+
+    <li style="float:right">
+    user_id: {{user}} <a href="https://{{logout_url}}?{{request.path}}">logout</a>
+    </li>
+  
+  {% endif %} -->
+</ul>
+</nav>
+<section class="content">
+  <header>
+    {% block header %}{% endblock %}
+  </header>
+  {% block content %}{% endblock %}
+</section>

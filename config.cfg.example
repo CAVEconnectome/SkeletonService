@@ -1,0 +1,4 @@
+CSRF_SESSION_KEY="YOURREALSECRETCSRF"
+SECRET_KEY=bYOURREALSECRETKEY'
+SQLALCHEMY_DATABASE_URI = "postgres://postgres:postgres@localhost:5432/dataset_dev"
+NEUROGLANCER_URL = "https://movepointsseung-dot-neuromancer-seung-import.appspot.com"
