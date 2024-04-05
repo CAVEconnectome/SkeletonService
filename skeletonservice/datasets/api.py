@@ -2,6 +2,7 @@
 from flask import jsonify, render_template, current_app, make_response, Blueprint
 from flask_accepts import accepts, responds
 from flask_restx import Namespace, Resource
+from meshparty import skeleton
 from skeletonservice.datasets import schemas
 from skeletonservice.datasets.service import (
    SkeletonService,
@@ -53,7 +54,7 @@ class SkeletonNameResource(Resource):
     # @auth_requires_permission(
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
-    def get(self, rid: int, sid: int) -> Dict:
+    def get(self, rid: int, sid: int) -> skeleton:
         """Get Skeleton By Name"""
 
         return SkeletonService.get_skeleton_by_rid_sid(rid, sid)

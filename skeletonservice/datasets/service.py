@@ -2,6 +2,7 @@ from typing import List, Dict
 import pandas as pd
 from meshparty import skeleton
 import skeleton_plot.skel_io as skel_io
+from skeleton_plot import utils
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -16,7 +17,7 @@ class SkeletonService:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
 
     @staticmethod
-    def get_skeleton_by_rid_sid(rid: int, sid: int) -> Dict:
+    def get_skeleton_by_rid_sid(rid: int, sid: int) -> pd.DataFrame:
         # return Skeleton.query.filter_by(name=skeleton_name).first_or_404()
 
         rid = 864691135926952148 if rid == 0 else rid # v661: 864691135926952148, current: 864691135701676411
@@ -26,10 +27,19 @@ class SkeletonService:
         # dir_name, file_name = skel_path + f"{rid}_{sid}", f"{rid}_{sid}.swc"
         dir_name, file_name = skel_path, f"{rid}_{sid}.swc"
         
-        sk = skel_io.read_skeleton(dir_name, file_name)
+        if '://' not in dir_name:
+            dir_name = utils.cloud_path_join(dir_name, use_file_scheme = True)
+        file_path = utils.cloud_path_join(dir_name, file_name)
+        df = skel_io.read_swc(file_path)
+        return df.to_json()
+
+        # sk = skel_io.read_skeleton(dir_name, file_name)
+        # return sk
         
-        return {
-            "n_branch_points": sk.n_branch_points,
-            "n_end_points": sk.n_end_points,
-            "n_vertices": sk.n_vertices
-        }
+        # return {
+        #     "n_branch_points": sk.n_branch_points,
+        #     "n_end_points": sk.n_end_points,
+        #     "n_vertices": sk.n_vertices
+        # }
+
+    
