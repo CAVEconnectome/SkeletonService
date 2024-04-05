@@ -28,4 +28,8 @@ class SkeletonService:
         
         sk = skel_io.read_skeleton(dir_name, file_name)
         
-        return {"n_vertices": sk.n_vertices}
+        return {
+            "n_branch_points": sk.n_branch_points,
+            "n_end_points": sk.n_end_points,
+            "n_vertices": sk.n_vertices
+        }
