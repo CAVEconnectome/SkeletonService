@@ -10,6 +10,6 @@ class SkeletonSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = models.Skeleton
 
-    skeleton = ma.HyperlinkRelated(
-        "api.Skeletonservice_resource"
-    )
+    # skeleton = ma.HyperlinkRelated(
+    #     "api.Skeletonservice_resource"
+    # )

@@ -6,7 +6,7 @@ from skeletonservice.datasets import schemas
 from skeletonservice.datasets.service import (
    SkeletonService,
 )
-from typing import List
+from typing import List, Dict
 from middle_auth_client import (
     auth_required,
     auth_requires_permission,
@@ -42,17 +42,18 @@ class SkeletonsResource(Resource):
         return [sk["name"] for sk in skeletons]
 
 
-@api_bp.route("/skeleton/<string:skeleton>")
-@api_bp.param("skeleton", "Skeleton Name")
+@api_bp.route("/skeleton/<int:rid>/<int:sid>")
+@api_bp.param("rid", "Skeleton Root Id")
+@api_bp.param("sid", "Skeleton Nucleus Id")
 class SkeletonNameResource(Resource):
-    """Skeleton by Name"""
+    """Skeleton by Rid/Sid"""
 
-    @responds(schema=schemas.SkeletonSchema)
+    # @responds(schema=schemas.SkeletonSchema)
     @api_bp.doc("get skeleton", security="apikey")
     # @auth_requires_permission(
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
-    def get(self, skeleton: str) -> schemas.SkeletonSchema:
+    def get(self, rid: int, sid: int) -> Dict:
         """Get Skeleton By Name"""
 
-        return SkeletonService.get_skeleton_by_name(skeleton)
+        return SkeletonService.get_skeleton_by_rid_sid(rid, sid)
