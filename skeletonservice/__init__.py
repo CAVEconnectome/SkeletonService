@@ -32,7 +32,7 @@ def create_app(test_config=None):
         __name__,
         instance_path=get_instance_folder_path(),
         instance_relative_config=True,
-        static_url_path="/info/static",
+        static_url_path="/properties/static",
         static_folder="../static",
     )
     CORS(app, expose_headers="WWW-Authenticate")
@@ -46,7 +46,7 @@ def create_app(test_config=None):
     else:
         app.config.update(test_config)
 
-    baseapi_bp = Blueprint("api", __name__, url_prefix="/info/api")
+    baseapi_bp = Blueprint("api", __name__, url_prefix="/properties/api")
 
     @auth_required
     @baseapi_bp.route("/versions")
@@ -54,11 +54,11 @@ def create_app(test_config=None):
         return jsonify([2]), 200
 
     with app.app_context():
-        app.register_blueprint(views_bp, url_prefix="/info")
+        app.register_blueprint(views_bp, url_prefix="/properties")
         api = Api(
             baseapi_bp, title="Skeletonservice API", version=__version__, doc="/doc"
         )
-        api.add_namespace(api_bp, path="/v2")
+        api.add_namespace(api_bp, path="/v1")
 
         app.register_blueprint(baseapi_bp)
         db.init_app(app)
@@ -66,12 +66,12 @@ def create_app(test_config=None):
         # db.create_all()
         admin = setup_admin(app, db)
 
-    @app.route("/info/health")
+    @app.route("/properties/health")
     def health():
         return jsonify("healthy"), 200
 
     @auth_required
-    @app.route("/info/site-map")
+    @app.route("/properties/site-map")
     def site_map():
         links = []
         for rule in app.url_map.iter_rules():
