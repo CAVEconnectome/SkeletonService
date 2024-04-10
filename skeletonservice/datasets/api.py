@@ -43,10 +43,13 @@ class SkeletonsResource(Resource):
         return [sk["name"] for sk in skeletons]
 
 
-@api_bp.route("/skeleton/<int:rid>/<int:sid>")
+@api_bp.route("/skeleton/<int:rid>/<int:sid>/<string:datastack>/<int:materialize_version>")
+@api_bp.route("/skeleton/<int:rid>/", defaults={'sid': 0, 'datastack': 'minnie65_public', 'materialize_version': 795})
 @api_bp.param("rid", "Skeleton Root Id")
 @api_bp.param("sid", "Skeleton Nucleus Id")
-class SkeletonNameResource(Resource):
+@api_bp.param("datastack", "Datastack")
+@api_bp.param("materialize_version", "Materialize version")
+class SkeletonResource(Resource):
     """Skeleton by Rid/Sid"""
 
     # @responds(schema=schemas.SkeletonSchema)
@@ -54,7 +57,12 @@ class SkeletonNameResource(Resource):
     # @auth_requires_permission(
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
-    def get(self, rid: int, sid: int) -> skeleton:
+    def get(self, rid: int, sid: int, datastack: str, materialize_version: int) -> skeleton:
         """Get Skeleton By Name"""
 
-        return SkeletonService.get_skeleton_by_rid_sid(rid, sid)
+        # TODO: I made SID optional, as shown above, and the web UI correctly exposes two endpoints, one without SID,
+        # but that web endpoint offers the SID as available (that's fair, I suppose), but if I enter a value in the web UI,
+        # it is passed into the URL as a named argument (not an enumerated argument) and it is then ignored by the time this function is called.
+        # The default value created in the 'route' above is received here instead.
+
+        return SkeletonService.get_skeleton_by_rid_sid(rid, sid, datastack, materialize_version)

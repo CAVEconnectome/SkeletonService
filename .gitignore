@@ -111,3 +111,8 @@ test-reports/
 client-secret.json
 credentials.tar.gz
 .idea/
+
+# Any development and debugging skeleton files lying around
+./skeletons/
+skeleton*.swc
+skeleton*.json
