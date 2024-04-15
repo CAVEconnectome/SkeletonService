@@ -10,6 +10,7 @@ from flask_restx import Api
 from flask_cors import CORS
 import logging
 from flask_migrate import Migrate
+from werkzeug.routing import BaseConverter
 
 from werkzeug.middleware.proxy_fix import ProxyFix
 from middle_auth_client import auth_required
@@ -18,6 +19,19 @@ __version__ = "3.17.1"
 
 db = SQLAlchemy(model_class=Base)
 migrate = Migrate()
+
+
+class BoolConverter(BaseConverter):
+    def to_python(self, value):
+        if value.lower() in ['true', '1']:
+            return True
+        elif value.lower() in ['false', '0']:
+            return False
+        else:
+            return None
+
+    def to_url(self, value):
+        return str(value).lower()
 
 
 def has_no_empty_params(rule):
@@ -39,6 +53,9 @@ def create_app(test_config=None):
     # app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_port=1, x_for=1, x_host=1, x_prefix=1)
     # app.wsgi_app = ReverseProxied(app.wsgi_app)
     logging.basicConfig(level=logging.DEBUG)
+
+    # Boolean parameter aren't natively supported. They require a custom converter.
+    app.url_map.converters['bool'] = BoolConverter
 
     # load configuration (from test_config if passed)
     if test_config is None:
