@@ -67,9 +67,9 @@ class ParameterBugInvestigation(Resource):
 
 
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
-@api_bp.route("/skeleton/<int:rid>/", defaults={'sid': 0, 'datastack': 'minnie65_public', 'materialize_version': 795,
+@api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={'sid': 0, 'datastack': 'minnie65_public', 'materialize_version': 795,
                                                 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1, 'collapse_soma': True, 'collapse_radius': 7500})
-@api_bp.route("/skeleton/<int:rid>/<int:sid>/<string:datastack>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
+@api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:datastack>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
 @api_bp.param("rid", "Skeleton Root Id")
 @api_bp.param("sid", "Skeleton Nucleus Id")
 @api_bp.param("datastack", "Datastack")
@@ -87,7 +87,7 @@ class SkeletonResource(Resource):
     # @auth_requires_permission(
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
-    def get(self, rid: int, sid: int, datastack: str, materialize_version: int,
+    def get(self, rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
             root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int) -> skeleton:
         """Get skeleton By Root ID"""
 
@@ -96,5 +96,5 @@ class SkeletonResource(Resource):
         # but the overrided values are ignored by the time this function is called. Instead, the default values created in the route decorator above are received here.
 
         # return {'rid': rid, 'collapse_soma': 'True' if collapse_soma else 'False', 'collapse_radius': collapse_radius}
-        return SkeletonService.get_skeleton_by_rid_sid(rid, sid, datastack, materialize_version,
+        return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, datastack, materialize_version,
                                                        [root_res_x, root_res_y, root_res_z], collapse_soma, collapse_radius)

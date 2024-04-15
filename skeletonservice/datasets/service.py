@@ -1,13 +1,16 @@
 from typing import List, Dict
 import os
+import numpy as np
 import pandas as pd
 import json
-from meshparty import skeleton
+import gzip
+from meshparty import skeleton, skeleton_io
 import skeleton_plot.skel_io as skel_io
 from skeleton_plot import utils
 import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles
+import gzip
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -18,7 +21,7 @@ from skeletonservice.datasets.schemas import (
 
 # SKELETON_CACHE_LOC = "file:///Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 SKELETON_CACHE_LOC = "gs://keith-dev/"
-COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put_json(): None, 'gzip', 'br' (brotli), 'zstd'
+COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 
 class SkeletonService:
     @staticmethod
@@ -38,31 +41,50 @@ class SkeletonService:
         nid = neurons[neurons['pt_root_id']==rid2].iloc[0]['id_ref']  # target_id seems to be an equivalent column option here
         
         return nid
-
     @staticmethod
-    def get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
-        file_name = f"skeleton__rid-{rid}__ds-{datastack}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}.json"
-        if COMPRESSION == 'gzip':
-            file_name += ".gz"
-        elif COMPRESSION == 'br':
-            file_name += ".br"
-        elif COMPRESSION == 'zstd':
-            file_name += ".zst"
+    def get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+        file_name = f"skeleton__rid-{rid}__ds-{datastack}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        
+        assert format == 'json' or format == 'h5' or format == 'swc'
+        file_name += f".{format}"
+        
+        if include_compression:
+            if COMPRESSION == 'gzip':
+                file_name += ".gz"
+            elif COMPRESSION == 'br':
+                file_name += ".br"
+            elif COMPRESSION == 'zstd':
+                file_name += ".zst"
+        
         return file_name
 
     @staticmethod
-    def retrieve_skeleton_json_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
-        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+    def get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format):
+        return f"{SKELETON_CACHE_LOC}{SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)}"
+
+    @staticmethod
+    def retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format):
+        '''
+        If the requested format is JSON, then read the skeleton and return the json content.
+        But if the requested format is H5 or SWC, then return the location of the skeleton file.
+        '''
+        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
         cf = CloudFiles(SKELETON_CACHE_LOC)
         if cf.exists(file_name):
-            return cf.get_json(file_name, COMPRESSION)
+            if format == 'json':
+                return cf.get_json(file_name, COMPRESSION)
+            else:  # format == 'h5' or 'swc'
+                return SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
         return None
     
     @staticmethod
-    def cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json):
-        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+    def cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton, format):
+        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
         cf = CloudFiles(SKELETON_CACHE_LOC)
-        cf.put_json(file_name, skeleton_json, COMPRESSION)
+        if format == 'json':
+            cf.put_json(file_name, skeleton, COMPRESSION)
+        else:  # format == 'h5' or 'swc'
+            cf.put(file_name, skeleton, compress=COMPRESSION)
 
     @staticmethod
     def generate_skeleton(rid, datastack, materialize_version, root_resolution=[1,1,1], collapse_soma=True, collapse_radius=7500):
@@ -160,10 +182,40 @@ class SkeletonService:
             'voxel_scaling': skel.voxel_scaling,
         }
         return sk_json
+    
+    @staticmethod
+    def json_to_skeleton(json):
+        sk = skeleton.Skeleton(vertices=np.array(json['vertices']),
+                               edges=np.array(json['edges']),
+                               mesh_to_skel_map=np.array(json['mesh_to_skel_map']),
+                               mesh_index=np.array(json['mesh_index']),
+                               vertex_properties=json['vertex_properties'],
+                               node_mask=np.array(json['node_mask']),
+                               voxel_scaling=json['voxel_scaling'],
+                            #    meta=skeleton.SkeletonMetadata(json),
+                               )
+        # sk.branch_points = json['branch_points']
+        # sk.branch_points_undirected = json['branch_points_undirected']
+        # sk.distance_to_root = json['distance_to_root']
+        # sk.end_points = json['end_points']
+        # sk.end_points_undirected = json['end_points_undirected']
+        # sk.hops_to_root = json['hops_to_root']
+        # sk.indices_unmasked = json['indices_unmasked']
+        # sk.mesh_to_skel_map_base = json['mesh_to_skel_map_base']
+        # sk.n_branch_points = json['n_branch_points']
+        # sk.n_end_points = json['n_end_points']
+        # sk.n_vertices = json['n_vertices']
+        # sk.radius = json['radius']
+        # sk.root = json['root']
+        # sk.root_position = json['root_position']
+        # sk.segment_map = json['segment_map']
+        # sk.topo_points = json['topo_points']
+        # sk.unmasked_size = json['unmasked_size']
+        return sk
 
     @staticmethod
-    def get_skeleton_by_rid_sid(rid: int, sid: int, datastack: str, materialize_version: int,
-                                root_resolution: List, collapse_soma: bool, collapse_radius: int) -> pd.DataFrame:
+    def get_skeleton_by_rid_sid(rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
+                                root_resolution: List, collapse_soma: bool, collapse_radius: int) -> str:
         # DEBUG
         # rid = 864691135926952148 if rid == 0 else rid # v661: 864691135926952148, current: 864691135701676411
         # sid = 294657 if sid == 0 else sid # nucleus_id  # Nucleus id
@@ -198,12 +250,56 @@ class SkeletonService:
             #     "n_vertices": sk.n_vertices
             # }
         else:
-            skel_json = SkeletonService.retrieve_skeleton_json_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+            skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
 
-            if skel_json:
-                return skel_json
+            if skeleton_return:
+                # JSON content or H5 SWC file location
+                if output_format == 'json':
+                    # The web UI won't show large JSON content, so to assist debugging I'm just returning the smaller data (not lists, etc.)
+                    skeleton_return['branch_points'] = 0
+                    skeleton_return['branch_points_undirected'] = 0
+                    skeleton_return['distance_to_root'] = 0
+                    skeleton_return['edges'] = 0
+                    skeleton_return['end_points'] = 0
+                    skeleton_return['end_points_undirected'] = 0
+                    skeleton_return['hops_to_root'] = 0
+                    skeleton_return['indices_unmasked'] = 0
+                    skeleton_return['mesh_index'] = 0
+                    skeleton_return['mesh_to_skel_map'] = 0
+                    skeleton_return['mesh_to_skel_map_base'] = 0
+                    skeleton_return['meta'] = 0
+                    skeleton_return['node_mask'] = 0
+                    skeleton_return['segment_map'] = 0
+                    skeleton_return['topo_points'] = 0
+                    skeleton_return['vertices'] = 0
+                return skeleton_return 
             else:
-                skeleton_json = SkeletonService.skeleton_to_json(SkeletonService.generate_skeleton(
-                    rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius))
-                SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json)
-                return skeleton_json
+                # If the requested format was H5 or SWC (and getting to this point implies no file already exists),
+                # check for a JSON version before generating a new skeleton and use it to build a skeleton object if found.
+                skeleton = None
+                if output_format == 'h5' or output_format == 'swc':
+                    skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'json')
+                    if skeleton_return:
+                        skeleton = SkeletonService.json_to_skeleton(skeleton_return)
+                
+                if not skeleton:
+                    # No JSON skeleton was found, so generate a new skeleton
+                    skeleton = SkeletonService.generate_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+
+                # Cache the skeleton in the requested format and return the content (JSON) or location (H5 or SWC)
+                if output_format == 'json':
+                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                    SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json, output_format)
+                    return skeleton_json
+                else:  # output_format == 'h5' or 'swc'
+                    file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format, False)
+                    if output_format == 'h5':
+                        skeleton_io.write_skeleton_h5(skeleton, file_name)
+                    if output_format == 'swc':
+                        # Note that export_to_swc() supports several other options, but I'm just relying on the defaults for the time being
+                        skeleton_io.export_to_swc(skeleton, file_name)
+                    # Read the file back as a bytes object to facilitate CloudFiles.put()
+                    file_content = open(file_name, 'rb').read()
+                    SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, file_content, output_format)
+                    file_location = SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
+                    return file_location
