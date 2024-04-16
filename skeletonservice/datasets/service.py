@@ -11,6 +11,7 @@ import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles
 import gzip
+import os
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -75,6 +76,20 @@ class SkeletonService:
                 return cf.get_json(file_name, COMPRESSION)
             else:  # format == 'h5' or 'swc'
                 return SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
+        return None
+
+    @staticmethod
+    def retrieve_h5_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
+        '''
+        Fully read H5 skeleton as opposed to just returning the location of the file.
+        '''
+        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5')
+        cf = CloudFiles(SKELETON_CACHE_LOC)
+        if cf.exists(file_name):
+            skeleton_bytes = cf.get(file_name)
+            with open(file_name, 'wb') as f:
+                f.write(skeleton_bytes)
+            return skeleton_io.read_skeleton_h5(file_name)
         return None
     
     @staticmethod
@@ -146,41 +161,51 @@ class SkeletonService:
     def skeleton_to_json(skel):
         sk_json = {
             'jsonification_version': '1.0',
-            'branch_points': skel.branch_points.tolist(),
-            'branch_points_undirected': skel.branch_points_undirected.tolist(),
-            # 'cover_paths': skel.cover_paths.tolist(),
-            # 'csgraph':
-            # 'csgraph_binary':
-            # 'csgraph_binary_undirected':
-            # 'csgraph_undirected':
-            'distance_to_root': skel.distance_to_root.tolist(),
-            'edges': skel.edges.tolist(),
-            'end_points': skel.end_points.tolist(),
-            'end_points_undirected': skel.end_points_undirected.tolist(),
-            'hops_to_root': skel.hops_to_root.tolist(),
-            'indices_unmasked': skel.indices_unmasked.tolist(),
-            # 'kdtree':
-            'mesh_index': skel.mesh_index.tolist(),
-            'mesh_to_skel_map': skel.mesh_to_skel_map.tolist(),
-            'mesh_to_skel_map_base': skel.mesh_to_skel_map_base.tolist(),
-            'meta': SkeletonService.skeleton_metadata_to_json(skel.meta),
-            'n_branch_points': skel.n_branch_points,
-            'n_end_points': skel.n_end_points,
-            'n_vertices': skel.n_vertices,
-            'node_mask': skel.node_mask.tolist(),
-            # 'pykdtree':
-            'radius': skel.radius,
-            'root': skel.root.tolist(),
-            'root_position': skel.root_position.tolist(),
-            'segment_map': skel.segment_map.tolist(),
-            # 'segments':
-            # 'segments_plus':
-            'topo_points': skel.topo_points.tolist(),
-            'unmasked_size': skel.unmasked_size,
-            'vertex_properties': skel.vertex_properties,
-            'vertices': skel.vertices.tolist(),
-            'voxel_scaling': skel.voxel_scaling,
         }
+        if skel.branch_points is not None:
+            sk_json['branch_points'] = skel.branch_points.tolist()
+        if skel.branch_points_undirected is not None:
+            sk_json['branch_points_undirected'] = skel.branch_points_undirected.tolist()
+        if skel.distance_to_root is not None:
+            sk_json['distance_to_root'] = skel.distance_to_root.tolist()
+        if skel.edges is not None:
+            sk_json['edges'] = skel.edges.tolist()
+        if skel.end_points is not None:
+            sk_json['end_points'] = skel.end_points.tolist()
+        if skel.end_points_undirected is not None:
+            sk_json['end_points_undirected'] = skel.end_points_undirected.tolist()
+        if skel.hops_to_root is not None:
+            sk_json['hops_to_root'] = skel.hops_to_root.tolist()
+        if skel.indices_unmasked is not None:
+            sk_json['indices_unmasked'] = skel.indices_unmasked.tolist()
+        if skel.mesh_index is not None:
+            sk_json['mesh_index'] = skel.mesh_index.tolist()
+        if skel.mesh_to_skel_map is not None:
+            sk_json['mesh_to_skel_map'] = skel.mesh_to_skel_map.tolist()
+        if skel.mesh_to_skel_map_base is not None:
+            sk_json['mesh_to_skel_map_base'] = skel.mesh_to_skel_map_base.tolist()
+        if skel.meta is not None:
+            sk_json['meta'] = SkeletonService.skeleton_metadata_to_json(skel.meta)
+        if skel.node_mask is not None:
+            sk_json['node_mask'] = skel.node_mask.tolist()
+        if skel.radius is not None:
+            sk_json['radius'] = skel.radius
+        if skel.root is not None:
+            sk_json['root'] = skel.root.tolist()
+        if skel.root_position is not None:
+            sk_json['root_position'] = skel.root_position.tolist()
+        if skel.segment_map is not None:
+            sk_json['segment_map'] = skel.segment_map.tolist()
+        if skel.topo_points is not None:
+            sk_json['topo_points'] = skel.topo_points.tolist()
+        if skel.unmasked_size is not None:
+            sk_json['unmasked_size'] = skel.unmasked_size
+        if skel.vertex_properties is not None:
+            sk_json['vertex_properties'] = skel.vertex_properties
+        if skel.vertices is not None:
+            sk_json['vertices'] = skel.vertices.tolist()
+        if skel.voxel_scaling is not None:
+            sk_json['voxel_scaling'] = skel.voxel_scaling
         return sk_json
     
     @staticmethod
@@ -225,7 +250,7 @@ class SkeletonService:
         datastack = 'minnie65_public'  # From https://caveconnectome.github.io/pcg_skel/tutorial/
         materialize_version = 795      # From https://caveconnectome.github.io/pcg_skel/tutorial/
 
-        use_bucket_swc = False
+        use_bucket_swc = False  # Use Emily's SWC skeletons
         if use_bucket_swc:
             # The SID is optional (and only used for SWC retrieval). We can just look it up based on the RID.
             sid = SkeletonService.retrieve_sid_for_rid(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius,) if sid == 0 else sid
@@ -274,32 +299,59 @@ class SkeletonService:
                     skeleton_return['vertices'] = 0
                 return skeleton_return 
             else:
-                # If the requested format was H5 or SWC (and getting to this point implies no file already exists),
-                # check for a JSON version before generating a new skeleton and use it to build a skeleton object if found.
+                # If the requested format was JSON or SWC (and getting to this point implies no file already exists),
+                # check for an H5 version before generating a new skeleton and use it to build a skeleton object if found.
                 skeleton = None
-                if output_format == 'h5' or output_format == 'swc':
-                    skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'json')
-                    if skeleton_return:
-                        skeleton = SkeletonService.json_to_skeleton(skeleton_return)
+                if output_format == 'json' or output_format == 'swc':
+                    # skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5')
+                    skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
                 
+                save_h5 = False
                 if not skeleton:
-                    # No JSON skeleton was found, so generate a new skeleton
+                    # No H5 skeleton was found, so generate a new skeleton
                     skeleton = SkeletonService.generate_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+                    save_h5 = True
 
                 # Cache the skeleton in the requested format and return the content (JSON) or location (H5 or SWC)
-                if output_format == 'json':
-                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
-                    SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json, output_format)
-                    return skeleton_json
-                else:  # output_format == 'h5' or 'swc'
+                # Also cache the H5 skeleton if it was generated
+
+                if output_format == 'h5' or save_h5:
+                    file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5', False)
+                    skeleton_io.write_skeleton_h5(skeleton, file_name)
+                    # Read the file back as a bytes object to facilitate CloudFiles.put()
+                    file_content = open(file_name, 'rb').read()
+                    SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, file_content, 'h5')
+                if output_format == 'h5':
+                    file_location = SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
+                    return file_location
+                
+                if output_format == 'swc':
                     file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format, False)
-                    if output_format == 'h5':
-                        skeleton_io.write_skeleton_h5(skeleton, file_name)
-                    if output_format == 'swc':
-                        # Note that export_to_swc() supports several other options, but I'm just relying on the defaults for the time being
-                        skeleton_io.export_to_swc(skeleton, file_name)
+                    skeleton_io.export_to_swc(skeleton, file_name)
                     # Read the file back as a bytes object to facilitate CloudFiles.put()
                     file_content = open(file_name, 'rb').read()
                     SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, file_content, output_format)
                     file_location = SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
                     return file_location
+                
+                if output_format == 'json':
+                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                    SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json, output_format)
+                    # The web UI won't show large JSON content, so to assist debugging I'm just returning the smaller data (not lists, etc.)
+                    skeleton_json['branch_points'] = 0
+                    skeleton_json['branch_points_undirected'] = 0
+                    skeleton_json['distance_to_root'] = 0
+                    skeleton_json['edges'] = 0
+                    skeleton_json['end_points'] = 0
+                    skeleton_json['end_points_undirected'] = 0
+                    skeleton_json['hops_to_root'] = 0
+                    skeleton_json['indices_unmasked'] = 0
+                    skeleton_json['mesh_index'] = 0
+                    skeleton_json['mesh_to_skel_map'] = 0
+                    skeleton_json['mesh_to_skel_map_base'] = 0
+                    skeleton_json['meta'] = 0
+                    skeleton_json['node_mask'] = 0
+                    skeleton_json['segment_map'] = 0
+                    skeleton_json['topo_points'] = 0
+                    skeleton_json['vertices'] = 0
+                    return skeleton_json

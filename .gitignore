@@ -117,3 +117,6 @@ credentials.tar.gz
 skeleton*.json
 skeleton*.h5
 skeleton*.swc
+skeleton*.json.gz
+skeleton*.h5.gz
+skeleton*.swc.gz
