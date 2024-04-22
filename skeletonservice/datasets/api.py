@@ -29,7 +29,7 @@ api_bp = Namespace(
 
 @api_bp.route("/skeletons")
 @api_bp.doc("get skeletons", security="apikey")
-class SkeletonsResource(Resource):
+class SkeletonResource(Resource):
     """Skeletons"""
 
     @auth_required
@@ -52,7 +52,7 @@ class SkeletonsResource(Resource):
 @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/<int:bar>")
 @api_bp.param("foo", "foo")
 @api_bp.param("bar", "bar")
-class ParameterBugInvestigation(Resource):
+class SkeletonResource(Resource):
     """ParameterBugInvestigation"""
 
     @api_bp.doc("foobar", security="apikey")
@@ -64,6 +64,175 @@ class ParameterBugInvestigation(Resource):
         # http://localhost:5000/properties/api/v1/skeleton2/888/?bar=999
         print(f"Foo: {foo}, Bar: {bar}")
         return {'foo': foo, 'bar': bar}
+
+
+
+@api_bp.route("/precomputed/")
+class SkeletonResource(Resource):
+    """PrecomputedResource"""
+
+    @api_bp.doc("PrecomputedResource", security="apikey")
+    def get(self):
+        """Get precomputed"""
+
+        return {
+            "foo": "bar",
+        }
+
+@api_bp.route("/precomputed/info/")
+class SkeletonResource(Resource):
+    """PrecomputedInfoResource"""
+
+    @api_bp.doc("PrecomputedInfoResource", security="apikey")
+    def get(self):
+        """Get precomputed info"""
+        
+        return {'app': {'supported_api_versions': [0, 1]},
+            'chunks_start_at_voxel_offset': True,
+            'data_dir': 'gs://minnie65_pcg/ws',
+            'data_type': 'uint64',
+            'graph': {'bounding_box': [2048, 2048, 512],
+            'chunk_size': [256, 256, 512],
+            'cv_mip': 0,
+            'n_bits_for_layer_id': 8,
+            'n_layers': 12,
+            'spatial_bit_masks': {'1': 10,
+            '10': 2,
+            '11': 1,
+            '12': 1,
+            '2': 10,
+            '3': 9,
+            '4': 8,
+            '5': 7,
+            '6': 6,
+            '7': 5,
+            '8': 4,
+            '9': 3}},
+            'mesh': 'graphene_meshes',
+            'mesh_metadata': {'uniform_draco_grid_size': 21.0,
+            'unsharded_mesh_dir': 'dynamic'},
+            'num_channels': 1,
+            'scales': [{'chunk_sizes': [[256, 256, 32]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '8_8_40',
+            'locked': True,
+            'resolution': [8, 8, 40],
+            'size': [192424, 131051, 13008],
+            'voxel_offset': [26385, 30308, 14850]},
+            {'chunk_sizes': [[256, 256, 32]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '16_16_40',
+            'locked': True,
+            'resolution': [16, 16, 40],
+            'size': [96212, 65526, 13008],
+            'voxel_offset': [13192, 15154, 14850]},
+            {'chunk_sizes': [[256, 256, 32]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '32_32_40',
+            'locked': True,
+            'resolution': [32, 32, 40],
+            'size': [48106, 32763, 13008],
+            'voxel_offset': [6596, 7577, 14850]},
+            {'chunk_sizes': [[256, 256, 32]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '64_64_40',
+            'locked': True,
+            'resolution': [64, 64, 40],
+            'size': [24053, 16382, 13008],
+            'voxel_offset': [3298, 3788, 14850]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '128_128_80',
+            'resolution': [128, 128, 80],
+            'size': [12027, 8191, 6504],
+            'voxel_offset': [1649, 1894, 7425]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '256_256_160',
+            'resolution': [256, 256, 160],
+            'size': [6014, 4096, 3252],
+            'voxel_offset': [824, 947, 3712]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'compressed_segmentation_block_size': [8, 8, 8],
+            'encoding': 'compressed_segmentation',
+            'key': '512_512_320',
+            'resolution': [512, 512, 320],
+            'size': [3007, 2048, 1626],
+            'voxel_offset': [412, 473, 1856]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'encoding': 'raw',
+            'key': '1024_1024_640',
+            'resolution': [1024, 1024, 640],
+            'size': [1504, 1024, 813],
+            'voxel_offset': [206, 236, 928]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'encoding': 'raw',
+            'key': '2048_2048_1280',
+            'resolution': [2048, 2048, 1280],
+            'size': [752, 512, 407],
+            'voxel_offset': [103, 118, 464]},
+            {'chunk_sizes': [[128, 128, 16]],
+            'encoding': 'raw',
+            'key': '4096_4096_2560',
+            'resolution': [4096, 4096, 2560],
+            'size': [376, 256, 204],
+            'voxel_offset': [51, 59, 232]}],
+            'sharded_mesh': True,
+            'skeletons': 'skeleton',
+            'type': 'segmentation',
+            'verify_mesh': False}
+
+
+
+@api_bp.route("/precomputed/skeleton/info")
+class SkeletonResource(Resource):
+    """SkeletonInfoResource"""
+
+    @api_bp.doc("SkeletonInfoResource", security="apikey")
+    def get(self):
+        """Get skeleton info"""
+        
+        return {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [{
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1
+                },
+                # {
+                #     'id': 'vertex_types',
+                #     'data_type': 'float32',
+                #     'num_components': 1
+                # }
+                ]}
+
+
+
+@api_bp.route("/precomputed/skeleton/<int:rid>")
+class SkeletonResource(Resource):
+    """SkeletonResource"""
+
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, rid: int):
+        """Get skeleton by rid"""
+        
+        return SkeletonService.get_skeleton_by_rid_sid(
+            rid,
+            output_format='precomputed',
+            sid=0,
+            datastack='minnie65_public',
+            materialize_version=795,
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+        )
+
 
 
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
@@ -88,7 +257,7 @@ class SkeletonResource(Resource):
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
     def get(self, rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
-            root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int) -> skeleton:
+            root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int):
         """Get skeleton By Root ID"""
 
         # TODO: I made most parameters optional, as shown above, and the web UI correctly exposes two endpoints, one without the parameters and one with them.
