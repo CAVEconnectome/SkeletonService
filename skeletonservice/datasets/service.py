@@ -50,6 +50,7 @@ class SkeletonService:
         skeleton_json['vertices'] = 0
         return skeleton_json
 
+    # Placeholder. I'm not sure there is a need for a "get all" or even a "get many" interaction regarding skeletongs.
     @staticmethod
     def get_all() -> List[Skeleton]:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
@@ -67,8 +68,13 @@ class SkeletonService:
         nid = neurons[neurons['pt_root_id']==rid2].iloc[0]['id_ref']  # target_id seems to be an equivalent column option here
         
         return nid
+    
     @staticmethod
     def get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+        '''
+        Build a filename for a skeleton file based on the parameters.
+        The format and optional compression will be appended as extensions as necessary.
+        '''
         file_name = f"skeleton__rid-{rid}__ds-{datastack}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
         assert format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
@@ -85,16 +91,19 @@ class SkeletonService:
         return file_name
 
     @staticmethod
-    def get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format):
-        return f"{SKELETON_CACHE_LOC}{SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)}"
+    def get_skeleton_location(params, format):
+        '''
+        Build a location for a skeleton file based on the parameters and the cache location (likely a Google bucket).
+        '''
+        return f"{SKELETON_CACHE_LOC}{SkeletonService.get_skeleton_filename(*params, format)}"
 
     @staticmethod
-    def retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format):
+    def retrieve_skeleton_from_cache(params, format):
         '''
-        If the requested format is JSON, then read the skeleton and return the json content.
+        If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         '''
-        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
+        file_name = SkeletonService.get_skeleton_filename(*params, format)
         cf = CloudFiles(SKELETON_CACHE_LOC)
         if cf.exists(file_name):
             if format == 'json':
@@ -102,26 +111,32 @@ class SkeletonService:
             elif format == 'precomputed':
                 return cf.get(file_name)
             else:  # format == 'h5' or 'swc'
-                return SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
+                return SkeletonService.get_skeleton_location(params, format)
         return None
 
     @staticmethod
-    def retrieve_h5_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
+    def retrieve_h5_skeleton_from_cache(params):
         '''
         Fully read H5 skeleton as opposed to just returning the location of the file.
+        See retrieve_skeleton_from_cache() for comparison.
         '''
-        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5')
+        file_name = SkeletonService.get_skeleton_filename(*params, 'h5')
         cf = CloudFiles(SKELETON_CACHE_LOC)
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
+            # Write the bytes to a file and then immediately read them back in to build a skeleton object.
+            # There has GOT to be a more efficient way to do this! Some sort of BytesIO object or even a RAMDisk for heaven's sake.
             with open(file_name, 'wb') as f:
                 f.write(skeleton_bytes)
             return skeleton_io.read_skeleton_h5(file_name)
         return None
     
     @staticmethod
-    def cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton, format):
-        file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format)
+    def cache_skeleton(params, skeleton, format):
+        '''
+        Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
+        '''
+        file_name = SkeletonService.get_skeleton_filename(*params, format)
         cf = CloudFiles(SKELETON_CACHE_LOC)
         if format == 'json':
             cf.put_json(file_name, skeleton, COMPRESSION)
@@ -129,7 +144,7 @@ class SkeletonService:
             cf.put(file_name, skeleton, compress=COMPRESSION)
 
     @staticmethod
-    def generate_skeleton(rid, datastack, materialize_version, root_resolution=[1,1,1], collapse_soma=True, collapse_radius=7500):
+    def generate_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
@@ -160,6 +175,9 @@ class SkeletonService:
     
     @staticmethod
     def skeleton_metadata_to_json(skeleton_metadata):
+        '''
+        Used by skeleton_to_json().
+        '''
         return {
             'root_id': skeleton_metadata.root_id,
             'soma_pt_x': skeleton_metadata.soma_pt_x,
@@ -188,6 +206,9 @@ class SkeletonService:
     
     @staticmethod
     def skeleton_to_json(skel):
+        '''
+        Convert a skeleton object to a JSON object.
+        '''
         sk_json = {
             'jsonification_version': '1.0',
         }
@@ -240,7 +261,8 @@ class SkeletonService:
     @staticmethod
     def json_to_skeleton(json):
         '''
-        Most of the skeleton fields can't be populated because they are properties without associated setter functions
+        Convert a JSON description of a skeleton to a skeleton object.
+        Most of the skeleton fields can't be populated because they are mere properties, not true member variables, lacking associated setter functions.
         '''
         sk = skeleton.Skeleton(vertices=np.array(json['vertices']),
                                edges=np.array(json['edges']),
@@ -272,9 +294,11 @@ class SkeletonService:
 
     @staticmethod
     def response_headers():
+        '''
+        Build Flask Response header for a requested skeleton object.
+        '''
         return {
             'access-control-allow-credentials': 'true',
-            # 'access-control-allow-origin': 'https://spelunker.cave-explorer.org',
             'access-control-expose-headers': 'Cache-Control, Content-Disposition, Content-Encoding, Content-Length, Content-Type, Date, ETag, Server, Vary, X-Content-Type-Options, X-Frame-Options, X-Powered-By, X-XSS-Protection',
             'content-disposition': 'attachment',
         }
@@ -282,9 +306,9 @@ class SkeletonService:
     @staticmethod
     def after_request(response):
         '''
+        Optionally gzip a response. Alternatively, return the response unaltered.
         Copied verbatim from materializationengine.blueprints.client.utils.py
         '''
-
         accept_encoding = request.headers.get("Accept-Encoding", "")
 
         if "gzip" not in accept_encoding.lower():
@@ -310,115 +334,106 @@ class SkeletonService:
     @staticmethod
     def get_skeleton_by_rid_sid(rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
                                 root_resolution: List, collapse_soma: bool, collapse_radius: int):
+        '''
+        Get a skeleton by root id (with optional associated soma id).
+        If the requested format already exists in the cache, then return it.
+        If not, then generate the skeleton from its cached H5 format and return it.
+        If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
+        '''
         # DEBUG
         # rid = 864691135926952148 if rid == 0 else rid # v661: 864691135926952148, current: 864691135701676411
         # sid = 294657 if sid == 0 else sid # nucleus_id  # Nucleus id
 
         # DEBUG
-        if rid == 0:
+        if rid == 0:  # rid == 0 implies a default skeleton for debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             rid = 864691135397503777
             datastack = 'minnie65_public'
             materialize_version = 795
         
-        print(f"rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
-              f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
+        # print(f"rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
+        #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
         
-        skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
-        print(f"Cache query result: {skeleton_return}")
+        params = [rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
 
-        response_method = 'Response'  # 'send_file' or 'Response'
+        skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
+        # print(f"Cache query result: {skeleton_return}")
+
+        # See minimize_json_skeleton_for_easier_debugging() for explanation.
+        debug_minimize_json_skeleton = False  # DEBUG
 
         if skeleton_return:
             # skeleton_return will be JSON or PRECOMPUTED content, or H5 or SWC file location
             if output_format == 'precomputed':
-                if response_method == 'send_file':
-                    response = send_file(BytesIO(skeleton_return), 'application/octet-stream')
-                    # See MaterializationEngine.materializationengine.blueprints.client.utils.py to see some header and response handling options
-                    return response
-                else:  # method == 'Response'
-                    response = Response(skeleton_return, mimetype='application/octet-stream')
-                    response.headers.update(SkeletonService.response_headers())
-                    return SkeletonService.after_request(response)
-            # if output_format == 'json':  # DEBUG
-            #     skeleton_return = SkeletonService.minimize_json_skeleton_for_easier_debugging(skeleton_return)
+                response = Response(skeleton_return, mimetype='application/octet-stream')
+                response.headers.update(SkeletonService.response_headers())
+                return SkeletonService.after_request(response)
+            if output_format == 'json' and debug_minimize_json_skeleton:  # DEBUG
+                skeleton_return = SkeletonService.minimize_json_skeleton_for_easier_debugging(skeleton_return)
             return skeleton_return 
         else:
             # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
             # check for an H5 version before generating a new skeleton and use it to build a skeleton object if found.
             skeleton = None
             if output_format == 'json' or output_format == 'swc' or output_format == 'precomputed':
-                # skeleton_return = SkeletonService.retrieve_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5')
-                skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
-            print(f"H5 cache query result: {skeleton}")
+                skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(params)
+            # print(f"H5 cache query result: {skeleton}")
 
+            # If no H5 skeleton was found, generate a new skeleton.
+            # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
+            # H5 will be used to generate all the other formats as needed.
             save_h5 = False
             if not skeleton:
-                # No H5 skeleton was found, so generate a new skeleton
                 try:
-                    skeleton = SkeletonService.generate_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius)
+                    skeleton = SkeletonService.generate_skeleton(*params)
                 except Exception as e:
                     print(e)
                     return f"Failed to generate skeleton for {rid}: {str(e)}"
                 save_h5 = True
 
-            # Cache the skeleton in the requested format and return the content (JSON) or location (H5 or SWC)
-            # Also cache the H5 skeleton if it was generated
+            # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
+            # Also cache the H5 skeleton if it was generated.
 
             if output_format == 'h5' or save_h5:
-                file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, 'h5', False)
+                file_name = SkeletonService.get_skeleton_filename(*params, 'h5', False)
                 skeleton_io.write_skeleton_h5(skeleton, file_name)
                 # Read the file back as a bytes object to facilitate CloudFiles.put()
                 file_content = open(file_name, 'rb').read()
-                SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, file_content, 'h5')
+                SkeletonService.cache_skeleton(params, file_content, 'h5')
                 if output_format == 'h5':
-                    file_location = SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
+                    file_location = SkeletonService.get_skeleton_location(params, output_format)
                     return file_location
             
             if output_format == 'swc':
-                file_name = SkeletonService.get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format, False)
+                file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
                 skeleton_io.export_to_swc(skeleton, file_name)
                 # Read the file back as a bytes object to facilitate CloudFiles.put()
                 file_content = open(file_name, 'rb').read()
-                SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, file_content, output_format)
-                file_location = SkeletonService.get_skeleton_location(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, output_format)
+                SkeletonService.cache_skeleton(params, file_content, output_format)
+                file_location = SkeletonService.get_skeleton_location(params, output_format)
                 return file_location
+            
+            if output_format == 'json':
+                skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                SkeletonService.cache_skeleton(params, skeleton_json, output_format)
+                if debug_minimize_json_skeleton:  # DEBUG
+                    skeleton_json = SkeletonService.minimize_json_skeleton_for_easier_debugging(skeleton_json)
+                return skeleton_json
             
             if output_format == 'precomputed':
                 cv_skeleton = cloudvolume.Skeleton(
                     vertices=skeleton.vertices,
                     edges=skeleton.edges, 
                     radii=skeleton.radius,
-                    # vertex_types=skeleton.vertex_properties['vertex_types'], 
-                    # segid=,
-                    # transform=,
                     space='voxel',
                     extra_attributes=[{
                         'id': 'radius',
                         'data_type': 'float32',
                         'num_components': 1
-                    },
-                    # {
-                    #     'id': 'vertex_types',
-                    #     'data_type': 'float32',
-                    #     'num_components': 1
-                    # }
-                    ]
+                    }],
                 )
                 skeleton_precomputed = cv_skeleton.to_precomputed()
-                SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_precomputed, output_format)
-                
-                if response_method == 'send_file':
-                    response = send_file(BytesIO(skeleton_precomputed), 'application/octet-stream')
-                    # See MaterializationEngine.materializationengine.blueprints.client.utils.py to see some header and response handling options
-                    return response
-                else:  # method == 'Response'
-                    response = Response(skeleton_precomputed, mimetype='application/octet-stream')
-                    response.headers.update(SkeletonService.response_headers())
-                    return SkeletonService.after_request(response)
-            
-            if output_format == 'json':
-                skeleton_json = SkeletonService.skeleton_to_json(skeleton)
-                SkeletonService.cache_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, skeleton_json, output_format)
-                skeleton_json = SkeletonService.minimize_json_skeleton_for_easier_debugging(skeleton_json)  # DEBUG
-                return skeleton_json
+                SkeletonService.cache_skeleton(params, skeleton_precomputed, output_format)
+                response = Response(skeleton_precomputed, mimetype='application/octet-stream')
+                response.headers.update(SkeletonService.response_headers())
+                return SkeletonService.after_request(response)

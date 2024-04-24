@@ -235,6 +235,7 @@ class SkeletonResource(Resource):
 
 
 
+# With the later addition of the /precomputed/ entrypoints above, I'm not sure this endpoint should be kept around anymore.
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
 @api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={'sid': 0, 'datastack': 'minnie65_public', 'materialize_version': 795,
                                                 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1, 'collapse_soma': True, 'collapse_radius': 7500})
