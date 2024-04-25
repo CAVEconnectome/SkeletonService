@@ -9,12 +9,7 @@ class BaseConfig(object):
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     # Statement for enabling the development environment
     DEBUG = True
-    # Define the database - we are working with
-    # SQLite for this example
-    SQLALCHEMY_DATABASE_URI = "postgres://postgres:postgres@localhost:5432/datasets"
 
-    DATABASE_CONNECT_OPTIONS = {}
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Application threads. A common general assumption is
     # using 2 per available processor cores - to handle
     # incoming requests using one and performing background
@@ -30,6 +25,8 @@ class BaseConfig(object):
 
     # Secret key for signing cookies
     SECRET_KEY = b"SECRETKEY"
+
+    SKELETON_CACHE_BUCKET = "NA"  # "gs://keith-dev/"
 
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
     if os.environ.get("DAF_CREDENTIALS", None) is not None:

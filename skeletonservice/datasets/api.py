@@ -226,6 +226,7 @@ class SkeletonResource(Resource):
             rid,
             output_format='precomputed',
             sid=0,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             datastack='minnie65_public',
             materialize_version=795,
             root_resolution=[1, 1, 1],
@@ -237,11 +238,13 @@ class SkeletonResource(Resource):
 
 # With the later addition of the /precomputed/ entrypoints above, I'm not sure this endpoint should be kept around anymore.
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
-@api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={'sid': 0, 'datastack': 'minnie65_public', 'materialize_version': 795,
-                                                'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1, 'collapse_soma': True, 'collapse_radius': 7500})
-@api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:datastack>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
+@api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={
+    'sid': 0, 'bucket': 'gs://keith-dev/', 'datastack': 'minnie65_public', 'materialize_version': 795, 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1,
+    'collapse_soma': True, 'collapse_radius': 7500})
+@api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:bucket>/<string:datastack>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
 @api_bp.param("rid", "Skeleton Root Id")
 @api_bp.param("sid", "Skeleton Nucleus Id")
+@api_bp.param("bucket", "Bucket")
 @api_bp.param("datastack", "Datastack")
 @api_bp.param("materialize_version", "Materialize version")
 @api_bp.param("root_res_x", "Root resolution X in nm")
@@ -257,7 +260,7 @@ class SkeletonResource(Resource):
     # @auth_requires_permission(
     #     "view", table_arg="skeleton", resource_namespace="skeleton"
     # )
-    def get(self, rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
+    def get(self, rid: int, output_format: str, sid: int, bucket: str, datastack: str, materialize_version: int,
             root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int):
         """Get skeleton By Root ID"""
 
@@ -266,5 +269,5 @@ class SkeletonResource(Resource):
         # but the overrided values are ignored by the time this function is called. Instead, the default values created in the route decorator above are received here.
 
         # return {'rid': rid, 'collapse_soma': 'True' if collapse_soma else 'False', 'collapse_radius': collapse_radius}
-        return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, datastack, materialize_version,
+        return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, bucket, datastack, materialize_version,
                                                        [root_res_x, root_res_y, root_res_z], collapse_soma, collapse_radius)

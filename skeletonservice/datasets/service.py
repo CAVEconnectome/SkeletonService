@@ -24,7 +24,7 @@ from skeletonservice.datasets.schemas import (
 )
 
 # SKELETON_CACHE_LOC = "file:///Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
-SKELETON_CACHE_LOC = "gs://keith-dev/"
+# SKELETON_CACHE_LOC = "gs://keith-dev/"
 COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 
 class SkeletonService:
@@ -70,7 +70,7 @@ class SkeletonService:
         return nid
     
     @staticmethod
-    def get_skeleton_filename(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+    def get_skeleton_filename(rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
         '''
         Build a filename for a skeleton file based on the parameters.
         The format and optional compression will be appended as extensions as necessary.
@@ -95,7 +95,8 @@ class SkeletonService:
         '''
         Build a location for a skeleton file based on the parameters and the cache location (likely a Google bucket).
         '''
-        return f"{SKELETON_CACHE_LOC}{SkeletonService.get_skeleton_filename(*params, format)}"
+        bucket = params[1]
+        return f"{bucket}{SkeletonService.get_skeleton_filename(*params, format)}"
 
     @staticmethod
     def retrieve_skeleton_from_cache(params, format):
@@ -104,7 +105,8 @@ class SkeletonService:
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format)
-        cf = CloudFiles(SKELETON_CACHE_LOC)
+        bucket = params[1]
+        cf = CloudFiles(bucket)
         if cf.exists(file_name):
             if format == 'json':
                 return cf.get_json(file_name)
@@ -121,7 +123,8 @@ class SkeletonService:
         See retrieve_skeleton_from_cache() for comparison.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, 'h5')
-        cf = CloudFiles(SKELETON_CACHE_LOC)
+        bucket = params[1]
+        cf = CloudFiles(bucket)
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
             # Write the bytes to a file and then immediately read them back in to build a skeleton object.
@@ -137,14 +140,15 @@ class SkeletonService:
         Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format)
-        cf = CloudFiles(SKELETON_CACHE_LOC)
+        bucket = params[1]
+        cf = CloudFiles(bucket)
         if format == 'json':
             cf.put_json(file_name, skeleton, COMPRESSION)
         else:  # format == 'precomputed' or 'h5' or 'swc'
             cf.put(file_name, skeleton, compress=COMPRESSION)
 
     @staticmethod
-    def generate_skeleton(rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
+    def generate_skeleton(rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
@@ -332,7 +336,7 @@ class SkeletonService:
         return response
 
     @staticmethod
-    def get_skeleton_by_rid_sid(rid: int, output_format: str, sid: int, datastack: str, materialize_version: int,
+    def get_skeleton_by_rid_sid(rid: int, output_format: str, sid: int, bucket: str, datastack: str, materialize_version: int,
                                 root_resolution: List, collapse_soma: bool, collapse_radius: int):
         '''
         Get a skeleton by root id (with optional associated soma id).
@@ -354,7 +358,7 @@ class SkeletonService:
         # print(f"rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
         
-        params = [rid, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
+        params = [rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
 
         skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
         # print(f"Cache query result: {skeleton_return}")
