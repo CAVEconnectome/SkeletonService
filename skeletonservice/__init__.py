@@ -1,15 +1,14 @@
 from flask import Flask, jsonify, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
-from skeletonservice.database import Base
+# from skeletonservice.database import Base
 from skeletonservice.utils import get_instance_folder_path
 from skeletonservice.datasets.api import api_bp
 from skeletonservice.datasets.views import views_bp
 from skeletonservice.admin import setup_admin  # noQA: E402
-from flask_sqlalchemy import SQLAlchemy
 from flask_restx import Api
 from flask_cors import CORS
 import logging
-from flask_migrate import Migrate
+# from flask_migrate import Migrate
 from werkzeug.routing import BaseConverter
 
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -17,8 +16,7 @@ from middle_auth_client import auth_required
 
 __version__ = "3.17.1"
 
-db = SQLAlchemy(model_class=Base)
-migrate = Migrate()
+# migrate = Migrate()
 
 
 class BoolConverter(BaseConverter):
@@ -46,7 +44,7 @@ def create_app(test_config=None):
         __name__,
         instance_path=get_instance_folder_path(),
         instance_relative_config=True,
-        static_url_path="/properties/static",
+        static_url_path="/precomputed/properties/static",
         static_folder="../static",
     )
     CORS(app, expose_headers="WWW-Authenticate")
@@ -78,11 +76,7 @@ def create_app(test_config=None):
         api.add_namespace(api_bp, path="/v1")
 
         app.register_blueprint(baseapi_bp)
-        db.init_app(app)
-        migrate.init_app(app, db)
-        # db.create_all()
-        admin = setup_admin(app, db)
-
+        
     @app.route("/properties/health")
     def health():
         return jsonify("healthy"), 200

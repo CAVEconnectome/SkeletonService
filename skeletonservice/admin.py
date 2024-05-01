@@ -1,5 +1,5 @@
 from flask_admin import Admin, AdminIndexView, expose
-from flask_admin.contrib.sqla import ModelView
+# from flask_admin.contrib.sqla import ModelView
 from skeletonservice.datasets.models import (
     Skeleton,
 )
@@ -7,7 +7,7 @@ from middle_auth_client import auth_requires_admin, auth_required
 from flask import redirect, url_for, request, g
 
 
-class SuperAdminView(ModelView):
+class SuperAdminView():#ModelView):
     def is_accessible(self):
         @auth_required
         def helper():
@@ -32,10 +32,10 @@ class MyAdminIndexView(AdminIndexView):
         return True
 
 
-def setup_admin(app, db):
+def setup_admin(app):#, db):
     admin = Admin(
         app, name="infoservice admin", index_view=MyAdminIndexView(url="/info/admin")
     )
-    admin.add_view(SuperAdminView(Skeleton, db.session))
+    admin.add_view(SuperAdminView(Skeleton))#, db.session))
 
     return admin

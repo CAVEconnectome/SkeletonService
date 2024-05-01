@@ -1,7 +1,6 @@
 # Define the application directory
 import os
-from flask_sqlalchemy import SQLAlchemy
-from skeletonservice.datasets.models import Base
+# from skeletonservice.datasets.models import Base
 import json
 
 
@@ -26,7 +25,7 @@ class BaseConfig(object):
     # Secret key for signing cookies
     SECRET_KEY = b"SECRETKEY"
 
-    SKELETON_CACHE_BUCKET = "NA"  # "gs://keith-dev/"
+    SKELETON_CACHE_BUCKET = "CONFIGURE_ME"  # "gs://keith-dev/"
 
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
     if os.environ.get("DAF_CREDENTIALS", None) is not None:
@@ -47,16 +46,19 @@ def configure_app(app):
     config_name = os.getenv("FLASK_CONFIGURATION", "default")
     # object-based default configuration
     app.config.from_object(config[config_name])
+    print(f"configure_app() {os.environ.get('SKELETONSERVICE_SETTINGS', None)}")
     if os.environ.get("SKELETONSERVICE_SETTINGS", None) is not None:
         config_file = os.environ.get("SKELETONSERVICE_SETTINGS")
         if os.path.exists(config_file):
+            print(f"configure_app() Config file exists")
             app.config.from_envvar("SKELETONSERVICE_SETTINGS")
+        else:
+            print(f"configure_app() Config file doesn't exist")
     else:
+        print(f"configure_app() SKELETONSERVICE_SETTINGS not defined")
         # instance-folders configuration
         app.config.from_pyfile("config.cfg", silent=True)
-    db = SQLAlchemy(model_class=Base)
-    from .datasets.schemas import ma
+    # from .datasets.schemas import ma
 
-    db.init_app(app)
-    ma.init_app(app)
+    # ma.init_app(app)
     return app

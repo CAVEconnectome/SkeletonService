@@ -1,15 +1,15 @@
-import skeletonservice.datasets.models as models
-from flask_marshmallow import Marshmallow
-import marshmallow
+# import skeletonservice.datasets.models as models
+# from flask_marshmallow import Marshmallow
+# import marshmallow
 
-ma = Marshmallow()
+# ma = Marshmallow()
 
 
 
-class SkeletonSchema(ma.SQLAlchemyAutoSchema):
-    class Meta:
-        model = models.Skeleton
+# class SkeletonSchema(ma.SQLAlchemyAutoSchema):
+#     class Meta:
+#         model = models.Skeleton
 
-    # skeleton = ma.HyperlinkRelated(
-    #     "api.Skeletonservice_resource"
-    # )
+#     # skeleton = ma.HyperlinkRelated(
+#     #     "api.Skeletonservice_resource"
+#     # )

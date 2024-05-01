@@ -112,6 +112,8 @@ client-secret.json
 credentials.tar.gz
 .idea/
 
+.devcontainer/
+
 # Any development and debugging skeleton files lying around
 ./skeletons/
 skeleton*.json

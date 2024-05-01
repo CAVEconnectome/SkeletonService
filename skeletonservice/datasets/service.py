@@ -7,8 +7,6 @@ import json
 import gzip
 from flask import send_file, Response, request
 from meshparty import skeleton, skeleton_io
-import skeleton_plot.skel_io as skel_io
-from skeleton_plot import utils
 import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles, compression
@@ -19,9 +17,9 @@ import os
 from skeletonservice.datasets.models import (
     Skeleton,
 )
-from skeletonservice.datasets.schemas import (
-    SkeletonSchema,
-)
+# from skeletonservice.datasets.schemas import (
+#     SkeletonSchema,
+# )
 
 # SKELETON_CACHE_LOC = "file:///Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 # SKELETON_CACHE_LOC = "gs://keith-dev/"
@@ -355,9 +353,10 @@ class SkeletonService:
             datastack = 'minnie65_public'
             materialize_version = 795
         
-        # print(f"rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
+        # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
         
+        print(f"Bucket: {bucket}")
         params = [rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
 
         skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
