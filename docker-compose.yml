@@ -1,15 +1,20 @@
 services:
   app:
+    platform: linux/amd64
     image: 'info:tag'
     build:
       context: .
       dockerfile: Dockerfile
     ports:
+      - 80:80
     environment:
       - SKELETONSERVICE_SETTINGS=/app/skeletonservice/instance/config.cfg
+      - GOOGLE_APPLICATION_CREDENTIALS=/home/nginx/.cloudvolume/secrets/google-secret.json
       - AUTH_DISABLED=true
     volumes:
       - .:/app
+      - ~/.cloudvolume/secrets:/home/nginx/.cloudvolume/secrets:z
+      - ~/.cloudvolume/secrets/google-secret.json:/home/nginx/.cloudvolume/secrets/google-secret.json:z
   adminer:
     image: adminer
     ports:

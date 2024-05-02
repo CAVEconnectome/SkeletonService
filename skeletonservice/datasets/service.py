@@ -356,7 +356,7 @@ class SkeletonService:
         # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
         
-        print(f"Bucket: {bucket}")
+        # print(f"Bucket: {bucket}")
         params = [rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
 
         skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)

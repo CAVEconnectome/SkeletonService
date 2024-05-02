@@ -24,6 +24,7 @@ class BaseConfig(object):
 
     # Secret key for signing cookies
     SECRET_KEY = b"SECRETKEY"
+    # GOOGLE_APPLICATION_CREDENTIALS = "/home/nginx/.cloudvolume/secrets/google-secret.json"
 
     SKELETON_CACHE_BUCKET = "CONFIGURE_ME"  # "gs://keith-dev/"
 
@@ -46,16 +47,11 @@ def configure_app(app):
     config_name = os.getenv("FLASK_CONFIGURATION", "default")
     # object-based default configuration
     app.config.from_object(config[config_name])
-    print(f"configure_app() {os.environ.get('SKELETONSERVICE_SETTINGS', None)}")
     if os.environ.get("SKELETONSERVICE_SETTINGS", None) is not None:
         config_file = os.environ.get("SKELETONSERVICE_SETTINGS")
         if os.path.exists(config_file):
-            print(f"configure_app() Config file exists")
             app.config.from_envvar("SKELETONSERVICE_SETTINGS")
-        else:
-            print(f"configure_app() Config file doesn't exist")
     else:
-        print(f"configure_app() SKELETONSERVICE_SETTINGS not defined")
         # instance-folders configuration
         app.config.from_pyfile("config.cfg", silent=True)
     # from .datasets.schemas import ma

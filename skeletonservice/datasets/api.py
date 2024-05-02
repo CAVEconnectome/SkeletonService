@@ -1,3 +1,4 @@
+import os
 # Import flask dependencies
 from flask import jsonify, render_template, current_app, make_response, Blueprint
 from flask_accepts import accepts, responds
@@ -221,7 +222,7 @@ class SkeletonResource(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, rid: int):
         """Get skeleton by rid"""
-        
+
         return SkeletonService.get_skeleton_by_rid_sid(
             rid,
             output_format='precomputed',
