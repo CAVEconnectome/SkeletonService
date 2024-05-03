@@ -347,7 +347,7 @@ class SkeletonService:
         # sid = 294657 if sid == 0 else sid # nucleus_id  # Nucleus id
 
         # DEBUG
-        if rid == 0:  # rid == 0 implies a default skeleton for debugging
+        if rid == 0:  # rid == 0 indicates that a default hard-coded rid should be used for dev and debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             rid = 864691135397503777
             datastack = 'minnie65_public'

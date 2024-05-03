@@ -24,8 +24,8 @@ class BaseConfig(object):
 
     # Secret key for signing cookies
     SECRET_KEY = b"SECRETKEY"
-    # GOOGLE_APPLICATION_CREDENTIALS = "/home/nginx/.cloudvolume/secrets/google-secret.json"
 
+    # I'm not sure this needs to be here, even as a to-be-filled-in-later stub
     SKELETON_CACHE_BUCKET = "CONFIGURE_ME"  # "gs://keith-dev/"
 
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
