@@ -54,7 +54,7 @@ class SkeletonService:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
     
     @staticmethod
-    def retrieve_sid_for_rid(rid, datastack,materialize_version ):
+    def retrieve_sid_for_rid(rid, datastack, materialize_version):
         '''
         Given a root id, find the nucleus id (aka soma id)
         '''
