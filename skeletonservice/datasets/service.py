@@ -6,7 +6,8 @@ import pandas as pd
 import json
 import gzip
 from flask import send_file, Response, request
-from meshparty import skeleton, skeleton_io
+from .skeleton_io_from_meshparty import SkeletonIO
+from meshparty import skeleton
 import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles, compression
@@ -54,11 +55,11 @@ class SkeletonService:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
     
     @staticmethod
-    def retrieve_sid_for_rid(rid, datastack, materialize_version):
+    def retrieve_sid_for_rid(rid, datastack_name, materialize_version):
         '''
         Given a root id, find the nucleus id (aka soma id)
         '''
-        client = caveclient.CAVEclient(datastack)
+        client = caveclient.CAVEclient(datastack_name)
         client.materialize.version = materialize_version
         proof = client.materialize.query_table('proofreading_status_public_release')
         rid2 = proof[proof['valid_id']==rid].iloc[0]['pt_root_id']
@@ -68,12 +69,12 @@ class SkeletonService:
         return nid
     
     @staticmethod
-    def get_skeleton_filename(rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+    def get_skeleton_filename(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
         '''
         Build a filename for a skeleton file based on the parameters.
         The format and optional compression will be appended as extensions as necessary.
         '''
-        file_name = f"skeleton__rid-{rid}__ds-{datastack}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
         assert format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
         file_name += f".{format}"
@@ -129,7 +130,7 @@ class SkeletonService:
             # There has GOT to be a more efficient way to do this! Some sort of BytesIO object or even a RAMDisk for heaven's sake.
             with open(file_name, 'wb') as f:
                 f.write(skeleton_bytes)
-            return skeleton_io.read_skeleton_h5(file_name)
+            return SkeletonIO.read_skeleton_h5(file_name)
         return None
     
     @staticmethod
@@ -146,15 +147,15 @@ class SkeletonService:
             cf.put(file_name, skeleton, compress=COMPRESSION)
 
     @staticmethod
-    def generate_skeleton(rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius):
+    def generate_skeleton(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
-        client = caveclient.CAVEclient(datastack)
+        client = caveclient.CAVEclient(datastack_name)
         client.materialize.version = materialize_version # Ensure we will always use this data release
         
         # Get the location of the soma from nucleus detection:
-        print(f"generate_skeleton {rid} {datastack} {materialize_version} {root_resolution} {collapse_soma} {collapse_radius}")
+        print(f"generate_skeleton {rid} {datastack_name} {materialize_version} {root_resolution} {collapse_soma} {collapse_radius}")
         print(f"CAVEClient version: {caveclient.__version__}")
         soma_df = client.materialize.views.nucleus_detection_lookup_v1(
             pt_root_id = rid
@@ -334,7 +335,7 @@ class SkeletonService:
         return response
 
     @staticmethod
-    def get_skeleton_by_rid_sid(rid: int, output_format: str, sid: int, bucket: str, datastack: str, materialize_version: int,
+    def get_skeleton_by_datastack_and_rid(datastack_name: str, rid: int, materialize_version: int, output_format: str, sid: int, bucket: str,
                                 root_resolution: List, collapse_soma: bool, collapse_radius: int):
         '''
         Get a skeleton by root id (with optional associated soma id).
@@ -343,21 +344,17 @@ class SkeletonService:
         If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
         '''
         # DEBUG
-        # rid = 864691135926952148 if rid == 0 else rid # v661: 864691135926952148, current: 864691135701676411
-        # sid = 294657 if sid == 0 else sid # nucleus_id  # Nucleus id
-
-        # DEBUG
-        if rid == 0:  # rid == 0 indicates that a default hard-coded rid should be used for dev and debugging
+        if datastack_name == "0" or rid == 0:  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             rid = 864691135397503777
-            datastack = 'minnie65_public'
+            datastack_name = 'minnie65_public'
             materialize_version = 795
         
-        # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack: {datastack}, materialize_version: {materialize_version},",
+        # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack_name: {datastack_name}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
         
         # print(f"Bucket: {bucket}")
-        params = [rid, bucket, datastack, materialize_version, root_resolution, collapse_soma, collapse_radius]
+        params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
 
         skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
         # print(f"Cache query result: {skeleton_return}")
@@ -399,7 +396,7 @@ class SkeletonService:
 
             if output_format == 'h5' or save_h5:
                 file_name = SkeletonService.get_skeleton_filename(*params, 'h5', False)
-                skeleton_io.write_skeleton_h5(skeleton, file_name)
+                SkeletonIO.write_skeleton_h5(skeleton, file_name)
                 # Read the file back as a bytes object to facilitate CloudFiles.put()
                 file_content = open(file_name, 'rb').read()
                 SkeletonService.cache_skeleton(params, file_content, 'h5')
@@ -409,7 +406,7 @@ class SkeletonService:
             
             if output_format == 'swc':
                 file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
-                skeleton_io.export_to_swc(skeleton, file_name)
+                SkeletonIO.export_to_swc(skeleton, file_name)
                 # Read the file back as a bytes object to facilitate CloudFiles.put()
                 file_content = open(file_name, 'rb').read()
                 SkeletonService.cache_skeleton(params, file_content, output_format)

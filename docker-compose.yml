@@ -1,7 +1,7 @@
 services:
   app:
     platform: linux/amd64
-    image: 'info:tag'
+    image: 'skeletonservice:tag_via_dockercompose'
     build:
       context: .
       dockerfile: Dockerfile

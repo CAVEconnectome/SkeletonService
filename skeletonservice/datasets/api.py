@@ -6,15 +6,15 @@ from flask_restx import Namespace, Resource
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.service import (
-   SkeletonService,
-)
-from typing import List, Dict
+from skeletonservice.datasets.service import SkeletonService
+
 from middle_auth_client import (
     auth_required,
     auth_requires_permission,
     user_has_permission,
 )
+
+from typing import List, Dict
 
 __version__ = "3.17.1"
 
@@ -34,12 +34,14 @@ class SkeletonResource(Resource):
     """Skeletons"""
 
     @auth_required
-    def get(self) -> List:
+    def get(self, datastack_name: str) -> List:
         """Get all skeletons"""
         skeletons = [
-            a
-            for a in SkeletonService.get_all()
-            if True  # user_has_permission("view", a.name, "skeleton")
+            s
+            for s in SkeletonService.get_all()
+            # See AnnotationFrameworkInfoService for an example of how to use user_has_permission.
+            # I have disabled it until I can figure out how to get the user's permissions for skeleton objects.
+            if True  # user_has_permission("view", s.name, "skeleton")
         ]
 
         return [sk["name"] for sk in skeletons]
@@ -49,45 +51,52 @@ class SkeletonResource(Resource):
 # I can create optional parameters that don't have to be supplied, and I can create default values to populate them,
 # but when I then supply overriding values in the web UI, those values never arrive by the time get() is called.
 # Only the defaults defined in route() are ever received. This is driving me crazy.
-@api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/", defaults={'bar': 123})  # Only this default value is ever received in get(), below.
-@api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/<int:bar>")
-@api_bp.param("foo", "foo")
-@api_bp.param("bar", "bar")
-class SkeletonResource(Resource):
-    """ParameterBugInvestigation"""
+# @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/", defaults={'bar': 123})  # Only this default value is ever received in get(), below.
+# @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/<int:bar>")
+# @api_bp.param("foo", "foo")
+# @api_bp.param("bar", "bar")
+# class SkeletonResource(Resource):
+#     """ParameterBugInvestigation"""
 
-    @api_bp.doc("foobar", security="apikey")
-    def get(self, foo: int, bar: int):
-        """Get foobar"""
-        # bar will always be received as 123 (the default defined above). Providing an overrided value in the web UI makes no difference.
-        # The URL encodes optional parameters as named args (kwargs) instead of enumerated args (args).
-        # For example, if I enter 888 for foo and 999 for bar in the web UI, the URL will be as follows:
-        # http://localhost:5000/properties/api/v1/skeleton2/888/?bar=999
-        print(f"Foo: {foo}, Bar: {bar}")
-        return {'foo': foo, 'bar': bar}
+#     @auth_required
+#     @api_bp.doc("foobar", security="apikey")
+#     def get(self, foo: int, bar: int):
+#         """Get foobar"""
+#         # bar will always be received as 123 (the default defined above). Providing an overrided value in the web UI makes no difference.
+#         # The URL encodes optional parameters as named args (kwargs) instead of enumerated args (args).
+#         # For example, if I enter 888 for foo and 999 for bar in the web UI, the URL will be as follows:
+#         # http://localhost:5000/properties/api/v1/skeleton2/888/?bar=999
+#         print(f"Foo: {foo}, Bar: {bar}")
+#         return {'foo': foo, 'bar': bar}
 
 
 
-@api_bp.route("/precomputed/")
+@api_bp.route("/<string:datastack_name>/precomputed/")
 class SkeletonResource(Resource):
     """PrecomputedResource"""
 
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("PrecomputedResource", security="apikey")
-    def get(self):
+    def get(self, datastack_name: str):
         """Get precomputed"""
 
         return {
-            "foo": "bar",
+            "datastack_name": datastack_name,
         }
 
-@api_bp.route("/precomputed/info/")
+@api_bp.route("/<string:datastack_name>/precomputed/info/")
 class SkeletonResource(Resource):
     """PrecomputedInfoResource"""
 
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("PrecomputedInfoResource", security="apikey")
-    def get(self):
+    def get(self, datastack_name: str):
         """Get precomputed info"""
         
+        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
+
         return {'app': {'supported_api_versions': [0, 1]},
             'chunks_start_at_voxel_offset': True,
             'data_dir': 'gs://minnie65_pcg/ws',
@@ -191,14 +200,18 @@ class SkeletonResource(Resource):
 
 
 
-@api_bp.route("/precomputed/skeleton/info")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/info")
 class SkeletonResource(Resource):
     """SkeletonInfoResource"""
 
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonInfoResource", security="apikey")
-    def get(self):
+    def get(self, datastack_name: str):
         """Get skeleton info"""
         
+        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
+
         return {'@type': 'neuroglancer_skeletons',
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [{
@@ -215,21 +228,23 @@ class SkeletonResource(Resource):
 
 
 
-@api_bp.route("/precomputed/skeleton/<int:rid>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource(Resource):
     """SkeletonResource"""
 
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, rid: int):
+    def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
 
-        return SkeletonService.get_skeleton_by_rid_sid(
-            rid,
+        return SkeletonService.get_skeleton_by_datastack_and_rid(
+            datastack_name=datastack_name,
+            rid=rid,
+            materialize_version=0,
             output_format='precomputed',
             sid=0,
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
-            datastack='minnie65_public',
-            materialize_version=795,
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
@@ -239,36 +254,35 @@ class SkeletonResource(Resource):
 
 # With the later addition of the /precomputed/ entrypoints above, I'm not sure this endpoint should be kept around anymore.
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
-@api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={
-    'sid': 0, 'bucket': 'gs://keith-dev/', 'datastack': 'minnie65_public', 'materialize_version': 795, 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1,
-    'collapse_soma': True, 'collapse_radius': 7500})
-@api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:bucket>/<string:datastack>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
-@api_bp.param("rid", "Skeleton Root Id")
-@api_bp.param("sid", "Skeleton Nucleus Id")
-@api_bp.param("bucket", "Bucket")
-@api_bp.param("datastack", "Datastack")
-@api_bp.param("materialize_version", "Materialize version")
-@api_bp.param("root_res_x", "Root resolution X in nm")
-@api_bp.param("root_res_y", "Root resolution Y in nm")
-@api_bp.param("root_res_z", "Root resolution Z in nm")
-@api_bp.param("collapse_soma", "Whether to collapse the soma")
-@api_bp.param("collapse_radius", "Collapse radius")
-class SkeletonResource(Resource):
-    """Skeletons"""
+# @api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={
+#     'sid': 0, 'bucket': 'gs://keith-dev/', 'datastack_name': 'minnie65_public', 'materialize_version': 795, 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1,
+#     'collapse_soma': True, 'collapse_radius': 7500})
+# @api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:bucket>/<string:datastack_name>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
+# @api_bp.param("rid", "Skeleton Root Id")
+# @api_bp.param("sid", "Skeleton Nucleus Id")
+# @api_bp.param("bucket", "Bucket")
+# @api_bp.param("datastack_name", "Datastack")
+# @api_bp.param("materialize_version", "Materialize version")
+# @api_bp.param("root_res_x", "Root resolution X in nm")
+# @api_bp.param("root_res_y", "Root resolution Y in nm")
+# @api_bp.param("root_res_z", "Root resolution Z in nm")
+# @api_bp.param("collapse_soma", "Whether to collapse the soma")
+# @api_bp.param("collapse_radius", "Collapse radius")
+# class SkeletonResource(Resource):
+#     """Skeletons"""
 
-    # @responds(schema=schemas.SkeletonSchema)
-    @api_bp.doc("get skeleton", security="apikey")
-    # @auth_requires_permission(
-    #     "view", table_arg="skeleton", resource_namespace="skeleton"
-    # )
-    def get(self, rid: int, output_format: str, sid: int, bucket: str, datastack: str, materialize_version: int,
-            root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int):
-        """Get skeleton By Root ID"""
+#     # @responds(schema=schemas.SkeletonSchema)
+#     @api_bp.doc("get skeleton", security="apikey")
+#     @auth_required
+#     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+#     def get(self, rid: int, output_format: str, sid: int, bucket: str, datastack_name: str, materialize_version: int,
+#             root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int):
+#         """Get skeleton By Root ID"""
 
-        # TODO: I made most parameters optional, as shown above, and the web UI correctly exposes two endpoints, one without the parameters and one with them.
-        # If I enter overriding values in the web UI, they are passed into the URL as named arguments (not as enumerated arguments), which I suppose is fine,
-        # but the overrided values are ignored by the time this function is called. Instead, the default values created in the route decorator above are received here.
+#         # TODO: I made most parameters optional, as shown above, and the web UI correctly exposes two endpoints, one without the parameters and one with them.
+#         # If I enter overriding values in the web UI, they are passed into the URL as named arguments (not as enumerated arguments), which I suppose is fine,
+#         # but the overrided values are ignored by the time this function is called. Instead, the default values created in the route decorator above are received here.
 
-        # return {'rid': rid, 'collapse_soma': 'True' if collapse_soma else 'False', 'collapse_radius': collapse_radius}
-        return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, bucket, datastack, materialize_version,
-                                                       [root_res_x, root_res_y, root_res_z], collapse_soma, collapse_radius)
+#         # return {'rid': rid, 'collapse_soma': 'True' if collapse_soma else 'False', 'collapse_radius': collapse_radius}
+#         return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, bucket, datastack_name, materialize_version,
+#                                                        [root_res_x, root_res_y, root_res_z], collapse_soma, collapse_radius)

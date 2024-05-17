@@ -44,7 +44,7 @@ def create_app(test_config=None):
         __name__,
         instance_path=get_instance_folder_path(),
         instance_relative_config=True,
-        static_url_path="/precomputed/properties/static",
+        static_url_path="/skeletoncache/static",
         static_folder="../static",
     )
     CORS(app, expose_headers="WWW-Authenticate")
@@ -61,7 +61,7 @@ def create_app(test_config=None):
     else:
         app.config.update(test_config)
 
-    baseapi_bp = Blueprint("api", __name__, url_prefix="/properties/api")
+    baseapi_bp = Blueprint("api", __name__, url_prefix="/skeletoncache/api")
 
     @auth_required
     @baseapi_bp.route("/versions")
@@ -69,7 +69,7 @@ def create_app(test_config=None):
         return jsonify([2]), 200
 
     with app.app_context():
-        app.register_blueprint(views_bp, url_prefix="/properties")
+        app.register_blueprint(views_bp, url_prefix="/skeletoncache")
         api = Api(
             baseapi_bp, title="Skeletonservice API", version=__version__, doc="/doc"
         )
@@ -77,12 +77,12 @@ def create_app(test_config=None):
 
         app.register_blueprint(baseapi_bp)
         
-    @app.route("/properties/health")
+    @app.route("/skeletoncache/health")
     def health():
         return jsonify("healthy"), 200
 
     @auth_required
-    @app.route("/properties/site-map")
+    @app.route("/skeletoncache/site-map")
     def site_map():
         links = []
         for rule in app.url_map.iter_rules():
