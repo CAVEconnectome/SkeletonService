@@ -62,7 +62,8 @@ def create_app(test_config=None):
         app.config.update(test_config)
 
     baseapi_bp = Blueprint("api", __name__, url_prefix="/skeletoncache/api")
-
+    CORS(baseapi_bp, expose_headers="WWW-Authenticate")
+    CORS(api_bp, expose_headers="WWW-Authenticate")
     @auth_required
     @baseapi_bp.route("/versions")
     def versions():

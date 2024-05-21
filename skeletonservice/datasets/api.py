@@ -95,7 +95,8 @@ class SkeletonResource(Resource):
     def get(self, datastack_name: str):
         """Get precomputed info"""
         
-        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
+        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion.
+        # For example, notice that "data_dir" below seems very datastack-specific.
 
         return {'app': {'supported_api_versions': [0, 1]},
             'chunks_start_at_voxel_offset': True,

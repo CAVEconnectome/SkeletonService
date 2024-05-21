@@ -349,6 +349,8 @@ class SkeletonService:
             rid = 864691135397503777
             datastack_name = 'minnie65_public'
             materialize_version = 795
+        if materialize_version == 0:
+            materialize_version = 795
         
         # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack_name: {datastack_name}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")

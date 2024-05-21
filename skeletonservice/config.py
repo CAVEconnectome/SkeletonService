@@ -35,6 +35,11 @@ class BaseConfig(object):
     else:
         AUTH_TOKEN = ""
 
+    # GLOBAL_SERVER_URL = os.environ.get("GLOBAL_SERVER_URL")
+    # LOCAL_SERVER_URL = os.environ.get("LOCAL_SERVER_URL")
+    # ANNO_ENDPOINT = f"{LOCAL_SERVER_URL}/annotation/"
+    # INFOSERVICE_ENDPOINT = f"{GLOBAL_SERVER_URL}/info"
+    # AUTH_URI = f"{GLOBAL_SERVER_URL}/auth"
 
 config = {
     "development": "skeletonservice.config.BaseConfig",
