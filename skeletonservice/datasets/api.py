@@ -24,7 +24,7 @@ authorizations = {
 }
 
 api_bp = Namespace(
-    "Skeletonservice", authorizations=authorizations, description="Infoservice"
+    "Skeletonservice", authorizations=authorizations, description="Skeleton Service"
 )
 
 
@@ -71,7 +71,7 @@ class SkeletonResource(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/")
+@api_bp.route("/<string:datastack_name>/precomputed")
 class SkeletonResource(Resource):
     """PrecomputedResource"""
 
@@ -85,7 +85,7 @@ class SkeletonResource(Resource):
             "datastack_name": datastack_name,
         }
 
-@api_bp.route("/<string:datastack_name>/precomputed/info/")
+@api_bp.route("/<string:datastack_name>/precomputed/info")
 class SkeletonResource(Resource):
     """PrecomputedInfoResource"""
 
