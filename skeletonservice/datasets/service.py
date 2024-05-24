@@ -22,7 +22,7 @@ from skeletonservice.datasets.models import (
 #     SkeletonSchema,
 # )
 
-# SKELETON_CACHE_LOC = "file:///Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
+DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 # SKELETON_CACHE_LOC = "gs://keith-dev/"
 COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 
@@ -98,6 +98,44 @@ class SkeletonService:
         return f"{bucket}{SkeletonService.get_skeleton_filename(*params, format)}"
 
     @staticmethod
+    def retrieve_skeleton_from_local(params, format):
+        '''
+        This is a debugging function that reads a skeleton from a local file instead of
+        computing a skeleton from scratch or retrieving one from a Google bucket.
+        '''
+        file_name = SkeletonService.get_skeleton_filename(*params, 'h5', include_compression=False)
+        if not os.path.exists(DEBUG_SKELETON_CACHE_LOC + file_name):
+            return None
+        
+        skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
+
+        if format == 'json':
+            skeleton = SkeletonService.skeleton_to_json(skeleton)
+        elif format == 'precomputed':
+            cv_skeleton = cloudvolume.Skeleton(
+                vertices=skeleton.vertices,
+                edges=skeleton.edges, 
+                radii=skeleton.radius,
+                space='voxel',
+                extra_attributes=[{
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1
+                }],
+            )
+            skeleton = cv_skeleton.to_precomputed()
+        elif format == 'swc':
+            file_name = SkeletonService.get_skeleton_filename(*params, format, False)
+            SkeletonIO.export_to_swc(skeleton, file_name)
+            file_content = open(file_name, 'rb').read()
+            skeleton = file_content
+        else:  # format == 'h5'
+            # It's already in H5 format, so just return the bytes as-is.
+            pass
+
+        return skeleton
+
+    @staticmethod
     def retrieve_skeleton_from_cache(params, format):
         '''
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
@@ -126,11 +164,14 @@ class SkeletonService:
         cf = CloudFiles(bucket)
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
+            
             # Write the bytes to a file and then immediately read them back in to build a skeleton object.
             # There has GOT to be a more efficient way to do this! Some sort of BytesIO object or even a RAMDisk for heaven's sake.
-            with open(file_name, 'wb') as f:
-                f.write(skeleton_bytes)
-            return SkeletonIO.read_skeleton_h5(file_name)
+            # with open(file_name, 'wb') as f:
+            #     f.write(skeleton_bytes)
+            # return SkeletonIO.read_skeleton_h5(file_name)
+            
+            return SkeletonIO.read_skeleton_h5(skeleton_bytes)
         return None
     
     @staticmethod
@@ -364,6 +405,9 @@ class SkeletonService:
         # See minimize_json_skeleton_for_easier_debugging() for explanation.
         debug_minimize_json_skeleton = False  # DEBUG
 
+        # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
+        #     skeleton_return = SkeletonService.retrieve_skeleton_from_local(params, output_format)
+
         if skeleton_return:
             # skeleton_return will be JSON or PRECOMPUTED content, or H5 or SWC file location
             if output_format == 'precomputed':
@@ -387,7 +431,11 @@ class SkeletonService:
             save_h5 = False
             if not skeleton:
                 try:
-                    skeleton = SkeletonService.generate_skeleton(*params)
+                    # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
+                    # On a nonlocal deployment that will simply fail and the skeleton will be generated as normal.
+                    skeleton = SkeletonService.retrieve_skeleton_from_local(params, 'h5')
+                    if not skeleton:
+                        skeleton = SkeletonService.generate_skeleton(*params)
                 except Exception as e:
                     print(e)
                     return f"Failed to generate skeleton for {rid}: {str(e)}"
@@ -397,20 +445,26 @@ class SkeletonService:
             # Also cache the H5 skeleton if it was generated.
 
             if output_format == 'h5' or save_h5:
-                file_name = SkeletonService.get_skeleton_filename(*params, 'h5', False)
-                SkeletonIO.write_skeleton_h5(skeleton, file_name)
-                # Read the file back as a bytes object to facilitate CloudFiles.put()
-                file_content = open(file_name, 'rb').read()
+                if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
+                    # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
+                    file_name = SkeletonService.get_skeleton_filename(*params, 'h5', False)
+                    SkeletonIO.write_skeleton_h5(skeleton, DEBUG_SKELETON_CACHE_LOC + file_name)
+                
+                file_content = BytesIO()
+                SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                file_content = file_content.read()
                 SkeletonService.cache_skeleton(params, file_content, 'h5')
                 if output_format == 'h5':
                     file_location = SkeletonService.get_skeleton_location(params, output_format)
                     return file_location
             
             if output_format == 'swc':
-                file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
-                SkeletonIO.export_to_swc(skeleton, file_name)
+                file_content = BytesIO()
+                SkeletonIO.export_to_swc(skeleton, file_content)
+                # file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
+                # SkeletonIO.export_to_swc(skeleton, file_name)
                 # Read the file back as a bytes object to facilitate CloudFiles.put()
-                file_content = open(file_name, 'rb').read()
+                # file_content = open(file_name, 'rb').read()
                 SkeletonService.cache_skeleton(params, file_content, output_format)
                 file_location = SkeletonService.get_skeleton_location(params, output_format)
                 return file_location

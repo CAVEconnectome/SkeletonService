@@ -4,6 +4,7 @@ and subsequently enable me to make some minor modifications to the code.
 '''
 
 import os
+import io
 import numpy as np
 import json
 import h5py
@@ -143,30 +144,31 @@ class SkeletonIO:
         '''
         Adapted from meshparty.skeleton_io._write_skeleton_h5_by_part()
         '''
-        if os.path.isfile(filename):
-            if overwrite:
-                os.remove(filename)
-            else:
-                return
-            with h5py.File(filename, "w") as f:
-                f.attrs["file_version"] = FILE_VERSION
+        if not isinstance(filename, io.BytesIO):
+            if os.path.isfile(filename):
+                if overwrite:
+                    os.remove(filename)
+                else:
+                    return
+        with h5py.File(filename, "w") as f:
+            f.attrs["file_version"] = FILE_VERSION
 
-                f.create_dataset("vertices", data=vertices, compression="gzip")
-                f.create_dataset("edges", data=edges, compression="gzip")
+            f.create_dataset("vertices", data=vertices, compression="gzip")
+            f.create_dataset("edges", data=edges, compression="gzip")
+            f.create_dataset(
+                "meta",
+                data=np.string_(
+                    orjson.dumps(asdict(meta), option=orjson.OPT_SERIALIZE_NUMPY)
+                ),
+            )
+            if mesh_to_skel_map is not None:
                 f.create_dataset(
-                    "meta",
-                    data=np.string_(
-                        orjson.dumps(asdict(meta), option=orjson.OPT_SERIALIZE_NUMPY)
-                    ),
+                    "mesh_to_skel_map", data=mesh_to_skel_map, compression="gzip"
                 )
-                if mesh_to_skel_map is not None:
-                    f.create_dataset(
-                        "mesh_to_skel_map", data=mesh_to_skel_map, compression="gzip"
-                    )
-                if len(vertex_properties) > 0:
-                    SkeletonIO._write_dict_to_group(f, "vertex_properties", vertex_properties)
-                if root is not None:
-                    f.create_dataset("root", data=root)
+            if len(vertex_properties) > 0:
+                SkeletonIO._write_dict_to_group(f, "vertex_properties", vertex_properties)
+            if root is not None:
+                f.create_dataset("root", data=root)
     
     @staticmethod
     def write_skeleton_h5(sk, filename, overwrite=False):
