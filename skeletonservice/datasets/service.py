@@ -49,7 +49,7 @@ class SkeletonService:
         skeleton_json['vertices'] = 0
         return skeleton_json
 
-    # Placeholder. I'm not sure there is a need for a "get all" or even a "get many" interaction regarding skeletongs.
+    # Placeholder. I'm not sure there is a need for a "get all" or even a "get many" interaction regarding skeletons.
     @staticmethod
     def get_all() -> List[Skeleton]:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
@@ -167,6 +167,7 @@ class SkeletonService:
             
             # Write the bytes to a file and then immediately read them back in to build a skeleton object.
             # There has GOT to be a more efficient way to do this! Some sort of BytesIO object or even a RAMDisk for heaven's sake.
+            # file_name = file_name[:-3]
             # with open(file_name, 'wb') as f:
             #     f.write(skeleton_bytes)
             # return SkeletonIO.read_skeleton_h5(file_name)
