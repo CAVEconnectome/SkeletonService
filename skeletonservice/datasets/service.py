@@ -164,21 +164,22 @@ class SkeletonService:
         cf = CloudFiles(bucket)
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
+            skeleton_bytes = BytesIO(skeleton_bytes)
             return SkeletonIO.read_skeleton_h5(skeleton_bytes)
         return None
     
     @staticmethod
-    def cache_skeleton(params, skeleton, format):
+    def cache_skeleton(params, skeleton, format, include_compression=True):
         '''
         Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
         '''
-        file_name = SkeletonService.get_skeleton_filename(*params, format)
+        file_name = SkeletonService.get_skeleton_filename(*params, format, include_compression=include_compression)
         bucket = params[1]
         cf = CloudFiles(bucket)
         if format == 'json':
-            cf.put_json(file_name, skeleton, COMPRESSION)
+            cf.put_json(file_name, skeleton, COMPRESSION if include_compression else None)
         else:  # format == 'precomputed' or 'h5' or 'swc'
-            cf.put(file_name, skeleton, compress=COMPRESSION)
+            cf.put(file_name, skeleton, compress=COMPRESSION if include_compression else None)
 
     @staticmethod
     def generate_skeleton(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius):
@@ -186,7 +187,12 @@ class SkeletonService:
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
         client = caveclient.CAVEclient(datastack_name)
-        client.materialize.version = materialize_version # Ensure we will always use this data release
+        if materialize_version != 0:
+            client.materialize.version = materialize_version # Ensure we will always use this data release
+        else:
+            timestamps = client.chunkedgraph.get_root_timestamps(rid)
+            timestamp = timestamps[0] if len(timestamps) > 0 else None
+            # TODO: Work in progress: use timestamp to find soma without need for materialization version
         
         # Get the location of the soma from nucleus detection:
         print(f"generate_skeleton {rid} {datastack_name} {materialize_version} {root_resolution} {collapse_soma} {collapse_radius}")
@@ -194,7 +200,7 @@ class SkeletonService:
         soma_df = client.materialize.views.nucleus_detection_lookup_v1(
             pt_root_id = rid
             ).query(
-                desired_resolution = root_resolution
+                desired_resolution = root_resolution,
             )
         soma_location = soma_df['pt_position'].values[0]
 
@@ -442,7 +448,7 @@ class SkeletonService:
                 
                 file_content = BytesIO()
                 SkeletonIO.write_skeleton_h5(skeleton, file_content)
-                file_content = file_content.read()
+                file_content = file_content.getvalue()
                 SkeletonService.cache_skeleton(params, file_content, 'h5')
                 if output_format == 'h5':
                     file_location = SkeletonService.get_skeleton_location(params, output_format)
@@ -467,6 +473,8 @@ class SkeletonService:
                 return skeleton_json
             
             if output_format == 'precomputed':
+                # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
+                # Convert the MeshParty skeleton to a CloudVolume skeleton
                 cv_skeleton = cloudvolume.Skeleton(
                     vertices=skeleton.vertices,
                     edges=skeleton.edges, 
@@ -478,8 +486,11 @@ class SkeletonService:
                         'num_components': 1
                     }],
                 )
+                # Convert the CloudVolume skeleton to precomputed format
                 skeleton_precomputed = cv_skeleton.to_precomputed()
+                # Cache the precomputed skeleton
                 SkeletonService.cache_skeleton(params, skeleton_precomputed, output_format)
+
                 response = Response(skeleton_precomputed, mimetype='application/octet-stream')
                 response.headers.update(SkeletonService.response_headers())
                 return SkeletonService.after_request(response)
