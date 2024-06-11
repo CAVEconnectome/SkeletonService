@@ -389,7 +389,7 @@ class SkeletonService:
             rid = 864691135397503777
             datastack_name = 'minnie65_public'
             materialize_version = 795
-        if materialize_version == 0:
+        if materialize_version == 1:
             materialize_version = 795
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
         
