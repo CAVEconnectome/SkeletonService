@@ -14,6 +14,7 @@ from cloudfiles import CloudFiles, compression
 import cloudvolume
 import gzip
 import os
+import datetime
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -182,34 +183,78 @@ class SkeletonService:
             cf.put(file_name, skeleton, compress=COMPRESSION if include_compression else None)
 
     @staticmethod
+    def get_root_soma(rid, client, soma_tables= None):
+        """Get the soma position of a root id.
+
+        Args:
+            rid (int): root id
+            client (caveclient.CAVEclient): client to use
+            soma_tables (list): list of soma tables to search in. If None, will use the soma_table from the datastack info
+
+        Returns:
+            tuple: (soma position, resolution) or None,None if no soma found
+
+            soma position (np.array): x, y, z position of the soma
+            resolution (np.array): x,y z resolution of the soma position in nm
+        """
+
+        if soma_tables is None:
+            soma_tables = client.info.get_datastack_info()['soma_table']
+
+            if soma_tables is None:
+                return None, None
+            else:
+                soma_tables = [soma_tables]
+        now = datetime.datetime.now(datetime.timezone.utc)
+        is_latest = client.chunkedgraph.is_latest_roots(rid, timestamp=now)[0]
+
+        if is_latest:
+            root_ts = now
+        else:
+            latest_root = client.chunkedgraph.suggest_latest_roots(rid, timestamp=now)
+            lin_graph = client.chunkedgraph.get_lineage_graph(latest_root, timestamp_future=now)
+            # find the rid in the links of the lineage graph under the source and note the target
+            link = next(link for link in lin_graph['links'] if link['source'] == rid)
+            node = next(node for node in lin_graph['nodes'] if node['id'] == link['target'])
+            # convert node['timestamp'] to a datetime object
+            root_ts = datetime.datetime.fromtimestamp(node['timestamp'], datetime.timezone.utc)
+            root_ts = root_ts - datetime.timedelta(microseconds=root_ts.microsecond)
+
+        for soma_table in soma_tables:
+            soma_df = client.materialize.live_live_query(soma_table,
+                                                         timestamp=root_ts + datetime.timedelta(milliseconds=1),
+                                                         filter_equal_dict={soma_table: {'pt_root_id': rid}})
+            if len(soma_df) == 1:
+                break
+
+        if len(soma_df) != 1:
+            return None, None
+
+        return soma_df.iloc[0]['pt_position'], soma_df.attrs['dataframe_resolution']
+
+    @staticmethod
     def generate_skeleton(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
         client = caveclient.CAVEclient(datastack_name)
-        if materialize_version != 0:
-            client.materialize.version = materialize_version # Ensure we will always use this data release
+        if (datastack_name=="minnie65_public") or (datastack_name=="minnie65_phase3_v1"):
+            soma_tables = ['nucleus_alternative_points', 'nucleus_detection_v0']
         else:
-            timestamps = client.chunkedgraph.get_root_timestamps(rid)
-            timestamp = timestamps[0] if len(timestamps) > 0 else None
-            # TODO: Work in progress: use timestamp to find soma without need for materialization version
+            soma_tables = None
+
+        soma_location, soma_resolution = SkeletonService.get_root_soma(rid, client, soma_tables)
         
         # Get the location of the soma from nucleus detection:
         print(f"generate_skeleton {rid} {datastack_name} {materialize_version} {root_resolution} {collapse_soma} {collapse_radius}")
         print(f"CAVEClient version: {caveclient.__version__}")
-        soma_df = client.materialize.views.nucleus_detection_lookup_v1(
-            pt_root_id = rid
-            ).query(
-                desired_resolution = root_resolution,
-            )
-        soma_location = soma_df['pt_position'].values[0]
 
         # Use the above parameters in the skeletonization:
         skel = pcg_skel.coord_space_skeleton(
             rid,
             client,
             root_point=soma_location,
-            root_point_resolution=root_resolution,
+            root_point_resolution=soma_resolution,
             collapse_soma=collapse_soma,
             collapse_radius=collapse_radius,
         )
