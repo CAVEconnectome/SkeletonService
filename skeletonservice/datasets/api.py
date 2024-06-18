@@ -253,6 +253,38 @@ class SkeletonResource(Resource):
 
 
 
+@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>")
+class SkeletonResource(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rid: int):
+        """Get skeleton by rid"""
+        from messagingclient import MessagingClient
+
+        payload = b""
+        attributes = {
+            "skeleton_params": {
+                "datastack_name": datastack_name,
+                "rid": rid,
+                "materialize_version": 0,
+                "output_format": 'precomputed',
+                "sid": 0,
+                "bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+                "root_resolution": [1, 1, 1],
+                "collapse_soma": True,
+                "collapse_radius": 7500,
+            }
+        }
+
+        c = MessagingClient()
+        exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        c.publish(exchange, payload, attributes)
+
+        return "Message has been dispatched"
+
 # With the later addition of the /precomputed/ entrypoints above, I'm not sure this endpoint should be kept around anymore.
 # The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
 # @api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={
