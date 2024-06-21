@@ -268,14 +268,14 @@ class SkeletonResource(Resource):
         attributes = {
             "skeleton_params": {
                 "datastack_name": datastack_name,
-                "rid": rid,
-                "materialize_version": 0,
+                "rid": f"{rid}",
+                "materialize_version": "0",
                 "output_format": 'precomputed',
-                "sid": 0,
+                "sid": "0",
                 "bucket": current_app.config["SKELETON_CACHE_BUCKET"],
-                "root_resolution": [1, 1, 1],
-                "collapse_soma": True,
-                "collapse_radius": 7500,
+                "root_resolution": "1 1 1",
+                "collapse_soma": "True",
+                "collapse_radius": "7500",
             }
         }
 
