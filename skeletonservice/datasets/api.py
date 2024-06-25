@@ -266,17 +266,15 @@ class SkeletonResource(Resource):
 
         payload = b""
         attributes = {
-            "skeleton_params": {
-                "datastack_name": datastack_name,
-                "rid": f"{rid}",
-                "materialize_version": "0",
-                "output_format": 'precomputed',
-                "sid": "0",
-                "bucket": current_app.config["SKELETON_CACHE_BUCKET"],
-                "root_resolution": "1 1 1",
-                "collapse_soma": "True",
-                "collapse_radius": "7500",
-            }
+            "skeleton_params_datastack_name": datastack_name,
+            "skeleton_params_rid": f"{rid}",
+            "skeleton_params_materialize_version": "0",
+            "skeleton_params_output_format": 'precomputed',
+            "skeleton_params_sid": "0",
+            "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+            "skeleton_params_root_resolution": "1 1 1",
+            "skeleton_params_collapse_soma": "True",
+            "skeleton_params_collapse_radius": "7500",
         }
 
         c = MessagingClient()
