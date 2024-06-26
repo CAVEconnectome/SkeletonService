@@ -15,8 +15,9 @@ def callback(payload):
         "collapse_soma":       False if payload.attributes["skeleton_params_collapse_soma"].lower() in ["false", "f", "0"] else True,
         "collapse_radius":     int(payload.attributes["skeleton_params_collapse_radius"]),
     }
+    print("Skeleton Cache message parameters: ", skeleton_params)
     skel = generate_skeleton(skeleton_params)
 
 c = MessagingClient()
-l2cache_update_queue = getenv("SKELETON_CACHE_UPDATE_QUEUE", "does-not-exist")
+l2cache_update_queue = getenv("SKELETON_CACHE_RETRIEVE_QUEUE", "does-not-exist")
 c.consume(l2cache_update_queue, callback)
