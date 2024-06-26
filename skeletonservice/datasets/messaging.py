@@ -1,6 +1,6 @@
 from os import getenv
 from messagingclient import MessagingClient
-from .service import generate_skeleton
+from .service import SkeletonService
 
 def callback(payload):
     print("Skeleton Cache received message: ", payload)
@@ -16,7 +16,7 @@ def callback(payload):
         "collapse_radius":     int(payload.attributes["skeleton_params_collapse_radius"]),
     }
     print("Skeleton Cache message parameters: ", skeleton_params)
-    skel = generate_skeleton(skeleton_params)
+    skel = SkeletonService.generate_skeleton(skeleton_params)
 
 c = MessagingClient()
 l2cache_update_queue = getenv("SKELETON_CACHE_RETRIEVE_QUEUE", "does-not-exist")
