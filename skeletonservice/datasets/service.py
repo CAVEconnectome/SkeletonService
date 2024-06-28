@@ -79,7 +79,7 @@ class SkeletonService:
         # file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
-        assert format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
+        assert format == '' or format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
         file_name += f".{format}"
         
         if include_compression:
