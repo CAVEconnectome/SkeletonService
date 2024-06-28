@@ -55,27 +55,29 @@ class SkeletonService:
     def get_all() -> List[Skeleton]:
         return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
     
-    @staticmethod
-    def retrieve_sid_for_rid(rid, datastack_name, materialize_version):
-        '''
-        Given a root id, find the nucleus id (aka soma id)
-        '''
-        client = caveclient.CAVEclient(datastack_name)
-        client.materialize.version = materialize_version
-        proof = client.materialize.query_table('proofreading_status_public_release')
-        rid2 = proof[proof['valid_id']==rid].iloc[0]['pt_root_id']
-        neurons = client.materialize.query_table('nucleus_ref_neuron_svm', desired_resolution=[1000, 1000, 1000])
-        nid = neurons[neurons['pt_root_id']==rid2].iloc[0]['id_ref']  # target_id seems to be an equivalent column option here
+    # @staticmethod
+    # def retrieve_sid_for_rid(rid, datastack_name, materialize_version):
+    #     '''
+    #     Given a root id, find the nucleus id (aka soma id)
+    #     '''
+    #     client = caveclient.CAVEclient(datastack_name)
+    #     client.materialize.version = materialize_version
+    #     proof = client.materialize.query_table('proofreading_status_public_release')
+    #     rid2 = proof[proof['valid_id']==rid].iloc[0]['pt_root_id']
+    #     neurons = client.materialize.query_table('nucleus_ref_neuron_svm', desired_resolution=[1000, 1000, 1000])
+    #     nid = neurons[neurons['pt_root_id']==rid2].iloc[0]['id_ref']  # target_id seems to be an equivalent column option here
         
-        return nid
+    #     return nid
     
     @staticmethod
-    def get_skeleton_filename(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+    def get_skeleton_filename(rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
         '''
         Build a filename for a skeleton file based on the parameters.
         The format and optional compression will be appended as extensions as necessary.
         '''
-        file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        # materialize_version has been removed, but I've left the stub here for the time being, just in case there is value is seeing and remember its prior usage.
+        # file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
         assert format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
         file_name += f".{format}"
@@ -233,7 +235,7 @@ class SkeletonService:
         return soma_df.iloc[0]['pt_position'], soma_df.attrs['dataframe_resolution']
 
     @staticmethod
-    def generate_skeleton(rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius):
+    def generate_skeleton(rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
@@ -244,9 +246,11 @@ class SkeletonService:
             soma_tables = None
 
         soma_location, soma_resolution = SkeletonService.get_root_soma(rid, client, soma_tables)
+        if root_resolution is None:
+            root_resolution = soma_resolution
         
         # Get the location of the soma from nucleus detection:
-        print(f"generate_skeleton {rid} {datastack_name} {materialize_version} {root_resolution} {collapse_soma} {collapse_radius}")
+        print(f"generate_skeleton {rid} {datastack_name} {root_resolution} {collapse_soma} {collapse_radius}")
         print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
@@ -254,7 +258,7 @@ class SkeletonService:
             rid,
             client,
             root_point=soma_location,
-            root_point_resolution=soma_resolution,
+            root_point_resolution=root_resolution,
             collapse_soma=collapse_soma,
             collapse_radius=collapse_radius,
         )
@@ -420,8 +424,12 @@ class SkeletonService:
         return response
 
     @staticmethod
-    def get_skeleton_by_datastack_and_rid(datastack_name: str, rid: int, materialize_version: int, output_format: str, sid: int, bucket: str,
-                                root_resolution: List, collapse_soma: bool, collapse_radius: int):
+    def get_skeleton_by_datastack_and_rid(datastack_name: str, rid: int,
+                                        # materialize_version: int,  # Removed
+                                        output_format: str,
+                                        # sid: int,  # Removed
+                                        bucket: str,
+                                        root_resolution: List, collapse_soma: bool, collapse_radius: int):
         '''
         Get a skeleton by root id (with optional associated soma id).
         If the requested format already exists in the cache, then return it.
@@ -433,16 +441,21 @@ class SkeletonService:
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             rid = 864691135397503777
             datastack_name = 'minnie65_public'
-            materialize_version = 795
-        if materialize_version == 1:
-            materialize_version = 795
+        #     materialize_version = 795
+        # if materialize_version == 1:
+        #     materialize_version = 795
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
         
-        # print(f"get_skeleton_by_rid_sid() rid: {rid}, sid: {sid}, datastack_name: {datastack_name}, materialize_version: {materialize_version},",
+        # print(f"get_skeleton_by_rid() rid: {rid}, sid: {sid}, datastack_name: {datastack_name}, materialize_version: {materialize_version},",
         #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
+
+        if not output_format:
+            output_format = ""
         
         # print(f"Bucket: {bucket}")
-        params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
+        # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
+        # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
+        params = [rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius]
 
         skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
         # print(f"Cache query result: {skeleton_return}")
