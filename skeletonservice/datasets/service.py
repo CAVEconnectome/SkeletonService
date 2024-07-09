@@ -80,7 +80,11 @@ class SkeletonService:
         file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
         assert format == '' or format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
-        file_name += f".{format}"
+        if format != '':
+            file_name += f"{format}"
+        else:
+            # If no output is specified, then request or generate an h5 skeleton.
+            file_name += f".h5"
         
         if include_compression:
             if COMPRESSION == 'gzip':
@@ -139,12 +143,24 @@ class SkeletonService:
         return skeleton
 
     @staticmethod
+    def confirm_skeleton_in_cache(params, format):
+        '''
+        Confirm that the specified format of the skeleton is in the cache.
+        '''
+        file_name = SkeletonService.get_skeleton_filename(*params, format)
+        print("File name being sought in cache:", file_name)
+        bucket = params[1]
+        cf = CloudFiles(bucket)
+        return cf.exists(file_name)
+
+    @staticmethod
     def retrieve_skeleton_from_cache(params, format):
         '''
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format)
+        print("File name being sought in cache:", file_name)
         bucket = params[1]
         cf = CloudFiles(bucket)
         if cf.exists(file_name):
@@ -446,25 +462,37 @@ class SkeletonService:
         #     materialize_version = 795
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
         
-        # print(f"get_skeleton_by_rid() rid: {rid}, sid: {sid}, datastack_name: {datastack_name}, materialize_version: {materialize_version},",
-        #       f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
+        print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket},",
+              f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
 
         if not output_format:
             output_format = ""
         
-        # print(f"Bucket: {bucket}")
         # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
         # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
         params = [rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius]
 
-        skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
-        # print(f"Cache query result: {skeleton_return}")
+        if output_format == '':
+            skel_confirmation = SkeletonService.confirm_skeleton_in_cache(params, output_format)
+            if skel_confirmation:
+                # Nothing else to do, so return
+                return
+            else:
+                # Label the "retrieved skeleton" as None to force its generation below
+                skeleton_return = None
+        else:
+            skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
+            # print(f"Cache query result: {skeleton_return}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
         #     skeleton_return = SkeletonService.retrieve_skeleton_from_local(params, output_format)
 
         if skeleton_return:
             # skeleton_return will be JSON or PRECOMPUTED content, or H5 or SWC file location (presumably in a bucket).
+            if output_format == '':
+                # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested, merely generatign one if it doesn't exist,
+                # so, since a skeleton already exists in the cache, we're done. There's nothing to generate and nothing to return.
+                return
             if output_format == 'precomputed':
                 response = Response(skeleton_return, mimetype='application/octet-stream')
                 response.headers.update(SkeletonService.response_headers())
@@ -475,6 +503,7 @@ class SkeletonService:
         else:  # No skeleton was found in the cache
             # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
             # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
+            # There is no need to check for an H5 skeleton if the requested format is H5 or '', since both seek an H5 above.
             skeleton = None
             if output_format == 'json' or output_format == 'swc' or output_format == 'precomputed':
                 skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(params)
