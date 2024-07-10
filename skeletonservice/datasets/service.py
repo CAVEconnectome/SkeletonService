@@ -24,8 +24,9 @@ from skeletonservice.datasets.models import (
 # )
 
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
-# SKELETON_CACHE_LOC = "gs://keith-dev/"
+DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
+verbose_level = 0
 
 class SkeletonService:
     def minimize_json_skeleton_for_easier_debugging(skeleton_json):
@@ -81,7 +82,7 @@ class SkeletonService:
         
         assert format == '' or format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
         if format != '':
-            file_name += f"{format}"
+            file_name += f".{format}"
         else:
             # If no output is specified, then request or generate an h5 skeleton.
             file_name += f".h5"
@@ -148,7 +149,8 @@ class SkeletonService:
         Confirm that the specified format of the skeleton is in the cache.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format)
-        print("File name being sought in cache:", file_name)
+        if verbose_level >= 1:
+            print("File name being sought in cache:", file_name)
         bucket = params[1]
         cf = CloudFiles(bucket)
         return cf.exists(file_name)
@@ -160,7 +162,8 @@ class SkeletonService:
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format)
-        print("File name being sought in cache:", file_name)
+        if verbose_level >= 1:
+            print("File name being sought in cache:", file_name)
         bucket = params[1]
         cf = CloudFiles(bucket)
         if cf.exists(file_name):
@@ -266,8 +269,9 @@ class SkeletonService:
             root_resolution = soma_resolution
         
         # Get the location of the soma from nucleus detection:
-        print(f"generate_skeleton {rid} {datastack_name} {root_resolution} {collapse_soma} {collapse_radius}")
-        print(f"CAVEClient version: {caveclient.__version__}")
+        if verbose_level >= 1:
+            print(f"generate_skeleton {rid} {datastack_name} {root_resolution} {collapse_soma} {collapse_radius}")
+            print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
         skel = pcg_skel.coord_space_skeleton(
@@ -452,6 +456,8 @@ class SkeletonService:
         If not, then generate the skeleton from its cached H5 format and return it.
         If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
         '''
+        global verbose_level
+
         # DEBUG
         if datastack_name == "0" or rid == 0:  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
@@ -461,9 +467,13 @@ class SkeletonService:
         # if materialize_version == 1:
         #     materialize_version = 795
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
+        verbose_level = 0
+        if bucket == DEBUG_SKELETON_CACHE_BUCKET:
+            verbose_level = 1
         
-        print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket},",
-              f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
+        if verbose_level >= 1:
+            print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket},",
+                f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
 
         if not output_format:
             output_format = ""
@@ -482,7 +492,8 @@ class SkeletonService:
                 skeleton_return = None
         else:
             skeleton_return = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
-            # print(f"Cache query result: {skeleton_return}")
+            if verbose_level >= 1:
+                print(f"Cache query result: {skeleton_return}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
         #     skeleton_return = SkeletonService.retrieve_skeleton_from_local(params, output_format)
@@ -507,7 +518,8 @@ class SkeletonService:
             skeleton = None
             if output_format == 'json' or output_format == 'swc' or output_format == 'precomputed':
                 skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(params)
-            # print(f"H5 cache query result: {skeleton}")
+            if verbose_level >= 1:
+                print(f"H5 cache query result: {skeleton}")
 
             # If no H5 skeleton was found, generate a new skeleton.
             # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
@@ -520,6 +532,8 @@ class SkeletonService:
                     skeleton = SkeletonService.retrieve_skeleton_from_local(params, 'h5')
                     if not skeleton:
                         skeleton = SkeletonService.generate_skeleton(*params)
+                        if verbose_level >= 1:
+                            print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
                     print(e)
                     return f"Failed to generate skeleton for {rid}: {str(e)}"
