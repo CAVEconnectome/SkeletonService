@@ -486,6 +486,8 @@ class SkeletonService:
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(params, output_format)
             if skel_confirmation:
                 # Nothing else to do, so return
+                if verbose_level >= 1:
+                    print(f"Skeleton is already in cache")
                 return
             else:
                 # Label the "retrieved skeleton" as None to force its generation below
