@@ -14,6 +14,7 @@ def callback(payload):
             [int(v) for v in payload.attributes["skeleton_params_root_resolution"].split()],
             False if payload.attributes["skeleton_params_collapse_soma"].lower() in ["false", "f", "0"] else True,
             int(payload.attributes["skeleton_params_collapse_radius"]),
+            int(payload.attributes["verbose_level"]),
         )
     except Exception as e:
         print("Error generating skeleton: ", repr(e))

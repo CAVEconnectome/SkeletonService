@@ -449,7 +449,8 @@ class SkeletonService:
                                         output_format: str,
                                         # sid: int,  # Removed
                                         bucket: str,
-                                        root_resolution: List, collapse_soma: bool, collapse_radius: int):
+                                        root_resolution: List, collapse_soma: bool, collapse_radius: int,
+                                        verbose_level_: int = 0):
         '''
         Get a skeleton by root id (with optional associated soma id).
         If the requested format already exists in the cache, then return it.
@@ -457,7 +458,8 @@ class SkeletonService:
         If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
         '''
         global verbose_level
-
+        verbose_level = verbose_level_
+        
         # DEBUG
         if datastack_name == "0" or rid == 0:  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
@@ -467,9 +469,6 @@ class SkeletonService:
         # if materialize_version == 1:
         #     materialize_version = 795
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
-        verbose_level = 0
-        if bucket == DEBUG_SKELETON_CACHE_BUCKET:
-            verbose_level = 1
         
         if verbose_level >= 1:
             print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket},",

@@ -247,6 +247,7 @@ class SkeletonResource(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
+            verbose_level_=1,
         )
 
 
@@ -270,6 +271,7 @@ class SkeletonResource(Resource):
             "skeleton_params_root_resolution": "1 1 1",
             "skeleton_params_collapse_soma": "True",
             "skeleton_params_collapse_radius": "7500",
+            "verbose_level": "1",
         }
 
         c = MessagingClient()
