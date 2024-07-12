@@ -30,7 +30,7 @@ api_bp = Namespace(
 
 @api_bp.route("/skeletons")
 @api_bp.doc("get skeletons", security="apikey")
-class SkeletonResource(Resource):
+class SkeletonResource1(Resource):
     """Skeletons"""
 
     @auth_required
@@ -55,7 +55,7 @@ class SkeletonResource(Resource):
 # @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/<int:bar>")
 # @api_bp.param("foo", "foo")
 # @api_bp.param("bar", "bar")
-# class SkeletonResource(Resource):
+# class SkeletonResource2(Resource):
 #     """ParameterBugInvestigation"""
 
 #     @auth_required
@@ -72,7 +72,7 @@ class SkeletonResource(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed")
-class SkeletonResource(Resource):
+class SkeletonResource3(Resource):
     """PrecomputedResource"""
 
     @auth_required
@@ -86,7 +86,7 @@ class SkeletonResource(Resource):
         }
 
 @api_bp.route("/<string:datastack_name>/precomputed/info")
-class SkeletonResource(Resource):
+class SkeletonResource4(Resource):
     """PrecomputedInfoResource"""
 
     @auth_required
@@ -202,7 +202,7 @@ class SkeletonResource(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/info")
-class SkeletonResource(Resource):
+class SkeletonResource5(Resource):
     """SkeletonInfoResource"""
 
     @auth_required
@@ -230,7 +230,7 @@ class SkeletonResource(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
-class SkeletonResource(Resource):
+class SkeletonResource6(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -253,7 +253,7 @@ class SkeletonResource(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>")
-class SkeletonResource(Resource):
+class SkeletonResource7(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -296,7 +296,7 @@ class SkeletonResource(Resource):
 # @api_bp.param("root_res_z", "Root resolution Z in nm")
 # @api_bp.param("collapse_soma", "Whether to collapse the soma")
 # @api_bp.param("collapse_radius", "Collapse radius")
-# class SkeletonResource(Resource):
+# class SkeletonResource8(Resource):
 #     """Skeletons"""
 
 #     # @responds(schema=schemas.SkeletonSchema)
