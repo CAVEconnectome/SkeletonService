@@ -265,12 +265,10 @@ class SkeletonService:
             soma_tables = None
 
         soma_location, soma_resolution = SkeletonService.get_root_soma(rid, client, soma_tables)
-        if root_resolution is None:
-            root_resolution = soma_resolution
         
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
-            print(f"generate_skeleton {rid} {datastack_name} {root_resolution} {collapse_soma} {collapse_radius}")
+            print(f"generate_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}")
             print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
@@ -278,7 +276,7 @@ class SkeletonService:
             rid,
             client,
             root_point=soma_location,
-            root_point_resolution=root_resolution,
+            root_point_resolution=soma_resolution,
             collapse_soma=collapse_soma,
             collapse_radius=collapse_radius,
         )
@@ -419,29 +417,34 @@ class SkeletonService:
     def after_request(response):
         '''
         Optionally gzip a response. Alternatively, return the response unaltered.
-        Copied verbatim from materializationengine.blueprints.client.utils.py
+        Copied verbatim from materializationengine.blueprints.client.utils.py.
+        Then modified with an exception trap because this code might be called through a client instead of a web interface.
         '''
-        accept_encoding = request.headers.get("Accept-Encoding", "")
+        try:
+            accept_encoding = request.headers.get("Accept-Encoding", "")
 
-        if "gzip" not in accept_encoding.lower():
+            if "gzip" not in accept_encoding.lower():
+                return response
+
+            response.direct_passthrough = False
+
+            if (
+                response.status_code < 200
+                or response.status_code >= 300
+                or "Content-Encoding" in response.headers
+            ):
+                return response
+
+            response.data = compression.gzip_compress(response.data)
+
+            response.headers["Content-Encoding"] = "gzip"
+            response.headers["Vary"] = "Accept-Encoding"
+            response.headers["Content-Length"] = len(response.data)
+
             return response
-
-        response.direct_passthrough = False
-
-        if (
-            response.status_code < 200
-            or response.status_code >= 300
-            or "Content-Encoding" in response.headers
-        ):
-            return response
-
-        response.data = compression.gzip_compress(response.data)
-
-        response.headers["Content-Encoding"] = "gzip"
-        response.headers["Vary"] = "Accept-Encoding"
-        response.headers["Content-Length"] = len(response.data)
-
-        return response
+        except Exception as e:
+            print(f"Exception in after_request(): {str(e)}")
+            return None
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(datastack_name: str, rid: int,
@@ -480,7 +483,7 @@ class SkeletonService:
         # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
         # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
         params = [rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius]
-
+        
         if output_format == '':
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(params, output_format)
             if skel_confirmation:
@@ -508,7 +511,10 @@ class SkeletonService:
             if output_format == 'precomputed':
                 response = Response(skeleton_return, mimetype='application/octet-stream')
                 response.headers.update(SkeletonService.response_headers())
-                return SkeletonService.after_request(response)
+                response = SkeletonService.after_request(response)
+                if response:
+                    return response
+                return skeleton_return
             if output_format == 'json' and debug_minimize_json_skeleton:  # DEBUG
                 skeleton_return = SkeletonService.minimize_json_skeleton_for_easier_debugging(skeleton_return)
             return skeleton_return 
@@ -595,4 +601,7 @@ class SkeletonService:
 
                 response = Response(skeleton_precomputed, mimetype='application/octet-stream')
                 response.headers.update(SkeletonService.response_headers())
-                return SkeletonService.after_request(response)
+                response = SkeletonService.after_request(response)
+                if response:
+                    return response
+                return skeleton_precomputed
