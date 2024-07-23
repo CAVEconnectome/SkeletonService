@@ -111,9 +111,15 @@ class SkeletonService:
         This is a debugging function that reads a skeleton from a local file instead of
         computing a skeleton from scratch or retrieving one from a Google bucket.
         '''
+        if verbose_level >= 1:
+            print("retrieve_skeleton_from_local()")
+        
         file_name = SkeletonService.get_skeleton_filename(*params, 'h5', include_compression=False)
         if not os.path.exists(DEBUG_SKELETON_CACHE_LOC + file_name):
             return None
+        
+        if verbose_level >= 1:
+            print("retrieve_skeleton_from_local() Local debug skeleton file found. Reading it...")
         
         skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
@@ -258,6 +264,7 @@ class SkeletonService:
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
+
         client = caveclient.CAVEclient(datastack_name)
         if (datastack_name=="minnie65_public") or (datastack_name=="minnie65_phase3_v1"):
             soma_tables = ['nucleus_alternative_points', 'nucleus_detection_v0']
@@ -377,10 +384,10 @@ class SkeletonService:
         sk = skeleton.Skeleton(vertices=np.array(json['vertices']),
                                edges=np.array(json['edges']),
                                mesh_to_skel_map=np.array(json['mesh_to_skel_map']),
-                               mesh_index=np.array(json['mesh_index']),
+                               mesh_index=np.array(json['mesh_index']) if 'mesh_index' in json else None,
                                vertex_properties=json['vertex_properties'],
                                node_mask=np.array(json['node_mask']),
-                               voxel_scaling=json['voxel_scaling'],
+                               voxel_scaling=json['voxel_scaling'] if 'voxel_scaling' in json else None,
                             #    meta=skeleton.SkeletonMetadata(json),
                                )
         # sk.branch_points = json['branch_points']
