@@ -33,6 +33,7 @@ VERSION_PARAMS = {
 verbose_level = 0
 
 class SkeletonService:
+    @staticmethod
     def minimize_json_skeleton_for_easier_debugging(skeleton_json):
         '''
         The web UI won't show large JSON content, so to assist debugging I'm just returning the smaller data (not lists, etc.)
@@ -252,9 +253,7 @@ class SkeletonService:
             root_ts = root_ts - datetime.timedelta(microseconds=root_ts.microsecond)
 
         for soma_table in soma_tables:
-            soma_df = client.materialize.live_live_query(soma_table,
-                                                         timestamp=root_ts + datetime.timedelta(milliseconds=1),
-                                                         filter_equal_dict={soma_table: {'pt_root_id': rid}})
+            soma_df = client.materialize.tables[soma_table](pt_root_id=rid).live_query(timestamp = root_ts + datetime.timedelta(milliseconds=1))
             if len(soma_df) == 1:
                 break
 
