@@ -253,14 +253,14 @@ class SkeletonResource6(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>/<int:skvn>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>")
 class SkeletonResource6a(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, rid: int, skv: int):
+    def get(self, datastack_name: str, skv: int, rid: int):
         """Get skeleton by rid"""
 
         return SkeletonService.get_skeleton_by_datastack_and_rid(
@@ -308,14 +308,14 @@ class SkeletonResource7(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>/<int:skvn>")
+@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:skvn>/<int:rid>")
 class SkeletonResource7a(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, rid: int, skv: int):
+    def get(self, datastack_name: str, skv: int, rid: int):
         """Get skeleton by rid"""
         from messagingclient import MessagingClient
 
