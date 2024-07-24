@@ -238,20 +238,8 @@ class SkeletonService:
             else:
                 soma_tables = [soma_tables]
         now = datetime.datetime.now(datetime.timezone.utc)
-        is_latest = client.chunkedgraph.is_latest_roots(rid, timestamp=now)[0]
-
-        if is_latest:
-            root_ts = now
-        else:
-            latest_root = client.chunkedgraph.suggest_latest_roots(rid, timestamp=now)
-            lin_graph = client.chunkedgraph.get_lineage_graph(latest_root, timestamp_future=now)
-            # find the rid in the links of the lineage graph under the source and note the target
-            link = next(link for link in lin_graph['links'] if link['source'] == rid)
-            node = next(node for node in lin_graph['nodes'] if node['id'] == link['target'])
-            # convert node['timestamp'] to a datetime object
-            root_ts = datetime.datetime.fromtimestamp(node['timestamp'], datetime.timezone.utc)
-            root_ts = root_ts - datetime.timedelta(microseconds=root_ts.microsecond)
-
+        root_ts = client.chunkedgraph.get_root_timestamps(rid, latest=True, timestamp=now)[0]
+             
         for soma_table in soma_tables:
             soma_df = client.materialize.tables[soma_table](pt_root_id=rid).live_query(timestamp = root_ts + datetime.timedelta(milliseconds=1))
             if len(soma_df) == 1:
