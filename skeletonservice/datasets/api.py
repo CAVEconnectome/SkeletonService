@@ -229,6 +229,34 @@ class SkeletonResource5(Resource):
 
 
 
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/info/<int:skvn>")
+class SkeletonResource5a(Resource):
+    """SkeletonInfoResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonInfoResource", security="apikey")
+    def get(self, datastack_name: str, skv: int):
+        """Get skeleton info"""
+        
+        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
+
+        return {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [{
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1
+                },
+                # {
+                #     'id': 'vertex_types',
+                #     'data_type': 'float32',
+                #     'num_components': 1
+                # }
+                ]}
+
+
+
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource6(Resource):
     """SkeletonResource"""
