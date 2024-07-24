@@ -247,6 +247,31 @@ class SkeletonResource6(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
+            skeleton_version=-1,
+            verbose_level_=1,
+        )
+
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>/<int:skvn>")
+class SkeletonResource6a(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rid: int, skv: int):
+        """Get skeleton by rid"""
+
+        return SkeletonService.get_skeleton_by_datastack_and_rid(
+            datastack_name=datastack_name,
+            rid=rid,
+            output_format='precomputed',
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
             verbose_level_=1,
         )
 
@@ -271,6 +296,38 @@ class SkeletonResource7(Resource):
             "skeleton_params_root_resolution": "1 1 1",
             "skeleton_params_collapse_soma": "True",
             "skeleton_params_collapse_radius": "7500",
+            "skeleton_version": "1",
+            "verbose_level": "1",
+        }
+
+        c = MessagingClient()
+        exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        c.publish(exchange, payload, attributes)
+
+        return "Message has been dispatched"
+
+
+
+@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>/<int:skvn>")
+class SkeletonResource7a(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rid: int, skv: int):
+        """Get skeleton by rid"""
+        from messagingclient import MessagingClient
+
+        payload = b""
+        attributes = {
+            "skeleton_params_rid": f"{rid}",
+            "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+            "skeleton_params_datastack_name": datastack_name,
+            "skeleton_params_root_resolution": "1 1 1",
+            "skeleton_params_collapse_soma": "True",
+            "skeleton_params_collapse_radius": "7500",
+            "skeleton_version": f"{skvn}",
             "verbose_level": "1",
         }
 

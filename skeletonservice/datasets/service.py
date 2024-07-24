@@ -26,6 +26,10 @@ from skeletonservice.datasets.models import (
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = 'gzip'  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
+VERSION_PARAMS = {
+    1: {
+    },
+}
 verbose_level = 0
 
 class SkeletonService:
@@ -71,14 +75,14 @@ class SkeletonService:
     #     return nid
     
     @staticmethod
-    def get_skeleton_filename(rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
+    def get_skeleton_filename(rid, bucket, skeleton_version, datastack_name, root_resolution, collapse_soma, collapse_radius, format, include_compression=True):
         '''
         Build a filename for a skeleton file based on the parameters.
         The format and optional compression will be appended as extensions as necessary.
         '''
         # materialize_version has been removed, but I've left the stub here for the time being, just in case there is value is seeing and remember its prior usage.
         # file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
-        file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        file_name = f"skeleton__v{skeleton_version}__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
         
         assert format == '' or format == 'json' or format == 'precomputed' or format == 'h5' or format == 'swc'
         if format != '':
@@ -102,8 +106,8 @@ class SkeletonService:
         '''
         Build a location for a skeleton file based on the parameters and the cache location (likely a Google bucket).
         '''
-        bucket = params[1]
-        return f"{bucket}{SkeletonService.get_skeleton_filename(*params, format)}"
+        bucket, skeleton_version = params[1], params[2]
+        return f"{bucket}{skeleton_version}/{SkeletonService.get_skeleton_filename(*params, format)}"
 
     @staticmethod
     def retrieve_skeleton_from_local(params, format):
@@ -157,8 +161,8 @@ class SkeletonService:
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
-        bucket = params[1]
-        cf = CloudFiles(bucket)
+        bucket, skeleton_version = params[1], params[2]
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
         return cf.exists(file_name)
 
     @staticmethod
@@ -170,8 +174,8 @@ class SkeletonService:
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
-        bucket = params[1]
-        cf = CloudFiles(bucket)
+        bucket, skeleton_version = params[1], params[2]
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
             if format == 'json':
                 return cf.get_json(file_name)
@@ -188,8 +192,8 @@ class SkeletonService:
         See retrieve_skeleton_from_cache() for comparison.
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, 'h5')
-        bucket = params[1]
-        cf = CloudFiles(bucket)
+        bucket, skeleton_version = params[1], params[2]
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
             skeleton_bytes = BytesIO(skeleton_bytes)
@@ -202,8 +206,8 @@ class SkeletonService:
         Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
         '''
         file_name = SkeletonService.get_skeleton_filename(*params, format, include_compression=include_compression)
-        bucket = params[1]
-        cf = CloudFiles(bucket)
+        bucket, skeleton_version = params[1], params[2]
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if format == 'json':
             cf.put_json(file_name, skeleton, COMPRESSION if include_compression else None)
         else:  # format == 'precomputed' or 'h5' or 'swc'
@@ -260,7 +264,7 @@ class SkeletonService:
         return soma_df.iloc[0]['pt_position'], soma_df.attrs['dataframe_resolution']
 
     @staticmethod
-    def generate_skeleton(rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius):
+    def generate_skeleton(rid, bucket, skeleton_version, datastack_name, root_resolution, collapse_soma, collapse_radius):
         '''
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         '''
@@ -460,7 +464,8 @@ class SkeletonService:
                                         # sid: int,  # Removed
                                         bucket: str,
                                         root_resolution: List, collapse_soma: bool, collapse_radius: int,
-                                        verbose_level_: int = 0):
+                                        skeleton_version: int=-1,
+                                        verbose_level_: int=0):
         '''
         Get a skeleton by root id (with optional associated soma id).
         If the requested format already exists in the cache, then return it.
@@ -473,7 +478,8 @@ class SkeletonService:
         # DEBUG
         if datastack_name == "0" or rid == 0:  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
-            rid = 864691135397503777
+            # rid = 864691135397503777
+            rid = 864691134918592778
             datastack_name = 'minnie65_public'
         #     materialize_version = 795
         # if materialize_version == 1:
@@ -481,16 +487,21 @@ class SkeletonService:
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
         
         if verbose_level >= 1:
-            print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket},",
+            print(f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}")
 
         if not output_format:
             output_format = ""
         
+        # If no skeleton version is specified, then use the latest version.
+        if skeleton_version == -1:
+            skeleton_version = sorted(VERSION_PARAMS.keys())[-1]
+        version_params = VERSION_PARAMS[skeleton_version] if skeleton_version in VERSION_PARAMS else VERSION_PARAMS[1]
+        
         # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
         # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
-        params = [rid, bucket, datastack_name, root_resolution, collapse_soma, collapse_radius]
-        
+        params = [rid, bucket, skeleton_version, datastack_name, root_resolution, collapse_soma, collapse_radius]
+
         if output_format == '':
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(params, output_format)
             if skel_confirmation:
