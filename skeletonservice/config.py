@@ -3,6 +3,8 @@ import os
 # from skeletonservice.datasets.models import Base
 import json
 
+from skeletonservice.datasets.service_skvn1 import SkeletonService_skvn1
+
 
 class BaseConfig(object):
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -15,7 +17,7 @@ class BaseConfig(object):
     # operations using the other.
     THREADS_PER_PAGE = 2
 
-    # Enable protection agains *Cross-site Request Forgery (CSRF)*
+    # Enable protection against *Cross-site Request Forgery (CSRF)*
     CSRF_ENABLED = True
 
     # Use a secure, unique and absolutely secret key for
@@ -34,6 +36,11 @@ class BaseConfig(object):
             AUTH_TOKEN = json.load(f)["token"]
     else:
         AUTH_TOKEN = ""
+
+    SKELETON_VERSION_ENGINES = {
+        1: SkeletonService_skvn1,
+    }
+
 
     # GLOBAL_SERVER_URL = os.environ.get("GLOBAL_SERVER_URL")
     # LOCAL_SERVER_URL = os.environ.get("LOCAL_SERVER_URL")

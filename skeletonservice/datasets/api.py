@@ -236,7 +236,7 @@ class SkeletonResource5a(Resource):
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonInfoResource", security="apikey")
-    def get(self, datastack_name: str, skv: int):
+    def get(self, datastack_name: str, skvn: int):
         """Get skeleton info"""
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
@@ -266,7 +266,7 @@ class SkeletonResource6(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
-
+        
         return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
@@ -288,9 +288,13 @@ class SkeletonResource6a(Resource):
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, skv: int, rid: int):
+    def get(self, datastack_name: str, skvn: int, rid: int):
         """Get skeleton by rid"""
 
+        # WORK IN PROGRESS
+        # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+        
         return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
@@ -343,7 +347,7 @@ class SkeletonResource7a(Resource):
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, skv: int, rid: int):
+    def get(self, datastack_name: str, skvn: int, rid: int):
         """Get skeleton by rid"""
         from messagingclient import MessagingClient
 
