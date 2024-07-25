@@ -3,11 +3,6 @@ from skeletonservice.datasets.service import (
     SkeletonService,
 )
 from skeletonservice.datasets.base_spelunker import spelunker_state
-from nglui.statebuilder import (
-    ImageLayerConfig,
-    SegmentationLayerConfig,
-    StateBuilder,
-)
 from middle_auth_client import (
     auth_required,
     user_has_permission,

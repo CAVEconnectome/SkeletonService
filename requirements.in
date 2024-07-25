@@ -4,11 +4,8 @@ Flask<3.0
 flask-cors
 flask-restx
 flask-accepts
-nglui
 middle-auth-client>=3.16.0
 caveclient
 meshparty
-dracopy
 pcg_skel
 messagingclient
-pyopenssl
