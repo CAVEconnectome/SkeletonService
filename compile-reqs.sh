@@ -1,0 +1,1 @@
+docker run -v ${PWD}:/app caveconnectome/skeletoncache:v0.1.31 /bin/bash -c "pip install pip-tools && pip-compile -v -r requirements.in"

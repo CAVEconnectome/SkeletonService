@@ -1,13 +1,14 @@
 from flask import Flask, jsonify, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
+
 # from skeletonservice.database import Base
 from skeletonservice.utils import get_instance_folder_path
 from skeletonservice.datasets.api import api_bp
 from skeletonservice.datasets.views import views_bp
-from skeletonservice.admin import setup_admin  # noQA: E402
 from flask_restx import Api
 from flask_cors import CORS
 import logging
+
 # from flask_migrate import Migrate
 from werkzeug.routing import BaseConverter
 
@@ -21,9 +22,9 @@ __version__ = "3.17.1"
 
 class BoolConverter(BaseConverter):
     def to_python(self, value):
-        if value.lower() in ['true', '1']:
+        if value.lower() in ["true", "1"]:
             return True
-        elif value.lower() in ['false', '0']:
+        elif value.lower() in ["false", "0"]:
             return False
         else:
             return None
@@ -53,7 +54,7 @@ def create_app(test_config=None):
     logging.basicConfig(level=logging.DEBUG)
 
     # Boolean parameter aren't natively supported. They require a custom converter.
-    app.url_map.converters['bool'] = BoolConverter
+    app.url_map.converters["bool"] = BoolConverter
 
     # load configuration (from test_config if passed)
     if test_config is None:
@@ -78,7 +79,7 @@ def create_app(test_config=None):
         api.add_namespace(api_bp, path="/v1")
 
         app.register_blueprint(baseapi_bp)
-        
+
     @app.route("/skeletoncache/health")
     def health():
         return jsonify("healthy"), 200
