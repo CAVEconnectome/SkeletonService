@@ -292,10 +292,10 @@ class SkeletonResource6a(Resource):
         """Get skeleton by rid"""
 
         # WORK IN PROGRESS
-        # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
-        # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        return SkelClassVsn.get_skeleton_by_datastack_and_rid(
         
-        return SkeletonService.get_skeleton_by_datastack_and_rid(
+        # return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
             output_format='precomputed',

@@ -575,6 +575,8 @@ class SkeletonService:
                 params, output_format
             )
             if verbose_level >= 1:
+                print(f"Cache query result: {skeleton_return is not None}")
+            if verbose_level >= 2:
                 print(f"Cache query result: {skeleton_return}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
