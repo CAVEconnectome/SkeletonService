@@ -317,7 +317,7 @@ class SkeletonService:
             print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
-        skel = pcg_skel.coord_space_skeleton(
+        skel = pcg_skel.pcg_skeleton(
             rid,
             client,
             root_point=soma_location,
