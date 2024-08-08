@@ -270,7 +270,7 @@ class SkeletonService:
 
         for soma_table in soma_tables:
             soma_df = client.materialize.tables[soma_table](pt_root_id=rid).live_query(
-                timestamp=root_ts + datetime.timedelta(milliseconds=1)
+                timestamp=root_ts
             )
             if len(soma_df) == 1:
                 break
@@ -325,6 +325,91 @@ class SkeletonService:
             collapse_soma=collapse_soma,
             collapse_radius=collapse_radius,
         )
+
+        return skel
+
+    @staticmethod
+    def generate_skeleton_w_geometry(
+        rid,
+        bucket,
+        skeleton_version,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+    ):
+        """
+        Templated and modified from generate_skeleton().
+        """
+        server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+        client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=server,
+        )
+        if (datastack_name == "minnie65_public") or (
+            datastack_name == "minnie65_phase3_v1"
+        ):
+            soma_tables = ["nucleus_alternative_points", "nucleus_detection_v0"]
+        else:
+            soma_tables = None
+
+        soma_location, soma_resolution = SkeletonService.get_root_soma(
+            rid, client, soma_tables
+        )
+
+        # Get the location of the soma from nucleus detection:
+        if verbose_level >= 1:
+            print(
+                f"generate_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+            )
+            print(f"CAVEClient version: {caveclient.__version__}")
+
+        # Use the above parameters in the skeletonization:
+        nrn = pcg_skel.pcg_meshwork(
+            rid,
+            client,
+            root_point=soma_location,
+            root_point_resolution=soma_resolution,
+            collapse_soma=collapse_soma,
+            collapse_radius=collapse_radius,
+            # timestamp=timestamp,
+            require_complete=True,
+            synapses='all',
+            synapse_table=client.info.get_datastack_info().get('synapse_table'),
+        )
+
+        # Add volumetric properties
+        pcg_skel.features.add_volumetric_properties(
+            nrn,
+            client,
+            # attributes: list[str] = VOL_PROPERTIES,
+            # l2id_anno_name: str = "lvl2_ids",
+            # l2id_col_name: str = "lvl2_id",
+            # property_name: str = "vol_prop",
+        )
+
+        # Add segment properties
+        pcg_skel.features.add_segment_properties(
+            nrn,
+            # segment_property_name: str = "segment_properties",
+            # effective_radius: bool = True,
+            # area_factor: bool = True,
+            # strahler: bool = True,
+            # strahler_by_compartment: bool = False,
+            # volume_property_name: str = "vol_prop",
+            # volume_col_name: str = "size_nm3",
+            # area_col_name: str = "area_nm2",
+            # root_as_sphere: bool = True,
+            # comp_mask: str = "is_axon",
+        )
+
+        # I adapted this from export_to_swc() in the hope of adding the radius to the skeleton,
+        # but it doesn't make any sense. It doesn't *use* any information from the nrn at all!
+        radius = [0] * nrn.num_vertices
+        radius = pcg_skel.mesh_property_to_skeleton(radius, aggfunc="mean")
+        nrn.skeleton.radius = radius
+
+        skel = nrn.skeleton
 
         return skel
 
