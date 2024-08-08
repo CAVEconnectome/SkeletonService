@@ -6,6 +6,9 @@ from .service import SkeletonService
 def callback(payload):
     print("Skeleton Cache received message: ", payload)
     try:
+        # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.
+        # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][int(payload.attributes["skeleton_version"])]
+
         result = SkeletonService.get_skeleton_by_datastack_and_rid(
             payload.attributes["skeleton_params_datastack_name"],
             int(payload.attributes["skeleton_params_rid"]),
