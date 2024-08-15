@@ -98,6 +98,7 @@ class SkeletonService:
         assert (
             format == ""
             or format == "json"
+            or format == "arrays"
             or format == "precomputed"
             or format == "h5"
             or format == "swc"
@@ -148,7 +149,7 @@ class SkeletonService:
 
         skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
-        if format == "json":
+        if format == "json" or format == "arrays":
             skeleton = SkeletonService.skeleton_to_json(skeleton)
         elif format == "precomputed":
             cv_skeleton = cloudvolume.Skeleton(
@@ -196,7 +197,7 @@ class SkeletonService:
         bucket, skeleton_version = params[1], params[2]
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
-            if format == "json":
+            if format == "json" or format == "arrays":
                 return cf.get_json(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
@@ -229,7 +230,7 @@ class SkeletonService:
         )
         bucket, skeleton_version = params[1], params[2]
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        if format == "json":
+        if format == "json" or format == "arrays":
             cf.put_json(
                 file_name, skeleton, COMPRESSION if include_compression else None
             )
@@ -278,7 +279,7 @@ class SkeletonService:
         if len(soma_df) != 1:
             return None, None
 
-        return soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
+        return root_ts, soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
 
     @staticmethod
     def generate_skeleton(
@@ -305,9 +306,11 @@ class SkeletonService:
         else:
             soma_tables = None
 
-        soma_location, soma_resolution = SkeletonService.get_root_soma(
+        root_ts, soma_location, soma_resolution = SkeletonService.get_root_soma(
             rid, client, soma_tables
         )
+        if verbose_level >= 1:
+            print(f"soma_resolution: {soma_resolution}")
 
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
@@ -353,9 +356,11 @@ class SkeletonService:
         else:
             soma_tables = None
 
-        soma_location, soma_resolution = SkeletonService.get_root_soma(
+        root_ts, soma_location, soma_resolution = SkeletonService.get_root_soma(
             rid, client, soma_tables
         )
+        if verbose_level >= 1:
+            print(f"soma_resolution: {soma_resolution}")
 
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
@@ -364,18 +369,31 @@ class SkeletonService:
             )
             print(f"CAVEClient version: {caveclient.__version__}")
 
-        # Use the above parameters in the skeletonization:
+        # Use the above parameters in the meshwork generation and skeletonization:
         nrn = pcg_skel.pcg_meshwork(
             rid,
+            datastack_name,
             client,
             root_point=soma_location,
             root_point_resolution=soma_resolution,
             collapse_soma=collapse_soma,
             collapse_radius=collapse_radius,
-            # timestamp=timestamp,
+            timestamp=root_ts,
             require_complete=True,
             synapses='all',
             synapse_table=client.info.get_datastack_info().get('synapse_table'),
+        )
+
+        # Add synapse annotations.
+        # At the time of this writing, this fails. Casey is looking into it.
+        pcg_skel.features.add_is_axon_annotation(
+            nrn,
+            pre_anno='pre_syn',
+            post_anno='post_syn',
+            annotation_name='is_axon',
+            threshold_quality=0.5,
+            extend_to_segment=True,
+            n_times=1
         )
 
         # Add volumetric properties
@@ -403,15 +421,14 @@ class SkeletonService:
             # comp_mask: str = "is_axon",
         )
 
-        # I adapted this from export_to_swc() in the hope of adding the radius to the skeleton,
-        # but it doesn't make any sense. It doesn't *use* any information from the nrn at all!
-        radius = [0] * nrn.num_vertices
-        radius = pcg_skel.mesh_property_to_skeleton(radius, aggfunc="mean")
-        nrn.skeleton.radius = radius
+        radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
+        radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+        # nrn.skeleton.radius = radius_sk
+        nrn.skeleton._rooted.radius = radius_sk
 
         skel = nrn.skeleton
 
-        return skel
+        return nrn, skel
 
     @staticmethod
     def skeleton_metadata_to_json(skeleton_metadata):
@@ -532,6 +549,20 @@ class SkeletonService:
         # sk.topo_points = json['topo_points']
         # sk.unmasked_size = json['unmasked_size']
         return sk
+
+    @staticmethod
+    def skeleton_to_arrays(skel):
+        """
+        Convert a skeleton object to a minimal set of arrays.
+        """
+        sk_json = SkeletonService.skeleton_to_json(skel)
+        sk_arrays = {
+            'vertices': sk_json['vertices'],
+            'vertex_properties': sk_json['vertex_properties'],
+            'edges': sk_json['edges'],
+        }
+        
+        return sk_arrays
 
     @staticmethod
     def response_headers():
@@ -696,6 +727,7 @@ class SkeletonService:
             skeleton = None
             if (
                 output_format == "json"
+                or output_format == "arrays"
                 or output_format == "swc"
                 or output_format == "precomputed"
             ):
@@ -748,10 +780,7 @@ class SkeletonService:
             if output_format == "swc":
                 file_content = BytesIO()
                 SkeletonIO.export_to_swc(skeleton, file_content)
-                # file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
-                # SkeletonIO.export_to_swc(skeleton, file_name)
-                # Read the file back as a bytes object to facilitate CloudFiles.put()
-                # file_content = open(file_name, 'rb').read()
+                file_content = file_content.getvalue()
                 SkeletonService.cache_skeleton(params, file_content, output_format)
                 file_location = SkeletonService.get_skeleton_location(
                     params, output_format
@@ -768,6 +797,13 @@ class SkeletonService:
                         )
                     )
                 return skeleton_json
+
+            if output_format == "arrays":
+                # The arrays format is next to identical to the JSON format.
+                # Its purpose is to offer a vastly minimized and simplified representation:
+                # Just vertices, edges, and vertex properties.
+                skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
+                return skeleton_arrays
 
             if output_format == "precomputed":
                 # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?

@@ -309,6 +309,34 @@ class SkeletonResource6a(Resource):
 
 
 
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>/<string:output_format>")
+class SkeletonResource6b(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rid: int, output_format: str):
+        """Get skeleton by rid"""
+
+        # WORK IN PROGRESS
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+        
+        # return SkeletonService.get_skeleton_by_datastack_and_rid(
+            datastack_name=datastack_name,
+            rid=rid,
+            output_format=output_format,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            verbose_level_=1,
+        )
+
+
+
 @api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>")
 class SkeletonResource7(Resource):
     """SkeletonResource"""
