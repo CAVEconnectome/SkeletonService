@@ -28,6 +28,7 @@ DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 VERSION_PARAMS = {
     1: {},
+    2: {},  # Includes radius, synapse, and axon/dendrite information
 }
 verbose_level = 0
 
@@ -365,10 +366,10 @@ class SkeletonService:
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
             print(
-                f"generate_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+                f"generate_skeleton_w_geometry {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
             print(f"CAVEClient version: {caveclient.__version__}")
-
+        
         # Use the above parameters in the meshwork generation and skeletonization:
         nrn = pcg_skel.pcg_meshwork(
             rid,
@@ -427,6 +428,16 @@ class SkeletonService:
         nrn.skeleton._rooted.radius = radius_sk
 
         skel = nrn.skeleton
+
+        # Assign the radius information to the skeleton
+        skel.vertex_properties['radius'] = skel.radius
+
+        # Assign the axon/dendrite information to the skeleton
+        # The compartment codes are found in skeleton_plot.plot_tools.py
+        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 0, 2
+        is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
+        axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
+        skel.vertex_properties['compartment'] = axon_compartment_encoding
 
         return nrn, skel
 
@@ -747,12 +758,15 @@ class SkeletonService:
                         params, "h5"
                     )
                     if not skeleton:
-                        skeleton = SkeletonService.generate_skeleton(*params)
+                        if skeleton_version == 1:
+                            skeleton = SkeletonService.generate_skeleton(*params)
+                        elif skeleton_version == 2:
+                            nrn, skeleton = SkeletonService.generate_skeleton_w_geometry(*params)
                         if verbose_level >= 1:
                             print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
-                    print(e)
-                    return f"Failed to generate skeleton for {rid}: {str(e)}"
+                    print(f"Exception while generating skeleton for {rid}: {str(e)}")
+                    return f"Exception while generating skeleton for {rid}: {str(e)}"
 
             # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
             # Also cache the H5 skeleton if it was generated.
