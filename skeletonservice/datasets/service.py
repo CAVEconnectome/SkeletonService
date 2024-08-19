@@ -272,7 +272,7 @@ class SkeletonService:
             soma_tables = client.info.get_datastack_info()["soma_table"]
 
             if soma_tables is None:
-                return None, None
+                return None, None, None
             else:
                 soma_tables = [soma_tables]
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -288,7 +288,7 @@ class SkeletonService:
                 break
 
         if len(soma_df) != 1:
-            return None, None
+            return None, None, None
 
         return root_ts, soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
 
