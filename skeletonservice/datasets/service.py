@@ -656,13 +656,17 @@ class SkeletonService:
         if (
             datastack_name == "0" or rid == 0
         ):  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
+            print("DEBUG mode engaged by either setting datastack_name to 0 or rid to 0")
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             # rid = 864691135397503777
             rid = 864691134918592778
-            datastack_name = "minnie65_public"
+            # datastack_name = "minnie65_public"
+            datastack_name = "minnie65_phase3_v1"
         #     materialize_version = 795
         # if materialize_version == 1:
         #     materialize_version = 795
+        #     materialize_version = 1
+            verbose_level = 1
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
 
         if verbose_level >= 1:
