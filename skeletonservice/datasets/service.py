@@ -28,6 +28,7 @@ DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 VERSION_PARAMS = {
     1: {},
+    2: {},  # Includes radius, synapse, and axon/dendrite information
 }
 verbose_level = 0
 
@@ -98,6 +99,7 @@ class SkeletonService:
         assert (
             format == ""
             or format == "json"
+            or format == "arrays"
             or format == "precomputed"
             or format == "h5"
             or format == "swc"
@@ -148,7 +150,7 @@ class SkeletonService:
 
         skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
-        if format == "json":
+        if format == "json" or format == "arrays":
             skeleton = SkeletonService.skeleton_to_json(skeleton)
         elif format == "precomputed":
             cv_skeleton = cloudvolume.Skeleton(
@@ -181,6 +183,8 @@ class SkeletonService:
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"confirm_skeleton_in_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         return cf.exists(file_name)
 
@@ -192,11 +196,13 @@ class SkeletonService:
         """
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
-            print("File name being sought in cache:", file_name)
+            print("retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"retrieve_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
-            if format == "json":
+            if format == "json" or format == "arrays":
                 return cf.get_json(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
@@ -211,7 +217,11 @@ class SkeletonService:
         See retrieve_skeleton_from_cache() for comparison.
         """
         file_name = SkeletonService.get_skeleton_filename(*params, "h5")
+        if verbose_level >= 1:
+            print("retrieve_h5_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"retrieve_h5_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
@@ -228,8 +238,10 @@ class SkeletonService:
             *params, format, include_compression=include_compression
         )
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"Caching skeleton to {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        if format == "json":
+        if format == "json" or format == "arrays":
             cf.put_json(
                 file_name, skeleton, COMPRESSION if include_compression else None
             )
@@ -270,7 +282,7 @@ class SkeletonService:
 
         for soma_table in soma_tables:
             soma_df = client.materialize.tables[soma_table](pt_root_id=rid).live_query(
-                timestamp=root_ts + datetime.timedelta(milliseconds=1)
+                timestamp=root_ts
             )
             if len(soma_df) == 1:
                 break
@@ -278,7 +290,7 @@ class SkeletonService:
         if len(soma_df) != 1:
             return None, None
 
-        return soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
+        return root_ts, soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
 
     @staticmethod
     def generate_skeleton(
@@ -305,9 +317,11 @@ class SkeletonService:
         else:
             soma_tables = None
 
-        soma_location, soma_resolution = SkeletonService.get_root_soma(
+        root_ts, soma_location, soma_resolution = SkeletonService.get_root_soma(
             rid, client, soma_tables
         )
+        if verbose_level >= 1:
+            print(f"soma_resolution: {soma_resolution}")
 
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
@@ -317,7 +331,7 @@ class SkeletonService:
             print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
-        skel = pcg_skel.coord_space_skeleton(
+        skel = pcg_skel.pcg_skeleton(
             rid,
             client,
             root_point=soma_location,
@@ -327,6 +341,115 @@ class SkeletonService:
         )
 
         return skel
+
+    @staticmethod
+    def generate_skeleton_w_geometry(
+        rid,
+        bucket,
+        skeleton_version,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+    ):
+        """
+        Templated and modified from generate_skeleton().
+        """
+        server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+        client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=server,
+        )
+        if (datastack_name == "minnie65_public") or (
+            datastack_name == "minnie65_phase3_v1"
+        ):
+            soma_tables = ["nucleus_alternative_points", "nucleus_detection_v0"]
+        else:
+            soma_tables = None
+
+        root_ts, soma_location, soma_resolution = SkeletonService.get_root_soma(
+            rid, client, soma_tables
+        )
+        if verbose_level >= 1:
+            print(f"soma_resolution: {soma_resolution}")
+
+        # Get the location of the soma from nucleus detection:
+        if verbose_level >= 1:
+            print(
+                f"generate_skeleton_w_geometry {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+            )
+            print(f"CAVEClient version: {caveclient.__version__}")
+        
+        # Use the above parameters in the meshwork generation and skeletonization:
+        nrn = pcg_skel.pcg_meshwork(
+            rid,
+            datastack_name,
+            client,
+            root_point=soma_location,
+            root_point_resolution=soma_resolution,
+            collapse_soma=collapse_soma,
+            collapse_radius=collapse_radius,
+            timestamp=root_ts,
+            require_complete=True,
+            synapses='all',
+            synapse_table=client.info.get_datastack_info().get('synapse_table'),
+        )
+
+        # Add synapse annotations.
+        # At the time of this writing, this fails. Casey is looking into it.
+        pcg_skel.features.add_is_axon_annotation(
+            nrn,
+            pre_anno='pre_syn',
+            post_anno='post_syn',
+            annotation_name='is_axon',
+            threshold_quality=0.5,
+            extend_to_segment=True,
+            n_times=1
+        )
+
+        # Add volumetric properties
+        pcg_skel.features.add_volumetric_properties(
+            nrn,
+            client,
+            # attributes: list[str] = VOL_PROPERTIES,
+            # l2id_anno_name: str = "lvl2_ids",
+            # l2id_col_name: str = "lvl2_id",
+            # property_name: str = "vol_prop",
+        )
+
+        # Add segment properties
+        pcg_skel.features.add_segment_properties(
+            nrn,
+            # segment_property_name: str = "segment_properties",
+            # effective_radius: bool = True,
+            # area_factor: bool = True,
+            # strahler: bool = True,
+            # strahler_by_compartment: bool = False,
+            # volume_property_name: str = "vol_prop",
+            # volume_col_name: str = "size_nm3",
+            # area_col_name: str = "area_nm2",
+            # root_as_sphere: bool = True,
+            # comp_mask: str = "is_axon",
+        )
+
+        skel = nrn.skeleton
+
+        radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
+        radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+        # nrn.skeleton.radius = radius_sk  # Requires a property setter
+        skel._rooted.radius = radius_sk
+
+        # Assign the radius information to the skeleton
+        skel.vertex_properties['radius'] = skel.radius
+
+        # Assign the axon/dendrite information to the skeleton
+        # The compartment codes are found in skeleton_plot.plot_tools.py
+        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 0, 2
+        is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
+        axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
+        skel.vertex_properties['compartment'] = axon_compartment_encoding
+
+        return nrn, skel
 
     @staticmethod
     def skeleton_metadata_to_json(skeleton_metadata):
@@ -449,6 +572,20 @@ class SkeletonService:
         return sk
 
     @staticmethod
+    def skeleton_to_arrays(skel):
+        """
+        Convert a skeleton object to a minimal set of arrays.
+        """
+        sk_json = SkeletonService.skeleton_to_json(skel)
+        sk_arrays = {
+            'vertices': sk_json['vertices'],
+            'vertex_properties': sk_json['vertex_properties'],
+            'edges': sk_json['edges'],
+        }
+        
+        return sk_arrays
+
+    @staticmethod
     def response_headers():
         """
         Build Flask Response header for a requested skeleton object.
@@ -519,13 +656,17 @@ class SkeletonService:
         if (
             datastack_name == "0" or rid == 0
         ):  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
+            print("DEBUG mode engaged by either setting datastack_name to 0 or rid to 0")
             # From https://caveconnectome.github.io/pcg_skel/tutorial/
             # rid = 864691135397503777
             rid = 864691134918592778
-            datastack_name = "minnie65_public"
+            # datastack_name = "minnie65_public"
+            datastack_name = "minnie65_phase3_v1"
         #     materialize_version = 795
         # if materialize_version == 1:
         #     materialize_version = 795
+        #     materialize_version = 1
+            verbose_level = 1
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
 
         if verbose_level >= 1:
@@ -575,6 +716,8 @@ class SkeletonService:
                 params, output_format
             )
             if verbose_level >= 1:
+                print(f"Cache query result: {skeleton_return is not None}")
+            if verbose_level >= 2:
                 print(f"Cache query result: {skeleton_return}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
@@ -609,6 +752,7 @@ class SkeletonService:
             skeleton = None
             if (
                 output_format == "json"
+                or output_format == "arrays"
                 or output_format == "swc"
                 or output_format == "precomputed"
             ):
@@ -628,30 +772,41 @@ class SkeletonService:
                         params, "h5"
                     )
                     if not skeleton:
-                        skeleton = SkeletonService.generate_skeleton(*params)
+                        if skeleton_version == 1:
+                            skeleton = SkeletonService.generate_skeleton(*params)
+                        elif skeleton_version == 2:
+                            nrn, skeleton = SkeletonService.generate_skeleton_w_geometry(*params)
                         if verbose_level >= 1:
                             print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
-                    print(e)
-                    return f"Failed to generate skeleton for {rid}: {str(e)}"
+                    print(f"Exception while generating skeleton for {rid}: {str(e)}")
+                    return f"Exception while generating skeleton for {rid}: {str(e)}"
 
             # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
             # Also cache the H5 skeleton if it was generated.
 
-            if output_format == "h5" or generate_new_skeleton:
-                if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
-                    # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
-                    file_name = SkeletonService.get_skeleton_filename(
-                        *params, "h5", False
-                    )
-                    SkeletonIO.write_skeleton_h5(
-                        skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
-                    )
+            # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
+            # Attempt to return the successfully generated skeleton regardless of any caching failures.
+            # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
+            # but it maximizes the chance of returning a skeleton to the user.
 
-                file_content = BytesIO()
-                SkeletonIO.write_skeleton_h5(skeleton, file_content)
-                file_content = file_content.getvalue()
-                SkeletonService.cache_skeleton(params, file_content, "h5")
+            if output_format == "h5" or generate_new_skeleton:
+                try:
+                    if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
+                        # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
+                        file_name = SkeletonService.get_skeleton_filename(
+                            *params, "h5", False
+                        )
+                        SkeletonIO.write_skeleton_h5(
+                            skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
+                        )
+
+                    file_content = BytesIO()
+                    SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                    file_content = file_content.getvalue()
+                    SkeletonService.cache_skeleton(params, file_content, "h5")
+                except Exception as e:
+                    print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
                 if output_format == "h5":
                     file_location = SkeletonService.get_skeleton_location(
                         params, output_format
@@ -659,28 +814,38 @@ class SkeletonService:
                     return file_location
 
             if output_format == "swc":
-                file_content = BytesIO()
-                SkeletonIO.export_to_swc(skeleton, file_content)
-                # file_name = SkeletonService.get_skeleton_filename(*params, output_format, False)
-                # SkeletonIO.export_to_swc(skeleton, file_name)
-                # Read the file back as a bytes object to facilitate CloudFiles.put()
-                # file_content = open(file_name, 'rb').read()
-                SkeletonService.cache_skeleton(params, file_content, output_format)
-                file_location = SkeletonService.get_skeleton_location(
-                    params, output_format
-                )
+                try:
+                    file_content = BytesIO()
+                    SkeletonIO.export_to_swc(skeleton, file_content)
+                    file_content = file_content.getvalue()
+                    SkeletonService.cache_skeleton(params, file_content, output_format)
+                    file_location = SkeletonService.get_skeleton_location(
+                        params, output_format
+                    )
+                except Exception as e:
+                    print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
                 return file_location
 
             if output_format == "json":
-                skeleton_json = SkeletonService.skeleton_to_json(skeleton)
-                SkeletonService.cache_skeleton(params, skeleton_json, output_format)
-                if debug_minimize_json_skeleton:  # DEBUG
-                    skeleton_json = (
-                        SkeletonService.minimize_json_skeleton_for_easier_debugging(
-                            skeleton_json
+                try:
+                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                    SkeletonService.cache_skeleton(params, skeleton_json, output_format)
+                    if debug_minimize_json_skeleton:  # DEBUG
+                        skeleton_json = (
+                            SkeletonService.minimize_json_skeleton_for_easier_debugging(
+                                skeleton_json
+                            )
                         )
-                    )
+                except Exception as e:
+                    print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
                 return skeleton_json
+
+            if output_format == "arrays":
+                # The arrays format is next to identical to the JSON format.
+                # Its purpose is to offer a vastly minimized and simplified representation:
+                # Just vertices, edges, and vertex properties.
+                skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
+                return skeleton_arrays
 
             if output_format == "precomputed":
                 # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
@@ -696,10 +861,14 @@ class SkeletonService:
                 )
                 # Convert the CloudVolume skeleton to precomputed format
                 skeleton_precomputed = cv_skeleton.to_precomputed()
+                
                 # Cache the precomputed skeleton
-                SkeletonService.cache_skeleton(
-                    params, skeleton_precomputed, output_format
-                )
+                try:
+                    SkeletonService.cache_skeleton(
+                        params, skeleton_precomputed, output_format
+                    )
+                except Exception as e:
+                    print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
 
                 response = Response(
                     skeleton_precomputed, mimetype="application/octet-stream"
