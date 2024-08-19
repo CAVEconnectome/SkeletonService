@@ -422,12 +422,12 @@ class SkeletonService:
             # comp_mask: str = "is_axon",
         )
 
+        skel = nrn.skeleton
+
         radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
         radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
-        # nrn.skeleton.radius = radius_sk
-        nrn.skeleton._rooted.radius = radius_sk
-
-        skel = nrn.skeleton
+        # nrn.skeleton.radius = radius_sk  # Requires a property setter
+        skel._rooted.radius = radius_sk
 
         # Assign the radius information to the skeleton
         skel.vertex_properties['radius'] = skel.radius
@@ -771,20 +771,28 @@ class SkeletonService:
             # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
             # Also cache the H5 skeleton if it was generated.
 
-            if output_format == "h5" or generate_new_skeleton:
-                if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
-                    # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
-                    file_name = SkeletonService.get_skeleton_filename(
-                        *params, "h5", False
-                    )
-                    SkeletonIO.write_skeleton_h5(
-                        skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
-                    )
+            # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
+            # Attempt to return the successfully generated skeleton regardless of any caching failures.
+            # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
+            # but it maximizes the chance of returning a skeleton to the user.
 
-                file_content = BytesIO()
-                SkeletonIO.write_skeleton_h5(skeleton, file_content)
-                file_content = file_content.getvalue()
-                SkeletonService.cache_skeleton(params, file_content, "h5")
+            if output_format == "h5" or generate_new_skeleton:
+                try:
+                    if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
+                        # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
+                        file_name = SkeletonService.get_skeleton_filename(
+                            *params, "h5", False
+                        )
+                        SkeletonIO.write_skeleton_h5(
+                            skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
+                        )
+
+                    file_content = BytesIO()
+                    SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                    file_content = file_content.getvalue()
+                    SkeletonService.cache_skeleton(params, file_content, "h5")
+                except Exception as e:
+                    print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
                 if output_format == "h5":
                     file_location = SkeletonService.get_skeleton_location(
                         params, output_format
@@ -792,24 +800,30 @@ class SkeletonService:
                     return file_location
 
             if output_format == "swc":
-                file_content = BytesIO()
-                SkeletonIO.export_to_swc(skeleton, file_content)
-                file_content = file_content.getvalue()
-                SkeletonService.cache_skeleton(params, file_content, output_format)
-                file_location = SkeletonService.get_skeleton_location(
-                    params, output_format
-                )
+                try:
+                    file_content = BytesIO()
+                    SkeletonIO.export_to_swc(skeleton, file_content)
+                    file_content = file_content.getvalue()
+                    SkeletonService.cache_skeleton(params, file_content, output_format)
+                    file_location = SkeletonService.get_skeleton_location(
+                        params, output_format
+                    )
+                except Exception as e:
+                    print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
                 return file_location
 
             if output_format == "json":
-                skeleton_json = SkeletonService.skeleton_to_json(skeleton)
-                SkeletonService.cache_skeleton(params, skeleton_json, output_format)
-                if debug_minimize_json_skeleton:  # DEBUG
-                    skeleton_json = (
-                        SkeletonService.minimize_json_skeleton_for_easier_debugging(
-                            skeleton_json
+                try:
+                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                    SkeletonService.cache_skeleton(params, skeleton_json, output_format)
+                    if debug_minimize_json_skeleton:  # DEBUG
+                        skeleton_json = (
+                            SkeletonService.minimize_json_skeleton_for_easier_debugging(
+                                skeleton_json
+                            )
                         )
-                    )
+                except Exception as e:
+                    print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
                 return skeleton_json
 
             if output_format == "arrays":
@@ -833,10 +847,14 @@ class SkeletonService:
                 )
                 # Convert the CloudVolume skeleton to precomputed format
                 skeleton_precomputed = cv_skeleton.to_precomputed()
+                
                 # Cache the precomputed skeleton
-                SkeletonService.cache_skeleton(
-                    params, skeleton_precomputed, output_format
-                )
+                try:
+                    SkeletonService.cache_skeleton(
+                        params, skeleton_precomputed, output_format
+                    )
+                except Exception as e:
+                    print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
 
                 response = Response(
                     skeleton_precomputed, mimetype="application/octet-stream"
