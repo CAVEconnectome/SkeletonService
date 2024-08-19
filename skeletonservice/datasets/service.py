@@ -669,6 +669,9 @@ class SkeletonService:
             verbose_level = 1
         debug_minimize_json_skeleton = False  # DEBUG: See minimize_json_skeleton_for_easier_debugging() for explanation.
 
+        if bucket[-1] != "/":
+            bucket += "/"
+
         if verbose_level >= 1:
             print(
                 f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
