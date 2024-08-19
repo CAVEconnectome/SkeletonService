@@ -183,6 +183,8 @@ class SkeletonService:
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"confirm_skeleton_in_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         return cf.exists(file_name)
 
@@ -194,8 +196,10 @@ class SkeletonService:
         """
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
-            print("File name being sought in cache:", file_name)
+            print("retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"retrieve_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
             if format == "json" or format == "arrays":
@@ -213,7 +217,11 @@ class SkeletonService:
         See retrieve_skeleton_from_cache() for comparison.
         """
         file_name = SkeletonService.get_skeleton_filename(*params, "h5")
+        if verbose_level >= 1:
+            print("retrieve_h5_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"retrieve_h5_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
             skeleton_bytes = cf.get(file_name)
@@ -230,6 +238,8 @@ class SkeletonService:
             *params, format, include_compression=include_compression
         )
         bucket, skeleton_version = params[1], params[2]
+        if verbose_level >= 1:
+            print(f"Caching skeleton to {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if format == "json" or format == "arrays":
             cf.put_json(
