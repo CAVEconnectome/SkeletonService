@@ -314,7 +314,7 @@ pathos==0.3.2
     # via
     #   cloud-files
     #   cloud-volume
-pcg-skel==1.0.2
+pcg-skel==1.0.3
     # via -r requirements.in
 pexpect==4.9.0
     # via ipython

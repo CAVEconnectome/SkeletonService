@@ -7,5 +7,5 @@ flask-accepts
 middle-auth-client>=3.16.0
 caveclient
 meshparty
-pcg_skel
+pcg_skel>=1.0.3
 messagingclient
