@@ -15,6 +15,7 @@ import cloudvolume
 import gzip
 import os
 import datetime
+import traceback
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -627,6 +628,7 @@ class SkeletonService:
             return response
         except Exception as e:
             print(f"Exception in after_request(): {str(e)}")
+            traceback.print_exc()
             return None
 
     @staticmethod
@@ -783,6 +785,7 @@ class SkeletonService:
                             print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
                     print(f"Exception while generating skeleton for {rid}: {str(e)}")
+                    traceback.print_exc()
                     return f"Exception while generating skeleton for {rid}: {str(e)}"
 
             # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
@@ -810,6 +813,7 @@ class SkeletonService:
                     SkeletonService.cache_skeleton(params, file_content, "h5")
                 except Exception as e:
                     print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
+                    traceback.print_exc()
                 if output_format == "h5":
                     file_location = SkeletonService.get_skeleton_location(
                         params, output_format
@@ -827,6 +831,7 @@ class SkeletonService:
                     )
                 except Exception as e:
                     print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
+                    traceback.print_exc()
                 return file_location
 
             if output_format == "json":
@@ -841,6 +846,7 @@ class SkeletonService:
                         )
                 except Exception as e:
                     print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
+                    traceback.print_exc()
                 return skeleton_json
 
             if output_format == "arrays":
@@ -872,6 +878,7 @@ class SkeletonService:
                     )
                 except Exception as e:
                     print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
+                    traceback.print_exc()
 
                 response = Response(
                     skeleton_precomputed, mimetype="application/octet-stream"
