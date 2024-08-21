@@ -640,7 +640,7 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
-        skeleton_version: int = -1,
+        skeleton_version: int = 0,
         verbose_level_: int = 0,
     ):
         """
@@ -681,8 +681,8 @@ class SkeletonService:
         if not output_format:
             output_format = ""
 
-        # If no skeleton version is specified, then use the latest version.
-        if skeleton_version == -1:
+        # If no skeleton version is specified or an illegal version is specified, then use the latest version
+        if skeleton_version not in VERSION_PARAMS.keys():
             skeleton_version = sorted(VERSION_PARAMS.keys())[-1]
         version_params = (
             VERSION_PARAMS[skeleton_version]

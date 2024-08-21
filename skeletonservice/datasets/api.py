@@ -267,7 +267,12 @@ class SkeletonResource6(Resource):
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
         
-        return SkeletonService.get_skeleton_by_datastack_and_rid(
+        # Use the latest version
+        skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
+        return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+        # return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
             output_format='precomputed',
@@ -275,8 +280,8 @@ class SkeletonResource6(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
-            skeleton_version=-1,
-            verbose_level_=1,
+            skeleton_version=0,
+            verbose_level_=-1,
         )
 
 
@@ -291,10 +296,12 @@ class SkeletonResource6a(Resource):
     def get(self, datastack_name: str, skvn: int, rid: int):
         """Get skeleton by rid"""
 
-        # WORK IN PROGRESS
+        # If no skeleton version is specified or an illegal version is specified, then use the latest version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
-        
         # return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
@@ -319,10 +326,12 @@ class SkeletonResource6b(Resource):
     def get(self, datastack_name: str, skvn: int, rid: int, output_format: str):
         """Get skeleton by rid"""
 
-        # WORK IN PROGRESS
+        # If no skeleton version is specified or an illegal version is specified, then use the latest version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
-        
         # return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name=datastack_name,
             rid=rid,
@@ -356,7 +365,7 @@ class SkeletonResource7(Resource):
             "skeleton_params_root_resolution": "1 1 1",
             "skeleton_params_collapse_soma": "True",
             "skeleton_params_collapse_radius": "7500",
-            "skeleton_version": "1",
+            "skeleton_version": "0",
             "verbose_level": "1",
         }
 
@@ -396,38 +405,3 @@ class SkeletonResource7a(Resource):
         c.publish(exchange, payload, attributes)
 
         return "Message has been dispatched"
-
-# With the later addition of the /precomputed/ entrypoints above, I'm not sure this endpoint should be kept around anymore.
-# The skeletonization defaults were taken from https://caveconnectome.github.io/pcg_skel/tutorial/
-# @api_bp.route("/skeleton/<int:rid>/<string:output_format>/", defaults={
-#     'sid': 0, 'bucket': 'gs://keith-dev/', 'datastack_name': 'minnie65_public', 'materialize_version': 795, 'root_res_x': 1, 'root_res_y': 1, 'root_res_z': 1,
-#     'collapse_soma': True, 'collapse_radius': 7500})
-# @api_bp.route("/skeleton/<int:rid>/<string:output_format>/<int:sid>/<string:bucket>/<string:datastack_name>/<int:materialize_version>/<int:root_res_x>/<int:root_res_y>/<int:root_res_z>/<bool:collapse_soma>/<int:collapse_radius>")
-# @api_bp.param("rid", "Skeleton Root Id")
-# @api_bp.param("sid", "Skeleton Nucleus Id")
-# @api_bp.param("bucket", "Bucket")
-# @api_bp.param("datastack_name", "Datastack")
-# @api_bp.param("materialize_version", "Materialize version")
-# @api_bp.param("root_res_x", "Root resolution X in nm")
-# @api_bp.param("root_res_y", "Root resolution Y in nm")
-# @api_bp.param("root_res_z", "Root resolution Z in nm")
-# @api_bp.param("collapse_soma", "Whether to collapse the soma")
-# @api_bp.param("collapse_radius", "Collapse radius")
-# class SkeletonResource8(Resource):
-#     """Skeletons"""
-
-#     # @responds(schema=schemas.SkeletonSchema)
-#     @api_bp.doc("get skeleton", security="apikey")
-#     @auth_required
-#     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
-#     def get(self, rid: int, output_format: str, sid: int, bucket: str, datastack_name: str, materialize_version: int,
-#             root_res_x: float, root_res_y: float, root_res_z: float, collapse_soma: bool, collapse_radius: int):
-#         """Get skeleton By Root ID"""
-
-#         # TODO: I made most parameters optional, as shown above, and the web UI correctly exposes two endpoints, one without the parameters and one with them.
-#         # If I enter overriding values in the web UI, they are passed into the URL as named arguments (not as enumerated arguments), which I suppose is fine,
-#         # but the overrided values are ignored by the time this function is called. Instead, the default values created in the route decorator above are received here.
-
-#         # return {'rid': rid, 'collapse_soma': 'True' if collapse_soma else 'False', 'collapse_radius': collapse_radius}
-#         return SkeletonService.get_skeleton_by_rid_sid(rid, output_format, sid, bucket, datastack_name, materialize_version,
-#                                                        [root_res_x, root_res_y, root_res_z], collapse_soma, collapse_radius)

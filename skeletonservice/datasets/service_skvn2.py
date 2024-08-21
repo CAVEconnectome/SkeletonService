@@ -11,9 +11,7 @@ class SkeletonService_skvn2(SkeletonService):
     def get_skeleton_by_datastack_and_rid(
         datastack_name: str,
         rid: int,
-        # materialize_version: int,  # Removed
         output_format: str,
-        # sid: int,  # Removed
         bucket: str,
         root_resolution: List,
         collapse_soma: bool,
