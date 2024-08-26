@@ -29,7 +29,7 @@ DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 VERSION_PARAMS = {
     1: {},
-    # 2: {},  # Includes radius, synapse, and axon/dendrite information
+    2: {},  # Includes radius, synapse, and axon/dendrite information
 }
 verbose_level = 0
 
@@ -444,7 +444,8 @@ class SkeletonService:
         skel.vertex_properties['radius'] = skel.radius
 
         # Assign the axon/dendrite information to the skeleton
-        # The compartment codes are found in skeleton_plot.plot_tools.py
+        # The compartment codes are found in skeleton_plot.plot_tools.py:
+        # Default, Soma, Axon, Basal
         DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 0, 2
         is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
         axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
@@ -681,7 +682,7 @@ class SkeletonService:
             )
 
         if not output_format:
-            output_format = ""
+            output_format = "none"
 
         # If no skeleton version is specified or an illegal version is specified, then use the latest version
         if skeleton_version not in VERSION_PARAMS.keys():
@@ -704,7 +705,7 @@ class SkeletonService:
             collapse_radius,
         ]
 
-        if output_format == "":
+        if output_format == "none":
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(
                 params, output_format
             )
@@ -730,9 +731,10 @@ class SkeletonService:
 
         if skeleton_return:
             # skeleton_return will be JSON or PRECOMPUTED content, or H5 or SWC file location (presumably in a bucket).
-            if output_format == "":
-                # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested, merely generatign one if it doesn't exist,
-                # so, since a skeleton already exists in the cache, we're done. There's nothing to generate and nothing to return.
+            if output_format == "none":
+                # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested,
+                # merely generating one if it doesn't exist, so, since a skeleton already exists in the cache, we're done.
+                # There's nothing to generate and nothing to return.
                 return
             if output_format == "precomputed":
                 response = Response(
