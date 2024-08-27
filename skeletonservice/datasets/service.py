@@ -98,14 +98,14 @@ class SkeletonService:
         file_name = f"skeleton__v{skeleton_version}__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
 
         assert (
-            format == ""
+            format == "none"
             or format == "json"
             or format == "arrays"
             or format == "precomputed"
             or format == "h5"
             or format == "swc"
         )
-        if format != "":
+        if format != "none":
             file_name += f".{format}"
         else:
             # If no output is specified, then request or generate an h5 skeleton.
@@ -539,38 +539,38 @@ class SkeletonService:
         return sk_json
 
     @staticmethod
-    def json_to_skeleton(json):
+    def json_to_skeleton(sk_json):
         """
         Convert a JSON description of a skeleton to a skeleton object.
         Most of the skeleton fields can't be populated because they are mere properties, not true member variables, lacking associated setter functions.
         """
         sk = skeleton.Skeleton(
-            vertices=np.array(json["vertices"]),
-            edges=np.array(json["edges"]),
-            mesh_to_skel_map=np.array(json["mesh_to_skel_map"]),
-            mesh_index=np.array(json["mesh_index"]) if "mesh_index" in json else None,
-            vertex_properties=json["vertex_properties"],
-            node_mask=np.array(json["node_mask"]),
-            voxel_scaling=json["voxel_scaling"] if "voxel_scaling" in json else None,
-            #    meta=skeleton.SkeletonMetadata(json),
+            vertices=np.array(sk_json["vertices"]),
+            edges=np.array(sk_json["edges"]),
+            mesh_to_skel_map=np.array(sk_json["mesh_to_skel_map"]),
+            mesh_index=np.array(sk_json["mesh_index"]) if "mesh_index" in sk_json else None,
+            vertex_properties=sk_json["vertex_properties"],
+            node_mask=np.array(sk_json["node_mask"]),
+            voxel_scaling=sk_json["voxel_scaling"] if "voxel_scaling" in sk_json else None,
+            #    meta=skeleton.SkeletonMetadata(sk_json),
         )
-        # sk.branch_points = json['branch_points']
-        # sk.branch_points_undirected = json['branch_points_undirected']
-        # sk.distance_to_root = json['distance_to_root']
-        # sk.end_points = json['end_points']
-        # sk.end_points_undirected = json['end_points_undirected']
-        # sk.hops_to_root = json['hops_to_root']
-        # sk.indices_unmasked = json['indices_unmasked']
-        # sk.mesh_to_skel_map_base = json['mesh_to_skel_map_base']
-        # sk.n_branch_points = json['n_branch_points']
-        # sk.n_end_points = json['n_end_points']
-        # sk.n_vertices = json['n_vertices']
-        # sk.radius = json['radius']
-        # sk.root = json['root']
-        # sk.root_position = json['root_position']
-        # sk.segment_map = json['segment_map']
-        # sk.topo_points = json['topo_points']
-        # sk.unmasked_size = json['unmasked_size']
+        # sk.branch_points = sk_json['branch_points']
+        # sk.branch_points_undirected = sk_json['branch_points_undirected']
+        # sk.distance_to_root = sk_json['distance_to_root']
+        # sk.end_points = sk_json['end_points']
+        # sk.end_points_undirected = sk_json['end_points_undirected']
+        # sk.hops_to_root = sk_json['hops_to_root']
+        # sk.indices_unmasked = sk_json['indices_unmasked']
+        # sk.mesh_to_skel_map_base = sk_json['mesh_to_skel_map_base']
+        # sk.n_branch_points = sk_json['n_branch_points']
+        # sk.n_end_points = sk_json['n_end_points']
+        # sk.n_vertices = sk_json['n_vertices']
+        # sk.radius = sk_json['radius']
+        # sk.root = sk_json['root']
+        # sk.root_position = sk_json['root_position']
+        # sk.segment_map = sk_json['segment_map']
+        # sk.topo_points = sk_json['topo_points']
+        # sk.unmasked_size = sk_json['unmasked_size']
         return sk
 
     @staticmethod
