@@ -71,7 +71,7 @@ def create_app(test_config=None):
     def version():
         # Until indicated otherwise, I will use the latest GIT tag as the version
         # (but I was just as likely forget to maintain it here and it will fall out-of-date, sigh)
-        return jsonify("0.1.45"), 200
+        return jsonify("0.1.46"), 200
 
     @auth_required
     @baseapi_bp.route("/versions")
