@@ -67,9 +67,16 @@ def create_app(test_config=None):
     # CORS(api_bp, expose_headers="WWW-Authenticate")
 
     @auth_required
+    @baseapi_bp.route("/version")
+    def version():
+        # Until indicated otherwise, I will use the latest GIT tag as the version
+        # (but I was just as likely forget to maintain it here and it will fall out-of-date, sigh)
+        return jsonify("0.1.45"), 200
+
+    @auth_required
     @baseapi_bp.route("/versions")
     def versions():
-        return jsonify([2]), 200
+        return jsonify([1, 2]), 200
 
     with app.app_context():
         app.register_blueprint(views_bp, url_prefix="/skeletoncache")
