@@ -373,7 +373,7 @@ class SkeletonResource7(Resource):
         exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
         c.publish(exchange, payload, attributes)
 
-        return "Message has been dispatched"
+        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
 
 
@@ -404,4 +404,4 @@ class SkeletonResource7a(Resource):
         exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
         c.publish(exchange, payload, attributes)
 
-        return "Message has been dispatched"
+        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"

@@ -786,7 +786,7 @@ class SkeletonService:
                         if verbose_level >= 1:
                             print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
-                    print(f"Exception while generating skeleton for {rid}: {str(e)}")
+                    print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
                     traceback.print_exc()
                     return f"Exception while generating skeleton for {rid}: {str(e)}"
 
