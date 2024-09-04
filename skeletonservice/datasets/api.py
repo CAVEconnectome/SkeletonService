@@ -221,8 +221,10 @@ class SkeletonResource5(Resource):
                     'num_components': 1,
                 },
                 {
+                    # TODO: De to a Neuroglancer limitation, the comparement must be encoded as a float.
+                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
                     'id': 'compartment',
-                    'data_type': 'int32',
+                    'data_type': 'float32',
                     'num_components': 1,
                 },
                 ]}
@@ -249,8 +251,10 @@ class SkeletonResource5a(Resource):
                     'num_components': 1,
                 },
                 {
+                    # TODO: De to a Neuroglancer limitation, the comparement must be encoded as a float.
+                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
                     'id': 'compartment',
-                    'data_type': 'int32',
+                    'data_type': 'float32',
                     'num_components': 1,
                 },
                 ]}

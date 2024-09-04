@@ -449,7 +449,9 @@ class SkeletonService:
         DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 0, 2
         is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
         axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
-        skel.vertex_properties['compartment'] = axon_compartment_encoding
+        # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
+        # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
+        skel.vertex_properties['compartment'] = float(axon_compartment_encoding)
 
         return nrn, skel
 
