@@ -218,13 +218,13 @@ class SkeletonResource5(Resource):
             'vertex_attributes': [{
                     'id': 'radius',
                     'data_type': 'float32',
-                    'num_components': 1
+                    'num_components': 1,
                 },
-                # {
-                #     'id': 'vertex_types',
-                #     'data_type': 'float32',
-                #     'num_components': 1
-                # }
+                {
+                    'id': 'compartment',
+                    'data_type': 'int32',
+                    'num_components': 1,
+                },
                 ]}
 
 
@@ -246,13 +246,13 @@ class SkeletonResource5a(Resource):
             'vertex_attributes': [{
                     'id': 'radius',
                     'data_type': 'float32',
-                    'num_components': 1
+                    'num_components': 1,
                 },
-                # {
-                #     'id': 'vertex_types',
-                #     'data_type': 'float32',
-                #     'num_components': 1
-                # }
+                {
+                    'id': 'compartment',
+                    'data_type': 'int32',
+                    'num_components': 1,
+                },
                 ]}
 
 
