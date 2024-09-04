@@ -19,7 +19,7 @@ class SkeletonService_skvn2(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print("SkeletonService_skvn2.get_skeleton_by_datastack_and_rid")
+        print(f"SkeletonService_skvn2.get_skeleton_by_datastack_and_rid: {datastack_name} {rid} {output_format}")
         return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name,
             rid,
