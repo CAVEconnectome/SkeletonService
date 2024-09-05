@@ -451,7 +451,7 @@ class SkeletonService:
         axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        if(len(axon_compartment_encoding) != len(skel.vertices)):
+        if (len(axon_compartment_encoding) != len(skel.vertices)):
             axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
         skel.vertex_properties['compartment'] =axon_compartment_encoding.astype(np.float32)
 
@@ -868,12 +868,12 @@ class SkeletonService:
                 cv_skeleton = cloudvolume.Skeleton(
                     vertices=skeleton.vertices,
                     edges=skeleton.edges,
-                    radii=skeleton.radius,
                     space="voxel",
-                    extra_attributes=[
-                        {"id": "radius", "data_type": "float32", "num_components": 1}
-                    ],
+                    extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
                 )
+                for k, v in skeleton.vertex_properties.items():
+                    cv_skeleton.add_vertex_attribute(k, v)
+                
                 # Convert the CloudVolume skeleton to precomputed format
                 skeleton_precomputed = cv_skeleton.to_precomputed()
                 
