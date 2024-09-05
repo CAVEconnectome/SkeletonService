@@ -446,11 +446,13 @@ class SkeletonService:
         # Assign the axon/dendrite information to the skeleton
         # The compartment codes are found in skeleton_plot.plot_tools.py:
         # Default, Soma, Axon, Basal
-        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 0, 2
+        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 3, 2
         is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
         axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
+        if(len(axon_compartment_encoding) != len(skel.vertices)):
+            axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
         skel.vertex_properties['compartment'] =axon_compartment_encoding.astype(np.float32)
 
         return nrn, skel
