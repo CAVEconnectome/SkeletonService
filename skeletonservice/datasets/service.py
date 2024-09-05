@@ -872,7 +872,7 @@ class SkeletonService:
                     extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
                 )
                 for k, v in skeleton.vertex_properties.items():
-                    cv_skeleton.add_vertex_attribute(k, v)
+                    cv_skeleton.add_vertex_attribute(k, np.array(v, dtype=np.float32))
                 
                 # Convert the CloudVolume skeleton to precomputed format
                 skeleton_precomputed = cv_skeleton.to_precomputed()
