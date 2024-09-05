@@ -10,3 +10,4 @@ meshparty
 pcg_skel>=1.0.3
 messagingclient
 cloud-volume>=8.29.0
+meshparty>=1.16.16
