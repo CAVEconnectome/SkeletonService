@@ -453,7 +453,7 @@ class SkeletonService:
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
         if (len(axon_compartment_encoding) != len(skel.vertices)):
             axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
-        skel.vertex_properties['compartment'] =axon_compartment_encoding.astype(np.float32)
+        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.float32)
 
         return nrn, skel
 
