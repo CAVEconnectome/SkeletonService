@@ -294,7 +294,7 @@ class SkeletonService:
         return root_ts, soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
 
     @staticmethod
-    def generate_skeleton(
+    def generate_v1_skeleton(
         rid,
         bucket,
         skeleton_version,
@@ -327,7 +327,7 @@ class SkeletonService:
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
             print(
-                f"generate_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+                f"generate_v1_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
             print(f"CAVEClient version: {caveclient.__version__}")
 
@@ -344,7 +344,7 @@ class SkeletonService:
         return skel
 
     @staticmethod
-    def generate_skeleton_w_geometry(
+    def generate_v2_skeleton(
         rid,
         bucket,
         skeleton_version,
@@ -354,7 +354,7 @@ class SkeletonService:
         collapse_radius,
     ):
         """
-        Templated and modified from generate_skeleton().
+        Templated and modified from generate_v1_skeleton().
         """
         server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
         client = caveclient.CAVEclient(
@@ -377,82 +377,106 @@ class SkeletonService:
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
             print(
-                f"generate_skeleton_w_geometry {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+                f"generate_v2_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
             print(f"CAVEClient version: {caveclient.__version__}")
         
+        use_default_radii = False
+        use_default_compartments = False
+
         # Use the above parameters in the meshwork generation and skeletonization:
-        nrn = pcg_skel.pcg_meshwork(
-            rid,
-            datastack_name,
-            client,
-            root_point=soma_location,
-            root_point_resolution=soma_resolution,
-            collapse_soma=collapse_soma,
-            collapse_radius=collapse_radius,
-            timestamp=root_ts,
-            require_complete=True,
-            synapses='all',
-            synapse_table=client.info.get_datastack_info().get('synapse_table'),
-        )
+        try:
+            nrn = pcg_skel.pcg_meshwork(
+                rid,
+                datastack_name,
+                client,
+                root_point=soma_location,
+                root_point_resolution=soma_resolution,
+                collapse_soma=collapse_soma,
+                collapse_radius=collapse_radius,
+                timestamp=root_ts,
+                require_complete=True,
+                synapses='all',
+                synapse_table=client.info.get_datastack_info().get('synapse_table'),
+            )
+        
+            # Add synapse annotations.
+            # At the time of this writing, this fails. Casey is looking into it.
+            pcg_skel.features.add_is_axon_annotation(
+                nrn,
+                pre_anno='pre_syn',
+                post_anno='post_syn',
+                annotation_name='is_axon',
+                threshold_quality=0.5,
+                extend_to_segment=True,
+                n_times=1
+            )
 
-        # Add synapse annotations.
-        # At the time of this writing, this fails. Casey is looking into it.
-        pcg_skel.features.add_is_axon_annotation(
-            nrn,
-            pre_anno='pre_syn',
-            post_anno='post_syn',
-            annotation_name='is_axon',
-            threshold_quality=0.5,
-            extend_to_segment=True,
-            n_times=1
-        )
+            # Add volumetric properties
+            pcg_skel.features.add_volumetric_properties(
+                nrn,
+                client,
+                # attributes: list[str] = VOL_PROPERTIES,
+                # l2id_anno_name: str = "lvl2_ids",
+                # l2id_col_name: str = "lvl2_id",
+                # property_name: str = "vol_prop",
+            )
 
-        # Add volumetric properties
-        pcg_skel.features.add_volumetric_properties(
-            nrn,
-            client,
-            # attributes: list[str] = VOL_PROPERTIES,
-            # l2id_anno_name: str = "lvl2_ids",
-            # l2id_col_name: str = "lvl2_id",
-            # property_name: str = "vol_prop",
-        )
+            # Add segment properties
+            pcg_skel.features.add_segment_properties(
+                nrn,
+                # segment_property_name: str = "segment_properties",
+                # effective_radius: bool = True,
+                # area_factor: bool = True,
+                # strahler: bool = True,
+                # strahler_by_compartment: bool = False,
+                # volume_property_name: str = "vol_prop",
+                # volume_col_name: str = "size_nm3",
+                # area_col_name: str = "area_nm2",
+                # root_as_sphere: bool = True,
+                # comp_mask: str = "is_axon",
+            )
 
-        # Add segment properties
-        pcg_skel.features.add_segment_properties(
-            nrn,
-            # segment_property_name: str = "segment_properties",
-            # effective_radius: bool = True,
-            # area_factor: bool = True,
-            # strahler: bool = True,
-            # strahler_by_compartment: bool = False,
-            # volume_property_name: str = "vol_prop",
-            # volume_col_name: str = "size_nm3",
-            # area_col_name: str = "area_nm2",
-            # root_as_sphere: bool = True,
-            # comp_mask: str = "is_axon",
-        )
+            skel = nrn.skeleton
+        except np.exceptions.AxisError as e:
+            use_default_radii = True
+            use_default_compartments = True
 
-        skel = nrn.skeleton
+            skel = SkeletonService.generate_v1_skeleton(
+                rid,
+                bucket,
+                skeleton_version,
+                datastack_name,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+            )
+        except Exception as e:
+            raise e
 
-        radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
-        radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+        # Assign the radii information to the skeleton
+        if not use_default_radii:
+            radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
+            radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+        else:
+            radius_sk = np.ones(len(skel.vertices))
         # nrn.skeleton.radius = radius_sk  # Requires a property setter
         skel._rooted.radius = radius_sk
-
-        # Assign the radius information to the skeleton
         skel.vertex_properties['radius'] = skel.radius
-
+        
         # Assign the axon/dendrite information to the skeleton
-        # The compartment codes are found in skeleton_plot.plot_tools.py:
-        # Default, Soma, Axon, Basal
         DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 3, 2
-        is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
-        axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
+        if not use_default_compartments:
+            # The compartment codes are found in skeleton_plot.plot_tools.py:
+            # Default, Soma, Axon, Basal
+            is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
+            axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
+            if (len(axon_compartment_encoding) != len(skel.vertices)):
+                use_default_compartments = True
+        if use_default_compartments:  # Don't change this to an "else"
+            axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        if (len(axon_compartment_encoding) != len(skel.vertices)):
-            axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
         skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.float32)
 
         return nrn, skel
@@ -784,9 +808,9 @@ class SkeletonService:
                     )
                     if not skeleton:
                         if skeleton_version == 1:
-                            skeleton = SkeletonService.generate_skeleton(*params)
+                            skeleton = SkeletonService.generate_v1_skeleton(*params)
                         elif skeleton_version == 2:
-                            nrn, skeleton = SkeletonService.generate_skeleton_w_geometry(*params)
+                            nrn, skeleton = SkeletonService.generate_v2_skeleton(*params)
                         if verbose_level >= 1:
                             print(f"Skeleton successfully generated: {skeleton}")
                 except Exception as e:
