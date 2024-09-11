@@ -819,7 +819,7 @@ class SkeletonService:
                 traceback.print_exc()
                 return f"Exception while generating skeleton for {rid}: {str(e)}"
 
-        # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
+        # Cache the skeleton in the requested format and return the content in various formats.
         # Also cache the H5 skeleton if it was generated.
 
         # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
@@ -894,7 +894,7 @@ class SkeletonService:
             return skeleton_json
 
         if output_format == "arrays":
-            # The arrays format is next to identical to the JSON format.
+            # The arrays format is practically identical to the JSON format.
             # Its purpose is to offer a vastly minimized and simplified representation:
             # Just vertices, edges, and vertex properties.
             skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
