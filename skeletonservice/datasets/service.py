@@ -207,27 +207,16 @@ class SkeletonService:
                 return cf.get_json(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
-            else:  # format == 'h5' or 'swc'
-                return SkeletonService.get_skeleton_location(params, format)
-        return None
-
-    @staticmethod
-    def retrieve_h5_skeleton_from_cache(params):
-        """
-        Fully read H5 skeleton as opposed to just returning the location of the file.
-        See retrieve_skeleton_from_cache() for comparison.
-        """
-        file_name = SkeletonService.get_skeleton_filename(*params, "h5")
-        if verbose_level >= 1:
-            print("retrieve_h5_skeleton_from_cache() File name being sought in cache:", file_name)
-        bucket, skeleton_version = params[1], params[2]
-        if verbose_level >= 1:
-            print(f"retrieve_h5_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        if cf.exists(file_name):
-            skeleton_bytes = cf.get(file_name)
-            skeleton_bytes = BytesIO(skeleton_bytes)
-            return SkeletonIO.read_skeleton_h5(skeleton_bytes)
+            elif format == 'h5':
+                skeleton_bytes = cf.get(file_name)
+                skeleton_bytes = BytesIO(skeleton_bytes)
+                skeleton = SkeletonIO.read_skeleton_h5(skeleton_bytes)
+                return skeleton
+            elif format == "swc":
+                skeleton_bytes = cf.get(file_name)
+                skeleton_bytes = BytesIO(skeleton_bytes)
+                return skeleton_bytes  # Don't even bother building a skeleton object
+                
         return None
 
     @staticmethod
@@ -733,6 +722,7 @@ class SkeletonService:
             collapse_radius,
         ]
 
+        cached_skeleton = None
         if output_format == "none":
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(
                 params, output_format
@@ -740,181 +730,205 @@ class SkeletonService:
             if skel_confirmation:
                 # Nothing else to do, so return
                 if verbose_level >= 1:
-                    print(f"Skeleton is already in cache")
+                    print(f"Skeleton is already in cache: {rid}")
                 return
-            else:
-                # Label the "retrieved skeleton" as None to force its generation below
-                skeleton_return = None
+            # At this point, fall through the cached_skeleton set to None to trigger generating a new skeleton.
         else:
-            skeleton_return = SkeletonService.retrieve_skeleton_from_cache(
+            cached_skeleton = SkeletonService.retrieve_skeleton_from_cache(
                 params, output_format
             )
             if verbose_level >= 1:
-                print(f"Cache query result: {skeleton_return is not None}")
+                print(f"Cache query result: {cached_skeleton is not None}")
             if verbose_level >= 2:
-                print(f"Cache query result: {skeleton_return}")
+                print(f"Cache query result: {cached_skeleton}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
-        #     skeleton_return = SkeletonService.retrieve_skeleton_from_local(params, output_format)
+        #     cached_skeleton = SkeletonService.retrieve_skeleton_from_local(params, output_format)
 
-        if skeleton_return:
-            # skeleton_return will be JSON or PRECOMPUTED content, or H5 or SWC file location (presumably in a bucket).
-            if output_format == "none":
-                # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested,
-                # merely generating one if it doesn't exist, so, since a skeleton already exists in the cache, we're done.
-                # There's nothing to generate and nothing to return.
-                return
+        skeleton = None
+        swc_skeleton_bytes = None
+        if cached_skeleton:
+            # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file location (presumably in a bucket).
+            # if output_format == "none":
+            #     # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested,
+            #     # merely generating one if it doesn't exist, so, since a skeleton already exists in the cache, we're done.
+            #     # There's nothing to generate and nothing to return.
+            #     return
             if output_format == "precomputed":
                 response = Response(
-                    skeleton_return, mimetype="application/octet-stream"
+                    cached_skeleton, mimetype="application/octet-stream"
                 )
                 response.headers.update(SkeletonService.response_headers())
                 response = SkeletonService.after_request(response)
-                if response:
-                    return response
-                return skeleton_return
-            if output_format == "json" and debug_minimize_json_skeleton:  # DEBUG
-                skeleton_return = (
-                    SkeletonService.minimize_json_skeleton_for_easier_debugging(
-                        skeleton_return
+                return response
+            elif output_format == "json":
+                if debug_minimize_json_skeleton:  # DEBUG
+                    cached_skeleton = (
+                        SkeletonService.minimize_json_skeleton_for_easier_debugging(
+                            cached_skeleton
+                        )
                     )
-                )
-            return skeleton_return
-        else:  # No skeleton was found in the cache
-            # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
-            # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
-            # There is no need to check for an H5 skeleton if the requested format is H5 or '', since both seek an H5 above.
-            skeleton = None
+                return cached_skeleton
+            elif output_format == "arrays":
+                return cached_skeleton
+            elif output_format == "h5":
+                # We can't return the H5 file directly. We need to convert it to a bytes stream object.
+                skeleton = cached_skeleton
+            elif output_format == "swc":
+                swc_skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
+        
+        # At this point:
+        # either a cached skeleton was found that could be returned immediately,
+        # or a cached skeleton was not found that needs further conversion,
+        # or no cached skeleton was found.
+        
+        # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
+        # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
+        # There is no need to check for an H5 skeleton if the requested format is H5 or None, since both seek an H5 above.
+        if not skeleton and not swc_skeleton_bytes:
             if (
                 output_format == "json"
                 or output_format == "arrays"
                 or output_format == "swc"
                 or output_format == "precomputed"
             ):
-                skeleton = SkeletonService.retrieve_h5_skeleton_from_cache(params)
+                skeleton = SkeletonService.retrieve_skeleton_from_cache(params, "h5")
             if verbose_level >= 1:
                 print(f"H5 cache query result: {skeleton}")
 
-            # If no H5 skeleton was found, generate a new skeleton.
-            # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
-            # H5 will be used to generate all the other formats as needed.
-            generate_new_skeleton = not skeleton
-            if generate_new_skeleton:  # No H5 skeleton was found
-                try:
-                    # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
-                    # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
-                    skeleton = SkeletonService.retrieve_skeleton_from_local(
-                        params, "h5"
+        # If no H5 skeleton was found, generate a new skeleton.
+        # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
+        # H5 will be used to generate all the other formats as needed.
+        generate_new_skeleton = not skeleton and not swc_skeleton_bytes
+        if generate_new_skeleton:  # No H5 skeleton was found
+            try:
+                # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
+                # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
+                skeleton = SkeletonService.retrieve_skeleton_from_local(
+                    params, "h5"
+                )
+                if not skeleton:
+                    if skeleton_version == 1:
+                        skeleton = SkeletonService.generate_v1_skeleton(*params)
+                    elif skeleton_version == 2:
+                        nrn, skeleton = SkeletonService.generate_v2_skeleton(*params)
+                    if verbose_level >= 1:
+                        print(f"Skeleton successfully generated: {skeleton}")
+            except Exception as e:
+                print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
+                return f"Exception while generating skeleton for {rid}: {str(e)}"
+
+        # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
+        # Also cache the H5 skeleton if it was generated.
+
+        # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
+        # Attempt to return the successfully generated skeleton regardless of any caching failures.
+        # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
+        # but it maximizes the chance of returning a skeleton to the user.
+
+        if output_format == "h5" or generate_new_skeleton:
+            try:
+                if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
+                    # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
+                    file_name = SkeletonService.get_skeleton_filename(
+                        *params, "h5", False
                     )
-                    if not skeleton:
-                        if skeleton_version == 1:
-                            skeleton = SkeletonService.generate_v1_skeleton(*params)
-                        elif skeleton_version == 2:
-                            nrn, skeleton = SkeletonService.generate_v2_skeleton(*params)
-                        if verbose_level >= 1:
-                            print(f"Skeleton successfully generated: {skeleton}")
-                except Exception as e:
-                    print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
-                    traceback.print_exc()
-                    return f"Exception while generating skeleton for {rid}: {str(e)}"
+                    SkeletonIO.write_skeleton_h5(
+                        skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
+                    )
 
-            # Cache the skeleton in the requested format and return the content (JSON or PRECOMPUTED) or location (H5 or SWC).
-            # Also cache the H5 skeleton if it was generated.
+                file_content = BytesIO()
+                SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                file_content_val = file_content.getvalue()
+                SkeletonService.cache_skeleton(params, file_content_val, "h5")
+                file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
-            # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
-            # Attempt to return the successfully generated skeleton regardless of any caching failures.
-            # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
-            # but it maximizes the chance of returning a skeleton to the user.
-
-            if output_format == "h5" or generate_new_skeleton:
-                try:
-                    if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
-                        # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
-                        file_name = SkeletonService.get_skeleton_filename(
-                            *params, "h5", False
-                        )
-                        SkeletonIO.write_skeleton_h5(
-                            skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
-                        )
-
-                    file_content = BytesIO()
-                    SkeletonIO.write_skeleton_h5(skeleton, file_content)
-                    file_content = file_content.getvalue()
-                    SkeletonService.cache_skeleton(params, file_content, "h5")
-                except Exception as e:
-                    print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
-                    traceback.print_exc()
                 if output_format == "h5":
-                    file_location = SkeletonService.get_skeleton_location(
-                        params, output_format
+                    file_name = SkeletonService.get_skeleton_filename(
+                        *params, "h5", include_compression=False
                     )
-                    return file_location
+                    response = send_file(file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
+                    response = SkeletonService.after_request(response)
+                    return response
+            except Exception as e:
+                print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
 
-            if output_format == "swc":
-                try:
+        if output_format == "swc":
+            try:
+                if not swc_skeleton_bytes:
+                    assert skeleton is not None
                     file_content = BytesIO()
                     SkeletonIO.export_to_swc(skeleton, file_content)
-                    file_content = file_content.getvalue()
-                    SkeletonService.cache_skeleton(params, file_content, output_format)
-                    file_location = SkeletonService.get_skeleton_location(
-                        params, output_format
-                    )
-                except Exception as e:
-                    print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
-                    traceback.print_exc()
-                return file_location
+                    file_content_val = file_content.getvalue()
+                    SkeletonService.cache_skeleton(params, file_content_val, output_format)
+                    file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                else:
+                    file_content = swc_skeleton_bytes
 
-            if output_format == "json":
-                try:
-                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
-                    SkeletonService.cache_skeleton(params, skeleton_json, output_format)
-                    if debug_minimize_json_skeleton:  # DEBUG
-                        skeleton_json = (
-                            SkeletonService.minimize_json_skeleton_for_easier_debugging(
-                                skeleton_json
-                            )
-                        )
-                except Exception as e:
-                    print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
-                    traceback.print_exc()
-                return skeleton_json
-
-            if output_format == "arrays":
-                # The arrays format is next to identical to the JSON format.
-                # Its purpose is to offer a vastly minimized and simplified representation:
-                # Just vertices, edges, and vertex properties.
-                skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
-                return skeleton_arrays
-
-            if output_format == "precomputed":
-                # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
-                # Convert the MeshParty skeleton to a CloudVolume skeleton
-                cv_skeleton = cloudvolume.Skeleton(
-                    vertices=skeleton.vertices,
-                    edges=skeleton.edges,
-                    space="voxel",
-                    extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
+                file_name = SkeletonService.get_skeleton_filename(
+                    *params, "swc", include_compression=False
                 )
-                for k, v in skeleton.vertex_properties.items():
-                    cv_skeleton.add_vertex_attribute(k, np.array(v, dtype=np.float32))
-                
-                # Convert the CloudVolume skeleton to precomputed format
-                skeleton_precomputed = cv_skeleton.to_precomputed()
-                
-                # Cache the precomputed skeleton
-                try:
-                    SkeletonService.cache_skeleton(
-                        params, skeleton_precomputed, output_format
-                    )
-                except Exception as e:
-                    print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
-                    traceback.print_exc()
-
-                response = Response(
-                    skeleton_precomputed, mimetype="application/octet-stream"
-                )
-                response.headers.update(SkeletonService.response_headers())
+                response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
                 response = SkeletonService.after_request(response)
-                if response:
-                    return response
-                return skeleton_precomputed
+                return response
+            except Exception as e:
+                print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
+            return
+
+        if output_format == "json":
+            try:
+                skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                SkeletonService.cache_skeleton(params, skeleton_json, output_format)
+                if debug_minimize_json_skeleton:  # DEBUG
+                    skeleton_json = (
+                        SkeletonService.minimize_json_skeleton_for_easier_debugging(
+                            skeleton_json
+                        )
+                    )
+            except Exception as e:
+                print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
+            return skeleton_json
+
+        if output_format == "arrays":
+            # The arrays format is next to identical to the JSON format.
+            # Its purpose is to offer a vastly minimized and simplified representation:
+            # Just vertices, edges, and vertex properties.
+            skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
+            return skeleton_arrays
+
+        if output_format == "precomputed":
+            # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
+            # Convert the MeshParty skeleton to a CloudVolume skeleton
+            cv_skeleton = cloudvolume.Skeleton(
+                vertices=skeleton.vertices,
+                edges=skeleton.edges,
+                space="voxel",
+                extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
+            )
+            for k, v in skeleton.vertex_properties.items():
+                cv_skeleton.add_vertex_attribute(k, np.array(v, dtype=np.float32))
+            
+            # Convert the CloudVolume skeleton to precomputed format
+            skeleton_precomputed = cv_skeleton.to_precomputed()
+            
+            # Cache the precomputed skeleton
+            try:
+                SkeletonService.cache_skeleton(
+                    params, skeleton_precomputed, output_format
+                )
+            except Exception as e:
+                print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
+
+            response = Response(
+                skeleton_precomputed, mimetype="application/octet-stream"
+            )
+            response.headers.update(SkeletonService.response_headers())
+            response = SkeletonService.after_request(response)
+            if response:
+                return response
+            return skeleton_precomputed
