@@ -330,6 +330,9 @@ class SkeletonResource6b(Resource):
     def get(self, datastack_name: str, skvn: int, rid: int, output_format: str):
         """Get skeleton by rid"""
 
+        if output_format == 'none':
+            return SkeletonResource7a.process(datastack_name, skvn, rid)
+
         # If no skeleton version is specified or an illegal version is specified, then use the latest version
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
             skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
@@ -359,25 +362,27 @@ class SkeletonResource7(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
-        from messagingclient import MessagingClient
+        return SkeletonResource7a.process(datastack_name, 0, rid)
+    
+        # from messagingclient import MessagingClient
 
-        payload = b""
-        attributes = {
-            "skeleton_params_rid": f"{rid}",
-            "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
-            "skeleton_params_datastack_name": datastack_name,
-            "skeleton_params_root_resolution": "1 1 1",
-            "skeleton_params_collapse_soma": "True",
-            "skeleton_params_collapse_radius": "7500",
-            "skeleton_version": "0",
-            "verbose_level": "1",
-        }
+        # payload = b""
+        # attributes = {
+        #     "skeleton_params_rid": f"{rid}",
+        #     "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+        #     "skeleton_params_datastack_name": datastack_name,
+        #     "skeleton_params_root_resolution": "1 1 1",
+        #     "skeleton_params_collapse_soma": "True",
+        #     "skeleton_params_collapse_radius": "7500",
+        #     "skeleton_version": "0",
+        #     "verbose_level": "1",
+        # }
 
-        c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
-        c.publish(exchange, payload, attributes)
+        # c = MessagingClient()
+        # exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        # c.publish(exchange, payload, attributes)
 
-        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} {current_app.config['SKELETON_CACHE_BUCKET']}"
+        # return f"Message has been dispatched to {exchange}: {datastack_name} {rid} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
 
 
@@ -385,11 +390,8 @@ class SkeletonResource7(Resource):
 class SkeletonResource7a(Resource):
     """SkeletonResource"""
 
-    @auth_required
-    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
-    @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, skvn: int, rid: int):
-        """Get skeleton by rid"""
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rid: int):
         from messagingclient import MessagingClient
 
         payload = b""
@@ -409,3 +411,31 @@ class SkeletonResource7a(Resource):
         c.publish(exchange, payload, attributes)
 
         return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rid: int):
+        """Get skeleton by rid"""
+        return self.process(datastack_name, skvn, rid)
+
+        # from messagingclient import MessagingClient
+
+        # payload = b""
+        # attributes = {
+        #     "skeleton_params_rid": f"{rid}",
+        #     "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+        #     "skeleton_params_datastack_name": datastack_name,
+        #     "skeleton_params_root_resolution": "1 1 1",
+        #     "skeleton_params_collapse_soma": "True",
+        #     "skeleton_params_collapse_radius": "7500",
+        #     "skeleton_version": f"{skvn}",
+        #     "verbose_level": "1",
+        # }
+
+        # c = MessagingClient()
+        # exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        # c.publish(exchange, payload, attributes)
+
+        # return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
