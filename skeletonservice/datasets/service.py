@@ -31,6 +31,11 @@ VERSION_PARAMS = {
     1: {},
     2: {},  # Includes radius, synapse, and axon/dendrite information
 }
+DATASTACK_NAME_REMAPPING = {
+    'minnie65_public': 'minnie65_phase3_v1',
+    'flywire_fafb_public': 'flywire_fafb_production',
+}
+
 verbose_level = 0
 
 
@@ -93,9 +98,11 @@ class SkeletonService:
         Build a filename for a skeleton file based on the parameters.
         The format and optional compression will be appended as extensions as necessary.
         """
+        datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
+
         # materialize_version has been removed, but I've left the stub here for the time being, just in case there is value is seeing and remember its prior usage.
         # file_name = f"skeleton__rid-{rid}__ds-{datastack_name}__mv-{materialize_version}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
-        file_name = f"skeleton__v{skeleton_version}__rid-{rid}__ds-{datastack_name}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+        file_name = f"skeleton__v{skeleton_version}__rid-{rid}__ds-{datastack_name_remapped}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
 
         assert (
             format == "none"
