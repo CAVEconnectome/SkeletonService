@@ -914,13 +914,22 @@ class SkeletonService:
                 vertices=skeleton.vertices,
                 edges=skeleton.edges,
                 space="voxel",
-                extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
+                # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
+                # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
             )
             for k, v in skeleton.vertex_properties.items():
                 cv_skeleton.add_vertex_attribute(k, np.array(v, dtype=np.float32))
             
             # Convert the CloudVolume skeleton to precomputed format
             skeleton_precomputed = cv_skeleton.to_precomputed()
+
+            #DEBUG: we should get our skeleton back unharmed, but I'm seeing the new radius and compartment information vanish.
+            # radius is present, but full of 2s, while compartment is missing entirely.
+            vertex_attributes = [
+                {"id": "radius", "data_type": "float32", "num_components": 1},
+                {"id": "compartment", "data_type": "float32", "num_components": 1},
+            ]
+            sk2 = cloudvolume.Skeleton.from_precomputed(skeleton_precomputed, vertex_attributes=vertex_attributes)
             
             # Cache the precomputed skeleton
             try:
