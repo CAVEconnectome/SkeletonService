@@ -27,6 +27,27 @@ api_bp = Namespace(
     "Skeletonservice", authorizations=authorizations, description="Skeleton Service"
 )
 
+SKELETON_VERSION_PARAMS = {
+    1: {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': []},
+    2: {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [
+                {
+                    # TODO: Do to a Neuroglancer limitation, the comparement must be encoded as a float.
+                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                {
+                    'id': 'compartment',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                ]},
+}
 
 @api_bp.route("/skeletons")
 @api_bp.doc("get skeletons", security="apikey")
@@ -213,21 +234,7 @@ class SkeletonResource5(Resource):
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
 
-        return {'@type': 'neuroglancer_skeletons',
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [{
-                    'id': 'compartment',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },
-                {
-                    # TODO: De to a Neuroglancer limitation, the comparement must be encoded as a float.
-                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
-                    'id': 'radius',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },
-                ]}
+        return SKELETON_VERSION_PARAMS[sorted(SKELETON_VERSION_PARAMS.keys())[-1]]
 
 
 
@@ -243,28 +250,9 @@ class SkeletonResource5a(Resource):
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
 
-        if skvn == 1:
-            return {'@type': 'neuroglancer_skeletons',
-                'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-                'vertex_attributes': []}
-        if skvn == 2:
-            return {'@type': 'neuroglancer_skeletons',
-                'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-                'vertex_attributes': [
-                    {
-                        # TODO: De to a Neuroglancer limitation, the comparement must be encoded as a float.
-                        # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
-                        'id': 'radius',
-                        'data_type': 'float32',
-                        'num_components': 1,
-                    },
-                    {
-                        'id': 'compartment',
-                        'data_type': 'float32',
-                        'num_components': 1,
-                    },
-                    ]}
-
+        if skvn in SKELETON_VERSION_PARAMS.keys():
+            return SKELETON_VERSION_PARAMS[skvn]
+        # Fall through in this erroneous case. It's the caller's problem now.
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
