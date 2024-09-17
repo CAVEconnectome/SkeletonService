@@ -29,7 +29,7 @@ DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 VERSION_PARAMS = {
     1: {},
-    2: {},  # Includes radius, synapse, and axon/dendrite information
+    2: {},  # Includes radius and axon/dendrite information
 }
 DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
