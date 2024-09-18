@@ -35,6 +35,27 @@ DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
     'flywire_fafb_public': 'flywire_fafb_production',
 }
+SKELETON_VERSION_PARAMS = {
+    1: {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': []},
+    2: {'@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [
+                {
+                    # TODO: Do to a Neuroglancer limitation, the comparement must be encoded as a float.
+                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                {
+                    'id': 'compartment',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                ]},
+}
 
 verbose_level = 0
 
@@ -739,7 +760,7 @@ class SkeletonService:
                 if verbose_level >= 1:
                     print(f"Skeleton is already in cache: {rid}")
                 return
-            # At this point, fall through the cached_skeleton set to None to trigger generating a new skeleton.
+            # At this point, fall through with cached_skeleton set to None to trigger generating a new skeleton.
         else:
             cached_skeleton = SkeletonService.retrieve_skeleton_from_cache(
                 params, output_format
@@ -755,7 +776,7 @@ class SkeletonService:
         skeleton = None
         swc_skeleton_bytes = None
         if cached_skeleton:
-            # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file location (presumably in a bucket).
+            # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
             # if output_format == "none":
             #     # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested,
             #     # merely generating one if it doesn't exist, so, since a skeleton already exists in the cache, we're done.
@@ -786,7 +807,7 @@ class SkeletonService:
         
         # At this point:
         # either a cached skeleton was found that could be returned immediately,
-        # or a cached skeleton was not found that needs further conversion,
+        # or a cached skeleton was found, but needs further conversion,
         # or no cached skeleton was found.
         
         # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
@@ -916,20 +937,20 @@ class SkeletonService:
                 space="voxel",
                 # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
                 # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
+                extra_attributes=[],  # Prevent the defaults from being used
             )
-            for k, v in skeleton.vertex_properties.items():
-                cv_skeleton.add_vertex_attribute(k, np.array(v, dtype=np.float32))
+            for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
+                cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=np.float32))
             
             # Convert the CloudVolume skeleton to precomputed format
             skeleton_precomputed = cv_skeleton.to_precomputed()
 
-            #DEBUG: we should get our skeleton back unharmed, but I'm seeing the new radius and compartment information vanish.
-            # radius is present, but full of 2s, while compartment is missing entirely.
-            vertex_attributes = [
-                {"id": "radius", "data_type": "float32", "num_components": 1},
-                {"id": "compartment", "data_type": "float32", "num_components": 1},
-            ]
-            sk2 = cloudvolume.Skeleton.from_precomputed(skeleton_precomputed, vertex_attributes=vertex_attributes)
+            #DEBUG: We should get our skeleton back intact
+            # vertex_attributes = [
+            #     {"id": "radius", "data_type": "float32", "num_components": 1},
+            #     {"id": "compartment", "data_type": "float32", "num_components": 1},
+            # ]
+            # sk2 = cloudvolume.Skeleton.from_precomputed(skeleton_precomputed, vertex_attributes=vertex_attributes)
             
             # Cache the precomputed skeleton
             try:

@@ -6,7 +6,7 @@ from flask_restx import Namespace, Resource
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.service import SkeletonService
+from skeletonservice.datasets.service import SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
     auth_required,
@@ -26,28 +26,6 @@ authorizations = {
 api_bp = Namespace(
     "Skeletonservice", authorizations=authorizations, description="Skeleton Service"
 )
-
-SKELETON_VERSION_PARAMS = {
-    1: {'@type': 'neuroglancer_skeletons',
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': []},
-    2: {'@type': 'neuroglancer_skeletons',
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [
-                {
-                    # TODO: Do to a Neuroglancer limitation, the comparement must be encoded as a float.
-                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
-                    'id': 'radius',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },
-                {
-                    'id': 'compartment',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },
-                ]},
-}
 
 @api_bp.route("/skeletons")
 @api_bp.doc("get skeletons", security="apikey")
