@@ -228,9 +228,9 @@ class SkeletonResource5a(Resource):
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
 
-        if skvn in SKELETON_VERSION_PARAMS.keys():
-            return SKELETON_VERSION_PARAMS[skvn]
-        # Fall through in this erroneous case. It's the caller's problem now.
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+        return SKELETON_VERSION_PARAMS[skvn]
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
