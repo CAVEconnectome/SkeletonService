@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import json
 import gzip
-from flask import send_file, Response, request
+from flask import send_file, Response, request, has_request_context
 from .skeleton_io_from_meshparty import SkeletonIO
 from meshparty import skeleton
 import caveclient
@@ -873,12 +873,14 @@ class SkeletonService:
                 file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 if output_format == "h5":
-                    file_name = SkeletonService.get_skeleton_filename(
-                        *params, "h5", include_compression=False
-                    )
-                    response = send_file(file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
-                    response = SkeletonService.after_request(response)
-                    return response
+                    if has_request_context():
+                        file_name = SkeletonService.get_skeleton_filename(
+                            *params, "h5", include_compression=False
+                        )
+                        response = send_file(file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
+                        response = SkeletonService.after_request(response)
+                        return response
+                    return file_content
             except Exception as e:
                 print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
@@ -895,12 +897,14 @@ class SkeletonService:
                 else:
                     file_content = swc_skeleton_bytes
 
-                file_name = SkeletonService.get_skeleton_filename(
-                    *params, "swc", include_compression=False
-                )
-                response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
-                response = SkeletonService.after_request(response)
-                return response
+                if has_request_context():
+                    file_name = SkeletonService.get_skeleton_filename(
+                        *params, "swc", include_compression=False
+                    )
+                    response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
+                    response = SkeletonService.after_request(response)
+                    return response
+                return file_content
             except Exception as e:
                 print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
