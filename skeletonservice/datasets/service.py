@@ -890,7 +890,9 @@ class SkeletonService:
                 if not swc_skeleton_bytes:
                     assert skeleton is not None
                     file_content = BytesIO()
-                    SkeletonIO.export_to_swc(skeleton, file_content)
+                    SkeletonIO.export_to_swc(skeleton, file_content,
+                                             node_labels=np.array(skeleton.vertex_properties['compartment']).astype(int),
+                                             radius=np.array(skeleton.vertex_properties['radius']))
                     file_content_val = file_content.getvalue()
                     SkeletonService.cache_skeleton(params, file_content_val, output_format)
                     file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
