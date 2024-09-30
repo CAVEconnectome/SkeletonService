@@ -5,6 +5,7 @@ import json
 
 from skeletonservice.datasets.service_skvn1 import SkeletonService_skvn1
 from skeletonservice.datasets.service_skvn2 import SkeletonService_skvn2
+from skeletonservice.datasets.service_skvn3 import SkeletonService_skvn3
 
 
 class BaseConfig(object):
@@ -42,6 +43,7 @@ class BaseConfig(object):
     SKELETON_VERSION_ENGINES = {
         1: SkeletonService_skvn1,
         2: SkeletonService_skvn2,
+        3: SkeletonService_skvn3,
     }
 
     # GLOBAL_SERVER_URL = os.environ.get("GLOBAL_SERVER_URL")

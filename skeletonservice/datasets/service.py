@@ -1,4 +1,4 @@
-from io import BytesIO
+from io import StringIO, BytesIO
 from typing import List, Dict
 import os
 import numpy as np
@@ -30,6 +30,7 @@ COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_
 VERSION_PARAMS = {
     1: {},
     2: {},  # Includes radius and axon/dendrite information
+    3: {},  # Includes radius and axon/dendrite information and uses uint8 for compartment encoding
 }
 DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
@@ -43,7 +44,7 @@ SKELETON_VERSION_PARAMS = {
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
                 {
-                    # TODO: Do to a Neuroglancer limitation, the comparement must be encoded as a float.
+                    # TODO: Do to a Neuroglancer limitation, the compartment must be encoded as a float.
                     # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
                     'id': 'radius',
                     'data_type': 'float32',
@@ -52,6 +53,20 @@ SKELETON_VERSION_PARAMS = {
                 {
                     'id': 'compartment',
                     'data_type': 'float32',
+                    'num_components': 1,
+                },
+                ]},
+    3: {'@type': 'neuroglancer_skeletons',  # This is explicitly *not* a NeuroGlancer representation. So what is the type?
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [
+                {
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                {
+                    'id': 'compartment',
+                    'data_type': 'uint8',
                     'num_components': 1,
                 },
                 ]},
@@ -128,7 +143,9 @@ class SkeletonService:
         assert (
             format == "none"
             or format == "json"
+            or format == "jsoncompressed"
             or format == "arrays"
+            or format == "arrayscompressed"
             or format == "precomputed"
             or format == "h5"
             or format == "swc"
@@ -179,7 +196,7 @@ class SkeletonService:
 
         skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
-        if format == "json" or format == "arrays":
+        if format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
             skeleton = SkeletonService.skeleton_to_json(skeleton)
         elif format == "precomputed":
             cv_skeleton = cloudvolume.Skeleton(
@@ -233,6 +250,8 @@ class SkeletonService:
         if cf.exists(file_name):
             if format == "json" or format == "arrays":
                 return cf.get_json(file_name)
+            if format == "jsoncompressed" or format == "arrayscompressed":
+                return cf.get(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
             elif format == 'h5':
@@ -263,7 +282,7 @@ class SkeletonService:
             cf.put_json(
                 file_name, skeleton, COMPRESSION if include_compression else None
             )
-        else:  # format == 'precomputed' or 'h5' or 'swc'
+        else:  # format == 'precomputed' or 'h5' or 'swc' or 'jsoncompressed' or 'arrayscompressed'
             cf.put(
                 file_name,
                 skeleton,
@@ -369,6 +388,7 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
+        prep_for_neuroglancer=True,
     ):
         """
         Templated and modified from generate_v1_skeleton().
@@ -482,7 +502,7 @@ class SkeletonService:
         skel.vertex_properties['radius'] = skel.radius
         
         # Assign the axon/dendrite information to the skeleton
-        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE = 3, 2
+        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE, SOMA_COMPARTMENT_CODE = 3, 2, 1
         if not use_default_compartments:
             # The compartment codes are found in skeleton_plot.plot_tools.py:
             # Default, Soma, Axon, Basal
@@ -490,13 +510,92 @@ class SkeletonService:
             axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
             if (len(axon_compartment_encoding) != len(skel.vertices)):
                 use_default_compartments = True
+
+        if skel.root:
+            axon_compartment_encoding[skel.root] = SOMA_COMPARTMENT_CODE
+
         if use_default_compartments:  # Don't change this to an "else"
             axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.float32)
+        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(
+            np.float32 if prep_for_neuroglancer else np.uint8)
 
         return nrn, skel
+
+    @staticmethod
+    def generate_v3_skeleton(
+        rid,
+        bucket,
+        skeleton_version,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+        prep_for_neuroglancer=True,
+    ):
+        return SkeletonService.generate_v2_skeleton(
+            rid,
+            bucket,
+            skeleton_version,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            False,
+        )
+    
+    @staticmethod
+    def compressStringToBytes(inputString):
+        """
+        REF: https://stackoverflow.com/questions/15525837/which-is-the-best-way-to-compress-json-to-store-in-a-memory-based-store-like-red
+        read the given string, encode it in utf-8,
+        compress the data and return it as a byte array.
+        """
+        bio = BytesIO()
+        bio.write(inputString.encode("utf-8"))
+        bio.seek(0)
+        stream = BytesIO()
+        compressor = gzip.GzipFile(fileobj=stream, mode='w')
+        while True:  # until EOF
+            chunk = bio.read(8192)
+            if not chunk:  # EOF?
+                compressor.close()
+                return stream.getvalue()
+            compressor.write(chunk)
+
+    @staticmethod
+    def compressDictToBytes(inputDict, remove_spaces=True):
+        inputDictStr = json.dumps(inputDict)
+        if remove_spaces:
+            inputDictStr = inputDictStr.replace(' ', '')
+        inputDictStrBytes = SkeletonService.compressStringToBytes(inputDictStr)
+        return inputDictStrBytes
+
+    @staticmethod
+    def decompressBytesToString(inputBytes):
+        """
+        REF: https://stackoverflow.com/questions/15525837/which-is-the-best-way-to-compress-json-to-store-in-a-memory-based-store-like-red
+        decompress the given byte array (which must be valid 
+        compressed gzip data) and return the decoded text (utf-8).
+        """
+        bio = BytesIO()
+        stream = BytesIO(inputBytes)
+        decompressor = gzip.GzipFile(fileobj=stream, mode='r')
+        while True:  # until EOF
+            chunk = decompressor.read(8192)
+            if not chunk:
+                decompressor.close()
+                bio.seek(0)
+                return bio.read().decode("utf-8")
+            bio.write(chunk)
+        return None
+
+    @staticmethod
+    def decompressBytesToDict(inputBytes):
+        inputBytesStr = SkeletonService.decompressBytesToString(inputBytes)
+        inputBytesStrDict = json.loads(inputBytesStr)
+        return inputBytesStrDict
 
     @staticmethod
     def skeleton_metadata_to_json(skeleton_metadata):
@@ -564,7 +663,7 @@ class SkeletonService:
         if skel.node_mask is not None:
             sk_json["node_mask"] = skel.node_mask.tolist()
         if skel.radius is not None:
-            sk_json["radius"] = skel.radius
+            sk_json["radius"] = skel.radius.tolist()
         if skel.root is not None:
             sk_json["root"] = skel.root.tolist()
         if skel.root_position is not None:
@@ -577,6 +676,11 @@ class SkeletonService:
             sk_json["unmasked_size"] = skel.unmasked_size
         if skel.vertex_properties is not None:
             sk_json["vertex_properties"] = skel.vertex_properties
+            for key in skel.vertex_properties.keys():
+                if isinstance(skel.vertex_properties[key], np.ndarray):
+                    sk_json["vertex_properties"][key] = skel.vertex_properties[key].tolist()
+                else:
+                    sk_json["vertex_properties"][key] = skel.vertex_properties[key]
         if skel.vertices is not None:
             sk_json["vertices"] = skel.vertices.tolist()
         if skel.voxel_scaling is not None:
@@ -592,6 +696,7 @@ class SkeletonService:
         sk = skeleton.Skeleton(
             vertices=np.array(sk_json["vertices"]),
             edges=np.array(sk_json["edges"]),
+            root=sk_json["root"],
             mesh_to_skel_map=np.array(sk_json["mesh_to_skel_map"]),
             mesh_index=np.array(sk_json["mesh_index"]) if "mesh_index" in sk_json else None,
             vertex_properties=sk_json["vertex_properties"],
@@ -774,7 +879,7 @@ class SkeletonService:
         #     cached_skeleton = SkeletonService.retrieve_skeleton_from_local(params, output_format)
 
         skeleton = None
-        swc_skeleton_bytes = None
+        skeleton_bytes = None
         if cached_skeleton:
             # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
             # if output_format == "none":
@@ -797,13 +902,33 @@ class SkeletonService:
                         )
                     )
                 return cached_skeleton
+            elif output_format == "jsoncompressed":
+                # We can't return the compressed JSON file directly. We need to convert it to a bytes stream object.
+                # skeleton_bytes = cached_skeleton
+
+                response = Response(
+                    cached_skeleton, mimetype="application/octet-stream"
+                )
+                response.headers.update(SkeletonService.response_headers())
+                response = SkeletonService.after_request(response)
+                return response
             elif output_format == "arrays":
                 return cached_skeleton
+            elif output_format == "arrayscompressed":
+                # We can't return the compresses ARRAYS file directly. We need to convert it to a bytes stream object.
+                # skeleton_bytes = cached_skeleton
+
+                response = Response(
+                    cached_skeleton, mimetype="application/octet-stream"
+                )
+                response.headers.update(SkeletonService.response_headers())
+                response = SkeletonService.after_request(response)
+                return response
             elif output_format == "h5":
                 # We can't return the H5 file directly. We need to convert it to a bytes stream object.
                 skeleton = cached_skeleton
             elif output_format == "swc":
-                swc_skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
+                skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
         
         # At this point:
         # either a cached skeleton was found that could be returned immediately,
@@ -813,10 +938,12 @@ class SkeletonService:
         # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
         # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
         # There is no need to check for an H5 skeleton if the requested format is H5 or None, since both seek an H5 above.
-        if not skeleton and not swc_skeleton_bytes:
+        if not skeleton and not skeleton_bytes:
             if (
                 output_format == "json"
+                or output_format == "jsoncompressed"
                 or output_format == "arrays"
+                or output_format == "arrayscompressed"
                 or output_format == "swc"
                 or output_format == "precomputed"
             ):
@@ -827,7 +954,7 @@ class SkeletonService:
         # If no H5 skeleton was found, generate a new skeleton.
         # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
         # H5 will be used to generate all the other formats as needed.
-        generate_new_skeleton = not skeleton and not swc_skeleton_bytes
+        generate_new_skeleton = not skeleton and not skeleton_bytes
         if generate_new_skeleton:  # No H5 skeleton was found
             try:
                 # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
@@ -840,6 +967,8 @@ class SkeletonService:
                         skeleton = SkeletonService.generate_v1_skeleton(*params)
                     elif skeleton_version == 2:
                         nrn, skeleton = SkeletonService.generate_v2_skeleton(*params)
+                    elif skeleton_version == 3:
+                        nrn, skeleton = SkeletonService.generate_v3_skeleton(*params)
                     if verbose_level >= 1:
                         print(f"Skeleton successfully generated: {skeleton}")
             except Exception as e:
@@ -860,7 +989,7 @@ class SkeletonService:
                 if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
                     # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
                     file_name = SkeletonService.get_skeleton_filename(
-                        *params, "h5", False
+                        *params, output_format, False
                     )
                     SkeletonIO.write_skeleton_h5(
                         skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
@@ -868,6 +997,7 @@ class SkeletonService:
 
                 file_content = BytesIO()
                 SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                # file_content_sz = file_content.getbuffer().nbytes
                 file_content_val = file_content.getvalue()
                 SkeletonService.cache_skeleton(params, file_content_val, "h5")
                 file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
@@ -875,40 +1005,41 @@ class SkeletonService:
                 if output_format == "h5":
                     if has_request_context():
                         file_name = SkeletonService.get_skeleton_filename(
-                            *params, "h5", include_compression=False
+                            *params, output_format, include_compression=False
                         )
                         response = send_file(file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
                         response = SkeletonService.after_request(response)
                         return response
                     return file_content
             except Exception as e:
-                print(f"Exception while caching H5 skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
 
         if output_format == "swc":
             try:
-                if not swc_skeleton_bytes:
+                if not skeleton_bytes:
                     assert skeleton is not None
                     file_content = BytesIO()
                     SkeletonIO.export_to_swc(skeleton, file_content,
                                              node_labels=np.array(skeleton.vertex_properties['compartment']).astype(int),
                                              radius=np.array(skeleton.vertex_properties['radius']))
+                    # file_content_sz = file_content.getbuffer().nbytes
                     file_content_val = file_content.getvalue()
                     SkeletonService.cache_skeleton(params, file_content_val, output_format)
-                    file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                    file_content.seek(0)  # The attached file won't have a proper header if this isn't done
                 else:
-                    file_content = swc_skeleton_bytes
+                    file_content = skeleton_bytes
 
                 if has_request_context():
                     file_name = SkeletonService.get_skeleton_filename(
-                        *params, "swc", include_compression=False
+                        *params, output_format, include_compression=False
                     )
                     response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
                     response = SkeletonService.after_request(response)
                     return response
                 return file_content
             except Exception as e:
-                print(f"Exception while caching SWC skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
             return
 
@@ -922,17 +1053,77 @@ class SkeletonService:
                             skeleton_json
                         )
                     )
+                return skeleton_json
             except Exception as e:
-                print(f"Exception while caching JSON skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
-            return skeleton_json
+
+        if output_format == "jsoncompressed":
+            try:
+                if not skeleton_bytes:
+                    assert skeleton is not None
+                    skeleton_json = SkeletonService.skeleton_to_json(skeleton)
+                    skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
+                    SkeletonService.cache_skeleton(params, skeleton_bytes, output_format)
+                if has_request_context():
+                    # file_name = SkeletonService.get_skeleton_filename(
+                    #     *params, output_format, include_compression=False
+                    # )
+                    # response = send_file(skeleton_bytes, "application/octet-stream", download_name=file_name, as_attachment=True)
+                    # response = SkeletonService.after_request(response)
+                    # return response
+                
+                    response = Response(
+                        skeleton_bytes, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService.response_headers())
+                    response = SkeletonService.after_request(response)
+                    if response:
+                        return response
+            except Exception as e:
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
 
         if output_format == "arrays":
             # The arrays format is practically identical to the JSON format.
             # Its purpose is to offer a vastly minimized and simplified representation:
             # Just vertices, edges, and vertex properties.
-            skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
-            return skeleton_arrays
+            try:
+                skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
+                SkeletonService.cache_skeleton(params, skeleton_arrays, output_format)
+                return skeleton_arrays
+            except Exception as e:
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
+
+        if output_format == "arrayscompressed":
+            # The arrays format is practically identical to the JSON format.
+            # Its purpose is to offer a vastly minimized and simplified representation:
+            # Just vertices, edges, and vertex properties.
+            try:
+                if not skeleton_bytes:
+                    assert skeleton is not None
+                    skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
+                    skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_arrays)
+                    SkeletonService.cache_skeleton(params, skeleton_bytes, output_format)
+                if has_request_context():
+                    # file_name = SkeletonService.get_skeleton_filename(
+                    #     *params, output_format, include_compression=False
+                    # )
+                    # response = send_file(skeleton_bytes, "application/octet-stream", download_name=file_name, as_attachment=True)
+                    # response = SkeletonService.after_request(response)
+                    # return response
+                
+                    response = Response(
+                        skeleton_bytes, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService.response_headers())
+                    response = SkeletonService.after_request(response)
+                    if response:
+                        return response
+            except Exception as e:
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                traceback.print_exc()
 
         if output_format == "precomputed":
             # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
@@ -946,17 +1137,10 @@ class SkeletonService:
                 extra_attributes=[],  # Prevent the defaults from being used
             )
             for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
-                cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=np.float32))
+                cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
             
             # Convert the CloudVolume skeleton to precomputed format
             skeleton_precomputed = cv_skeleton.to_precomputed()
-
-            #DEBUG: We should get our skeleton back intact
-            # vertex_attributes = [
-            #     {"id": "radius", "data_type": "float32", "num_components": 1},
-            #     {"id": "compartment", "data_type": "float32", "num_components": 1},
-            # ]
-            # sk2 = cloudvolume.Skeleton.from_precomputed(skeleton_precomputed, vertex_attributes=vertex_attributes)
             
             # Cache the precomputed skeleton
             try:
@@ -964,7 +1148,7 @@ class SkeletonService:
                     params, skeleton_precomputed, output_format
                 )
             except Exception as e:
-                print(f"Exception while caching precomputed skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
 
             response = Response(

@@ -116,6 +116,7 @@ credentials.tar.gz
 
 # Any development and debugging skeleton files lying around
 ./skeletons/
+skeletons/
 skeleton*.json
 skeleton*.h5
 skeleton*.swc
