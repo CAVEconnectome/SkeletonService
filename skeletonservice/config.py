@@ -3,9 +3,9 @@ import os
 # from skeletonservice.datasets.models import Base
 import json
 
-from skeletonservice.datasets.service_skvn1 import SkeletonService_skvn1
-from skeletonservice.datasets.service_skvn2 import SkeletonService_skvn2
-from skeletonservice.datasets.service_skvn3 import SkeletonService_skvn3
+from .datasets.service_skvn1 import SkeletonService_skvn1
+from .datasets.service_skvn2 import SkeletonService_skvn2
+from .datasets.service_skvn3 import SkeletonService_skvn3
 
 
 class BaseConfig(object):

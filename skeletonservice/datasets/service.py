@@ -27,6 +27,7 @@ from skeletonservice.datasets.models import (
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
+NEUROGLANCER_SKELETON_VERSION = 2
 VERSION_PARAMS = {
     1: {},
     2: {},  # Includes radius and axon/dendrite information
@@ -888,12 +889,14 @@ class SkeletonService:
             #     # There's nothing to generate and nothing to return.
             #     return
             if output_format == "precomputed":
-                response = Response(
-                    cached_skeleton, mimetype="application/octet-stream"
-                )
-                response.headers.update(SkeletonService.response_headers())
-                response = SkeletonService.after_request(response)
-                return response
+                if has_request_context():
+                    response = Response(
+                        cached_skeleton, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService.response_headers())
+                    response = SkeletonService.after_request(response)
+                    return response
+                return cached_skeleton
             elif output_format == "json":
                 if debug_minimize_json_skeleton:  # DEBUG
                     cached_skeleton = (
@@ -906,24 +909,28 @@ class SkeletonService:
                 # We can't return the compressed JSON file directly. We need to convert it to a bytes stream object.
                 # skeleton_bytes = cached_skeleton
 
-                response = Response(
-                    cached_skeleton, mimetype="application/octet-stream"
-                )
-                response.headers.update(SkeletonService.response_headers())
-                response = SkeletonService.after_request(response)
-                return response
+                if has_request_context():
+                    response = Response(
+                        cached_skeleton, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService.response_headers())
+                    response = SkeletonService.after_request(response)
+                    return response
+                return cached_skeleton
             elif output_format == "arrays":
                 return cached_skeleton
             elif output_format == "arrayscompressed":
                 # We can't return the compresses ARRAYS file directly. We need to convert it to a bytes stream object.
                 # skeleton_bytes = cached_skeleton
 
-                response = Response(
-                    cached_skeleton, mimetype="application/octet-stream"
-                )
-                response.headers.update(SkeletonService.response_headers())
-                response = SkeletonService.after_request(response)
-                return response
+                if has_request_context():
+                    response = Response(
+                        cached_skeleton, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService.response_headers())
+                    response = SkeletonService.after_request(response)
+                    return response
+                return cached_skeleton
             elif output_format == "h5":
                 # We can't return the H5 file directly. We need to convert it to a bytes stream object.
                 skeleton = cached_skeleton
@@ -1017,7 +1024,7 @@ class SkeletonService:
 
         if output_format == "swc":
             try:
-                if not skeleton_bytes:
+                if not skeleton_bytes:  # There was no SWC in the cache, so we must generate one from the H5
                     assert skeleton is not None
                     file_content = BytesIO()
                     SkeletonIO.export_to_swc(skeleton, file_content,
@@ -1028,6 +1035,7 @@ class SkeletonService:
                     SkeletonService.cache_skeleton(params, file_content_val, output_format)
                     file_content.seek(0)  # The attached file won't have a proper header if this isn't done
                 else:
+                    # There was an SWC in the cache that we can use directly
                     file_content = skeleton_bytes
 
                 if has_request_context():
@@ -1141,7 +1149,7 @@ class SkeletonService:
             
             # Convert the CloudVolume skeleton to precomputed format
             skeleton_precomputed = cv_skeleton.to_precomputed()
-            
+
             # Cache the precomputed skeleton
             try:
                 SkeletonService.cache_skeleton(
@@ -1151,11 +1159,12 @@ class SkeletonService:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
 
-            response = Response(
-                skeleton_precomputed, mimetype="application/octet-stream"
-            )
-            response.headers.update(SkeletonService.response_headers())
-            response = SkeletonService.after_request(response)
-            if response:
-                return response
+            if has_request_context():
+                response = Response(
+                    skeleton_precomputed, mimetype="application/octet-stream"
+                )
+                response.headers.update(SkeletonService.response_headers())
+                response = SkeletonService.after_request(response)
+                if response:
+                    return response
             return skeleton_precomputed

@@ -6,7 +6,7 @@ from flask_restx import Namespace, Resource
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.service import SKELETON_VERSION_PARAMS, SkeletonService
+from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
     auth_required,
@@ -212,7 +212,7 @@ class SkeletonResource5(Resource):
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
 
-        return SKELETON_VERSION_PARAMS[sorted(SKELETON_VERSION_PARAMS.keys())[-1]]
+        return SKELETON_VERSION_PARAMS[NEUROGLANCER_SKELETON_VERSION]
 
 
 
@@ -229,7 +229,7 @@ class SkeletonResource5a(Resource):
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
 
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+            skvn = NEUROGLANCER_SKELETON_VERSION
         return SKELETON_VERSION_PARAMS[skvn]
 
 
@@ -243,8 +243,8 @@ class SkeletonResource6(Resource):
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
         
-        # Use the latest version
-        skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+        # Use the NeuroGlancer compatible version
+        skvn = NEUROGLANCER_SKELETON_VERSION
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
@@ -272,9 +272,8 @@ class SkeletonResource6a(Resource):
     def get(self, datastack_name: str, skvn: int, rid: int):
         """Get skeleton by rid"""
 
-        # If no skeleton version is specified or an illegal version is specified, then use the latest version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
+        skvn = NEUROGLANCER_SKELETON_VERSION
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
@@ -305,9 +304,9 @@ class SkeletonResource6b(Resource):
         if output_format == 'none':
             return SkeletonResource7a.process(datastack_name, skvn, rid)
 
-        # If no skeleton version is specified or an illegal version is specified, then use the latest version
+        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = sorted(current_app.config['SKELETON_VERSION_ENGINES'].keys())[-1]
+            skvn = NEUROGLANCER_SKELETON_VERSION
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
