@@ -835,9 +835,9 @@ class SkeletonService:
         if not output_format:
             output_format = "none"
 
-        # If no skeleton version is specified or an illegal version is specified, then use the latest version
+        # If no skeleton version is specified or an illegal version is specified, then use the Neuroglancer compatible version
         if skeleton_version not in VERSION_PARAMS.keys():
-            skeleton_version = sorted(VERSION_PARAMS.keys())[-1]
+            skeleton_version = NEUROGLANCER_SKELETON_VERSION
         version_params = (
             VERSION_PARAMS[skeleton_version]
             if skeleton_version in VERSION_PARAMS

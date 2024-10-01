@@ -256,7 +256,7 @@ class SkeletonResource6(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
-            skeleton_version=0,
+            skeleton_version=skvn,
             verbose_level_=-1,
         )
 
