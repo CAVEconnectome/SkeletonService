@@ -24,6 +24,7 @@ from skeletonservice.datasets.models import (
 #     SkeletonSchema,
 # )
 
+CACHE_NON_H5_SKELETONS = False  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
@@ -226,6 +227,9 @@ class SkeletonService:
         """
         Confirm that the specified format of the skeleton is in the cache.
         """
+        if not CACHE_NON_H5_SKELETONS and format != 'h5':
+            return False
+        
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
@@ -241,6 +245,9 @@ class SkeletonService:
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         """
+        if not CACHE_NON_H5_SKELETONS and format != 'h5':
+            return None
+        
         file_name = SkeletonService.get_skeleton_filename(*params, format)
         if verbose_level >= 1:
             print("retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
@@ -272,6 +279,9 @@ class SkeletonService:
         """
         Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
         """
+        if not CACHE_NON_H5_SKELETONS and format != 'h5':
+            return
+        
         file_name = SkeletonService.get_skeleton_filename(
             *params, format, include_compression=include_compression
         )
