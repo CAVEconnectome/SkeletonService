@@ -23,6 +23,7 @@ def callback(payload):
     except Exception as e:
         print("Error generating skeleton: ", repr(e))
         print(tb.format_exc())
+        raise e
 
 c = MessagingClient()
 l2cache_update_queue = getenv("SKELETON_CACHE_RETRIEVE_QUEUE", "does-not-exist")
