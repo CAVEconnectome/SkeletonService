@@ -151,6 +151,7 @@ class SkeletonService:
             or format == "precomputed"
             or format == "h5"
             or format == "swc"
+            or format == "swccompressed"
         )
         if format != "none":
             file_name += f".{format}"
@@ -211,7 +212,7 @@ class SkeletonService:
                 ],
             )
             skeleton = cv_skeleton.to_precomputed()
-        elif format == "swc":
+        elif format == "swc" or format == "swccompressed":
             file_name = SkeletonService.get_skeleton_filename(*params, format, False)
             SkeletonIO.export_to_swc(skeleton, file_name)
             file_content = open(file_name, "rb").read()
@@ -267,7 +268,7 @@ class SkeletonService:
                 skeleton_bytes = BytesIO(skeleton_bytes)
                 skeleton = SkeletonIO.read_skeleton_h5(skeleton_bytes)
                 return skeleton
-            elif format == "swc":
+            elif format == "swc" or format == "swccompressed":
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
                 return skeleton_bytes  # Don't even bother building a skeleton object
@@ -557,11 +558,25 @@ class SkeletonService:
         )
     
     @staticmethod
+    def compressBytes(inputBytes: BytesIO):
+        """
+        Modeled on compressStringToBytes()
+        """
+        inputBytes.seek(0)
+        stream = BytesIO()
+        compressor = gzip.GzipFile(fileobj=stream, mode='wb')
+        while True:  # until EOF
+            chunk = inputBytes.read(8192)
+            if not chunk:  # EOF?
+                compressor.close()
+                return stream.getvalue()
+            compressor.write(chunk)
+    
+    @staticmethod
     def compressStringToBytes(inputString):
         """
         REF: https://stackoverflow.com/questions/15525837/which-is-the-best-way-to-compress-json-to-store-in-a-memory-based-store-like-red
-        read the given string, encode it in utf-8,
-        compress the data and return it as a byte array.
+        read the given string, encode it in utf-8, compress the data and return it as a byte array.
         """
         bio = BytesIO()
         bio.write(inputString.encode("utf-8"))
@@ -587,8 +602,7 @@ class SkeletonService:
     def decompressBytesToString(inputBytes):
         """
         REF: https://stackoverflow.com/questions/15525837/which-is-the-best-way-to-compress-json-to-store-in-a-memory-based-store-like-red
-        decompress the given byte array (which must be valid 
-        compressed gzip data) and return the decoded text (utf-8).
+        decompress the given byte array (which must be valid compressed gzip data) and return the decoded text (utf-8).
         """
         bio = BytesIO()
         stream = BytesIO(inputBytes)
@@ -946,6 +960,8 @@ class SkeletonService:
                 skeleton = cached_skeleton
             elif output_format == "swc":
                 skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
+            elif output_format == "swccompressed":
+                skeleton_bytes = cached_skeleton
         
         # At this point:
         # either a cached skeleton was found that could be returned immediately,
@@ -962,6 +978,7 @@ class SkeletonService:
                 or output_format == "arrays"
                 or output_format == "arrayscompressed"
                 or output_format == "swc"
+                or output_format == "swccompressed"
                 or output_format == "precomputed"
             ):
                 skeleton = SkeletonService.retrieve_skeleton_from_cache(params, "h5")
@@ -1032,7 +1049,7 @@ class SkeletonService:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
                 traceback.print_exc()
 
-        if output_format == "swc":
+        if output_format == "swc" or output_format == "swccompressed":
             try:
                 if not skeleton_bytes:  # There was no SWC in the cache, so we must generate one from the H5
                     assert skeleton is not None
@@ -1050,10 +1067,21 @@ class SkeletonService:
 
                 if has_request_context():
                     file_name = SkeletonService.get_skeleton_filename(
-                        *params, output_format, include_compression=False
+                        *params, output_format, include_compression=(output_format=="swccompressed")
                     )
-                    response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
-                    response = SkeletonService.after_request(response)
+                    if output_format == "swccompressed":
+                        file_content = SkeletonService.compressBytes(file_content)
+                    
+                    if output_format == "swc":
+                        response = send_file(file_content, "application/octet-stream", download_name=file_name, as_attachment=True)
+                        response = SkeletonService.after_request(response)
+                    else:
+                        response = Response(
+                            file_content, mimetype="application/octet-stream"
+                        )
+                        response.headers.update(SkeletonService.response_headers())
+                        response = SkeletonService.after_request(response)
+
                     return response
                 return file_content
             except Exception as e:
