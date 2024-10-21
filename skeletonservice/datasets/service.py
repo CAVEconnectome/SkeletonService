@@ -24,7 +24,7 @@ from skeletonservice.datasets.models import (
 #     SkeletonSchema,
 # )
 
-CACHE_NON_H5_SKELETONS = False  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
+CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
