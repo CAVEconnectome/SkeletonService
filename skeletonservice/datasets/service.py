@@ -501,6 +501,8 @@ class SkeletonService:
                 collapse_radius,
             )
         except Exception as e:
+            print(f"Exception in generate_v2_skeleton(): {str(e)}. Traceback:")
+            traceback.print_exc()
             raise e
 
         # Assign the radii information to the skeleton
@@ -803,7 +805,7 @@ class SkeletonService:
 
             return response
         except Exception as e:
-            print(f"Exception in after_request(): {str(e)}")
+            print(f"Exception in after_request(): {str(e)}. Traceback:")
             traceback.print_exc()
             return None
 
@@ -1046,7 +1048,7 @@ class SkeletonService:
                         return response
                     return file_content
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "swc" or output_format == "swccompressed":
@@ -1085,7 +1087,7 @@ class SkeletonService:
                     return response
                 return file_content
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
             return
 
@@ -1101,7 +1103,7 @@ class SkeletonService:
                     )
                 return skeleton_json
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "jsoncompressed":
@@ -1127,7 +1129,7 @@ class SkeletonService:
                     if response:
                         return response
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "arrays":
@@ -1139,7 +1141,7 @@ class SkeletonService:
                 SkeletonService.cache_skeleton(params, skeleton_arrays, output_format)
                 return skeleton_arrays
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "arrayscompressed":
@@ -1168,7 +1170,7 @@ class SkeletonService:
                     if response:
                         return response
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "precomputed":
@@ -1194,7 +1196,7 @@ class SkeletonService:
                     params, skeleton_precomputed, output_format
                 )
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}")
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
             if has_request_context():

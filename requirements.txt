@@ -32,7 +32,7 @@ cachetools==5.3.2
     #   caveclient
     #   google-auth
     #   middle-auth-client
-caveclient==5.23.0
+caveclient==5.31.0
     # via pcg-skel
 certifi==2024.2.2
     # via requests
