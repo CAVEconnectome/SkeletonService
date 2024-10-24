@@ -183,45 +183,54 @@ class SkeletonService:
         This is a debugging function that reads a skeleton from a local file instead of
         computing a skeleton from scratch or retrieving one from a Google bucket.
         """
-        if verbose_level >= 1:
-            print("retrieve_skeleton_from_local()")
+        try:
+            if verbose_level >= 1:
+                print("retrieve_skeleton_from_local()")
 
-        file_name = SkeletonService.get_skeleton_filename(
-            *params, "h5", include_compression=False
-        )
-        if not os.path.exists(DEBUG_SKELETON_CACHE_LOC + file_name):
+            file_name = SkeletonService.get_skeleton_filename(
+                *params, "h5", include_compression=False
+            )
+            if verbose_level >= 1:
+                print(f"retrieve_skeleton_from_local() Looking at {DEBUG_SKELETON_CACHE_LOC + file_name}")
+            if not os.path.exists(DEBUG_SKELETON_CACHE_LOC + file_name):
+                if verbose_level >= 1:
+                    print(f"retrieve_skeleton_from_local() No local skeleton file found at {DEBUG_SKELETON_CACHE_LOC + file_name}")
+                return None
+
+            if verbose_level >= 1:
+                print(
+                    "retrieve_skeleton_from_local() Local debug skeleton file found. Reading it..."
+                )
+
+            skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
+
+            if format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
+                skeleton = SkeletonService.skeleton_to_json(skeleton)
+            elif format == "precomputed":
+                cv_skeleton = cloudvolume.Skeleton(
+                    vertices=skeleton.vertices,
+                    edges=skeleton.edges,
+                    radii=skeleton.radius,
+                    space="voxel",
+                    extra_attributes=[
+                        {"id": "radius", "data_type": "float32", "num_components": 1}
+                    ],
+                )
+                skeleton = cv_skeleton.to_precomputed()
+            elif format == "swc" or format == "swccompressed":
+                file_name = SkeletonService.get_skeleton_filename(*params, format, False)
+                SkeletonIO.export_to_swc(skeleton, file_name)
+                file_content = open(file_name, "rb").read()
+                skeleton = file_content
+            else:  # format == 'h5'
+                # It's already in H5 format, so just return the bytes as-is.
+                pass
+
+            return skeleton
+        except Exception as e:
+            print(f"Exception in retrieve_skeleton_from_local(): {str(e)}. Traceback:")
+            traceback.print_exc()
             return None
-
-        if verbose_level >= 1:
-            print(
-                "retrieve_skeleton_from_local() Local debug skeleton file found. Reading it..."
-            )
-
-        skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
-
-        if format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
-            skeleton = SkeletonService.skeleton_to_json(skeleton)
-        elif format == "precomputed":
-            cv_skeleton = cloudvolume.Skeleton(
-                vertices=skeleton.vertices,
-                edges=skeleton.edges,
-                radii=skeleton.radius,
-                space="voxel",
-                extra_attributes=[
-                    {"id": "radius", "data_type": "float32", "num_components": 1}
-                ],
-            )
-            skeleton = cv_skeleton.to_precomputed()
-        elif format == "swc" or format == "swccompressed":
-            file_name = SkeletonService.get_skeleton_filename(*params, format, False)
-            SkeletonIO.export_to_swc(skeleton, file_name)
-            file_content = open(file_name, "rb").read()
-            skeleton = file_content
-        else:  # format == 'h5'
-            # It's already in H5 format, so just return the bytes as-is.
-            pass
-
-        return skeleton
 
     @staticmethod
     def confirm_skeleton_in_cache(params, format):
@@ -999,6 +1008,8 @@ class SkeletonService:
                     params, "h5"
                 )
                 if not skeleton:
+                    if verbose_level >= 1:
+                        print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
                     if skeleton_version == 1:
                         skeleton = SkeletonService.generate_v1_skeleton(*params)
                     elif skeleton_version == 2:
@@ -1007,6 +1018,9 @@ class SkeletonService:
                         nrn, skeleton = SkeletonService.generate_v3_skeleton(*params)
                     if verbose_level >= 1:
                         print(f"Skeleton successfully generated: {skeleton}")
+                else:
+                    if verbose_level >= 1:
+                        print("Local (debugging) skeleton was found.")
             except Exception as e:
                 print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
