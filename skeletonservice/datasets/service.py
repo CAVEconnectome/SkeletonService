@@ -414,11 +414,17 @@ class SkeletonService:
         """
         Templated and modified from generate_v1_skeleton().
         """
+        if verbose_level >= 1:
+            print("generate_v2_skeleton()")
         server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+        if verbose_level >= 1:
+            print(f"generate_v2_skeleton() server: {server}")
         client = caveclient.CAVEclient(
             datastack_name,
             server_address=server,
         )
+        if verbose_level >= 1:
+            print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
             datastack_name == "minnie65_phase3_v1"
         ):
