@@ -5,7 +5,7 @@ flask-cors
 flask-restx
 flask-accepts
 middle-auth-client>=3.16.0
-caveclient==5.31.0
+caveclient==6.2.0
 meshparty
 pcg_skel>=1.0.3
 messagingclient
