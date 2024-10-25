@@ -15,7 +15,7 @@ from werkzeug.routing import BaseConverter
 from werkzeug.middleware.proxy_fix import ProxyFix
 from middle_auth_client import auth_required
 
-__version__ = "0.3.8"
+__version__ = "0.4.0"
 
 # migrate = Migrate()
 
