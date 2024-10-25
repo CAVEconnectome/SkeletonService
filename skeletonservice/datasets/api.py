@@ -257,6 +257,7 @@ class SkeletonResource6(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
+            via_requests=True,
             verbose_level_=-1,
         )
 
@@ -286,6 +287,7 @@ class SkeletonResource6a(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
+            via_requests=True,
             verbose_level_=1,
         )
 
@@ -319,6 +321,7 @@ class SkeletonResource6b(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
+            via_requests=True,
             verbose_level_=1,
         )
 
@@ -383,7 +386,6 @@ class SkeletonResource7a(Resource):
 
         return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
-
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
@@ -410,3 +412,89 @@ class SkeletonResource7a(Resource):
         # c.publish(exchange, payload, attributes)
 
         # return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+
+
+
+@api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<string:output_format>/<bool:gms>/<string:rids>")
+class SkeletonResource8(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, output_format: str, gms: bool, rids: str):
+        return SkeletonResource8a.process(datastack_name, 0, output_format, gms, rids)
+
+
+
+@api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<int:skvn>/<string:output_format>/<bool:gms>/<string:rids>")
+class SkeletonResource8a(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str):
+        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
+        return SkelClassVsn.get_bulk_skeletons_by_datastack_and_rids(
+            datastack_name,
+            rids=rids.split(','),
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            output_format=output_format,
+            generate_missing_skeletons=gms,
+            verbose_level_=1,
+        )
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str):
+        return self.process(datastack_name, skvn, output_format, gms, rids)
+
+
+
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<string:rids>")
+class SkeletonResource9(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rids: str):
+        return SkeletonResource9a.process(datastack_name, 0, rids)
+
+
+
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int:skvn>/<string:rids>")
+class SkeletonResource9a(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rids: str):
+        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
+        return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+            datastack_name,
+            rids=rids.split(','),
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            verbose_level_=1,
+        )
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rids: str):
+        return self.process(datastack_name, skvn, rids)

@@ -1,6 +1,10 @@
-from io import StringIO, BytesIO
-from typing import List, Dict
+from io import BytesIO
+import binascii
+from typing import List
 import os
+import traceback
+import datetime
+from messagingclient import MessagingClient
 import numpy as np
 import pandas as pd
 import json
@@ -12,10 +16,6 @@ import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles, compression
 import cloudvolume
-import gzip
-import os
-import datetime
-import traceback
 
 from skeletonservice.datasets.models import (
     Skeleton,
@@ -799,7 +799,9 @@ class SkeletonService:
         """
         try:
             accept_encoding = request.headers.get("Accept-Encoding", "")
-
+            if verbose_level >= 1:
+                print(f"after_request() accept_encoding: {accept_encoding}")
+            
             if "gzip" not in accept_encoding.lower():
                 return response
 
@@ -836,6 +838,7 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,
+        via_requests: bool = True,
         verbose_level_: int = 0,
     ):
         """
@@ -873,6 +876,18 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
 
+        assert (
+            output_format == "none"
+            or output_format == "json"
+            or output_format == "jsoncompressed"
+            or output_format == "arrays"
+            or output_format == "arrayscompressed"
+            or output_format == "precomputed"
+            or output_format == "h5"
+            or output_format == "swc"
+            or output_format == "swccompressed"
+        )
+        
         if not output_format:
             output_format = "none"
 
@@ -930,7 +945,7 @@ class SkeletonService:
             #     # There's nothing to generate and nothing to return.
             #     return
             if output_format == "precomputed":
-                if has_request_context():
+                if via_requests and has_request_context():
                     response = Response(
                         cached_skeleton, mimetype="application/octet-stream"
                     )
@@ -950,7 +965,7 @@ class SkeletonService:
                 # We can't return the compressed JSON file directly. We need to convert it to a bytes stream object.
                 # skeleton_bytes = cached_skeleton
 
-                if has_request_context():
+                if via_requests and has_request_context():
                     response = Response(
                         cached_skeleton, mimetype="application/octet-stream"
                     )
@@ -964,7 +979,7 @@ class SkeletonService:
                 # We can't return the compresses ARRAYS file directly. We need to convert it to a bytes stream object.
                 # skeleton_bytes = cached_skeleton
 
-                if has_request_context():
+                if via_requests and has_request_context():
                     response = Response(
                         cached_skeleton, mimetype="application/octet-stream"
                     )
@@ -1059,7 +1074,7 @@ class SkeletonService:
                 file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 if output_format == "h5":
-                    if has_request_context():
+                    if via_requests and has_request_context():
                         file_name = SkeletonService.get_skeleton_filename(
                             *params, output_format, include_compression=False
                         )
@@ -1087,7 +1102,7 @@ class SkeletonService:
                     # There was an SWC in the cache that we can use directly
                     file_content = skeleton_bytes
 
-                if has_request_context():
+                if via_requests and has_request_context():
                     file_name = SkeletonService.get_skeleton_filename(
                         *params, output_format, include_compression=(output_format=="swccompressed")
                     )
@@ -1133,14 +1148,7 @@ class SkeletonService:
                     skeleton_json = SkeletonService.skeleton_to_json(skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService.cache_skeleton(params, skeleton_bytes, output_format)
-                if has_request_context():
-                    # file_name = SkeletonService.get_skeleton_filename(
-                    #     *params, output_format, include_compression=False
-                    # )
-                    # response = send_file(skeleton_bytes, "application/octet-stream", download_name=file_name, as_attachment=True)
-                    # response = SkeletonService.after_request(response)
-                    # return response
-                
+                if via_requests and has_request_context():
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
@@ -1148,6 +1156,7 @@ class SkeletonService:
                     response = SkeletonService.after_request(response)
                     if response:
                         return response
+                return skeleton_bytes
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
@@ -1174,14 +1183,7 @@ class SkeletonService:
                     skeleton_arrays = SkeletonService.skeleton_to_arrays(skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_arrays)
                     SkeletonService.cache_skeleton(params, skeleton_bytes, output_format)
-                if has_request_context():
-                    # file_name = SkeletonService.get_skeleton_filename(
-                    #     *params, output_format, include_compression=False
-                    # )
-                    # response = send_file(skeleton_bytes, "application/octet-stream", download_name=file_name, as_attachment=True)
-                    # response = SkeletonService.after_request(response)
-                    # return response
-                
+                if via_requests and has_request_context():
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
@@ -1189,6 +1191,7 @@ class SkeletonService:
                     response = SkeletonService.after_request(response)
                     if response:
                         return response
+                return skeleton_bytes
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
@@ -1219,7 +1222,7 @@ class SkeletonService:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
-            if has_request_context():
+            if via_requests and has_request_context():
                 response = Response(
                     skeleton_precomputed, mimetype="application/octet-stream"
                 )
@@ -1228,3 +1231,107 @@ class SkeletonService:
                 if response:
                     return response
             return skeleton_precomputed
+
+    @staticmethod
+    def get_bulk_skeletons_by_datastack_and_rids(
+        datastack_name: str,
+        rids: List,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = 0,
+        output_format: str = "json",
+        generate_missing_skeletons: bool = False,
+        verbose_level_: int = 0,
+    ):
+        """
+        Provide bulk retrieval (and optional generation) of skeletons by a list of root ids.
+        """
+        global verbose_level
+        verbose_level = verbose_level_
+
+        if verbose_level >= 1:
+            print(
+                f"get_bulk_skeletons_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
+                f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
+            )
+    
+        assert (output_format == "json" or output_format == "swc")
+        output_format += "compressed"
+        
+        skeletons = {}
+        for rid in rids:
+            params = [
+                rid,
+                bucket,
+                skeleton_version,
+                datastack_name,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+            ]
+            
+            skeleton = SkeletonService.retrieve_skeleton_from_cache(params, output_format)
+            if verbose_level >= 1:
+                print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for rid {rid}: {skeleton is not None}")
+            
+            if skeleton is None and generate_missing_skeletons:
+                skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
+                    datastack_name,
+                    rid,
+                    output_format,
+                    bucket,
+                    root_resolution,
+                    collapse_soma,
+                    collapse_radius,
+                    skeleton_version,
+                    False,
+                    verbose_level_,
+                )
+            if verbose_level >= 1:
+                print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
+            if skeleton is not None:
+                # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
+                # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
+                # I haven't measured the respective sizes to compare and confirm.
+                if output_format == "jsoncompressed":
+                    skeleton_hex_ascii = binascii.hexlify(skeleton).decode('ascii')
+                    skeletons[rid] = skeleton_hex_ascii
+                elif output_format == "swccompressed":
+                    skeleton_hex_ascii = binascii.hexlify(skeleton.getvalue()).decode('ascii')
+                    skeletons[rid] = skeleton_hex_ascii
+        
+        return skeletons
+    
+    @staticmethod
+    def generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+        datastack_name: str,
+        rids: List,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = 0,
+        verbose_level_: int = 0,
+    ):
+        """
+        Generate multiple skeletons aynschronously without returning anything.
+        """
+        
+        for rid in rids:
+            payload = b""
+            attributes = {
+                "skeleton_params_rid": f"{rid}",
+                "skeleton_params_bucket": bucket,
+                "skeleton_params_datastack_name": datastack_name,
+                "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
+                "skeleton_params_collapse_soma": f"{collapse_soma}",
+                "skeleton_params_collapse_radius": f"{collapse_radius}",
+                "skeleton_version": f"{skeleton_version}",
+                "verbose_level": f"{verbose_level_}",
+            }
+
+            c = MessagingClient()
+            exchange = os.getenv("SKELETON_CACHE_EXCHANGE", None)
+            c.publish(exchange, payload, attributes)
