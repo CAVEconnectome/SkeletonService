@@ -875,6 +875,9 @@ class SkeletonService:
                 f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
+        
+        if not output_format:
+            output_format = "none"
 
         assert (
             output_format == "none"
@@ -887,9 +890,6 @@ class SkeletonService:
             or output_format == "swc"
             or output_format == "swccompressed"
         )
-        
-        if not output_format:
-            output_format = "none"
 
         # If no skeleton version is specified or an illegal version is specified, then use the Neuroglancer compatible version
         if skeleton_version not in VERSION_PARAMS.keys():
