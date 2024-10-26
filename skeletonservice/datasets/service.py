@@ -915,7 +915,7 @@ class SkeletonService:
         cached_skeleton = None
         if output_format == "none":
             skel_confirmation = SkeletonService.confirm_skeleton_in_cache(
-                params, output_format
+                params, "h5"
             )
             if skel_confirmation:
                 # Nothing else to do, so return
@@ -1305,7 +1305,7 @@ class SkeletonService:
         return skeletons
     
     @staticmethod
-    def generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+    def generate_bulk_skeletons_by_datastack_and_rids_async(
         datastack_name: str,
         rids: List,
         bucket: str,

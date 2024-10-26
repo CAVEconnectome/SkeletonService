@@ -440,7 +440,7 @@ class SkeletonResource8a(Resource):
 
         return SkelClassVsn.get_bulk_skeletons_by_datastack_and_rids(
             datastack_name,
-            rids=rids.split(','),
+            rids=map(int, rids.split(',')),
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             root_resolution=[1, 1, 1],
             collapse_soma=True,
@@ -482,9 +482,9 @@ class SkeletonResource9a(Resource):
             skvn = NEUROGLANCER_SKELETON_VERSION
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
-        return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+        return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_async(
             datastack_name,
-            rids=rids.split(','),
+            rids=map(int, rids.split(',')),
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             root_resolution=[1, 1, 1],
             collapse_soma=True,
