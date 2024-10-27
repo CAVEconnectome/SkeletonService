@@ -825,6 +825,24 @@ class SkeletonService:
             print(f"Exception in _after_request(): {str(e)}. Traceback:")
             traceback.print_exc()
             return None
+    
+    @staticmethod
+    def get_cache_contents(bucket, skeleton_version, rid_prefix, limit=None):
+        """
+        Get the contents of the cache for a specific bucket and skeleton version.
+        """
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+        prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
+        files = list(cf.list(prefix=prefix))
+        if not limit:
+            return {
+                "num_found": len(files),
+                "files": files,
+            }
+        return {
+                "num_found": len(files),
+                "files": files[:limit],
+            }
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(

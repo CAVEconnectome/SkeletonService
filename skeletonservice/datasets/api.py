@@ -233,8 +233,71 @@ class SkeletonResource5a(Resource):
         return SKELETON_VERSION_PARAMS[skvn]
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
+
+@api_bp.route("/<string:datastack_name>/bulk/skeleton/info")
+class SkeletonResource5b(Resource):
+    """SkeletonInfoResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonInfoResource", security="apikey")
+    def get(self, datastack_name: str):
+        """Get skeleton info"""
+        
+        # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
+
+        return {
+            "bulk skeletons": 1,
+        }
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:root_id_prefix>/<int:limit>")
 class SkeletonResource6(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, root_id_prefix: int, limit: int):
+        """Get skeletons in cache by root_id_prefix"""
+        
+        # Use the NeuroGlancer compatible version
+        skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        
+        return SkelClassVsn.get_cache_contents(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            skeleton_version=skvn,
+            rid_prefix=root_id_prefix,
+            limit=limit,
+        )
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:skvn>/<int:root_id_prefix>/<int:limit>")
+class SkeletonResource6a(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, root_id_prefix: int, limit: int):
+        """Get skeletons in cache by root_id_prefix"""
+        
+        # Use the NeuroGlancer compatible version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        
+        return SkelClassVsn.get_cache_contents(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            skeleton_version=skvn,
+            rid_prefix=root_id_prefix,
+            limit=limit,
+        )
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
+class SkeletonResource7(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -264,7 +327,7 @@ class SkeletonResource6(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>")
-class SkeletonResource6a(Resource):
+class SkeletonResource7a(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -274,7 +337,8 @@ class SkeletonResource6a(Resource):
         """Get skeleton by rid"""
 
         # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = NEUROGLANCER_SKELETON_VERSION
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
@@ -294,7 +358,7 @@ class SkeletonResource6a(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>/<string:output_format>")
-class SkeletonResource6b(Resource):
+class SkeletonResource7b(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -304,7 +368,7 @@ class SkeletonResource6b(Resource):
         """Get skeleton by rid"""
 
         if output_format == 'none':
-            return SkeletonResource7a.process(datastack_name, skvn, rid)
+            return SkeletonResource8a.process(datastack_name, skvn, rid)
 
         # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
@@ -328,7 +392,7 @@ class SkeletonResource6b(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:rid>")
-class SkeletonResource7(Resource):
+class SkeletonResource8(Resource):
     """SkeletonResource"""
 
     @auth_required
@@ -336,7 +400,7 @@ class SkeletonResource7(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
-        return SkeletonResource7a.process(datastack_name, 0, rid)
+        return SkeletonResource8a.process(datastack_name, 0, rid)
     
         # from messagingclient import MessagingClient
 
@@ -361,7 +425,7 @@ class SkeletonResource7(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:skvn>/<int:rid>")
-class SkeletonResource7a(Resource):
+class SkeletonResource8a(Resource):
     """SkeletonResource"""
 
     @staticmethod
@@ -416,19 +480,19 @@ class SkeletonResource7a(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<string:output_format>/<bool:gms>/<string:rids>")
-class SkeletonResource8(Resource):
+class SkeletonResource9(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, output_format: str, gms: bool, rids: str):
-        return SkeletonResource8a.process(datastack_name, 0, output_format, gms, rids)
+        return SkeletonResource9a.process(datastack_name, 0, output_format, gms, rids)
 
 
 
 @api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<int:skvn>/<string:output_format>/<bool:gms>/<string:rids>")
-class SkeletonResource8a(Resource):
+class SkeletonResource9a(Resource):
     """SkeletonResource"""
 
     @staticmethod
@@ -460,19 +524,19 @@ class SkeletonResource8a(Resource):
 
 
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<string:rids>")
-class SkeletonResource9(Resource):
+class SkeletonResource10(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rids: str):
-        return SkeletonResource9a.process(datastack_name, 0, rids)
+        return SkeletonResource10a.process(datastack_name, 0, rids)
 
 
 
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int:skvn>/<string:rids>")
-class SkeletonResource9a(Resource):
+class SkeletonResource10a(Resource):
     """SkeletonResource"""
 
     @staticmethod

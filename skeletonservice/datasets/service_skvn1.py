@@ -6,6 +6,21 @@ class SkeletonService_skvn1(SkeletonService):
     def __init__(self):
         super().__init__()
         print("SkeletonService_skvn1 initialized")
+    
+    @staticmethod
+    def get_cache_contents(
+        bucket: str,
+        skeleton_version: int = -1,
+        rid_prefix: int = None,
+        limit: int=None
+    ):
+        print(f"SkeletonService_skvn1.get_cache_contents: {bucket} {skeleton_version} {rid_prefix} {limit}")
+        return SkeletonService.get_cache_contents(
+            bucket,
+            skeleton_version,
+            rid_prefix,
+            limit
+        )
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(
