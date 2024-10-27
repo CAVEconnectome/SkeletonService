@@ -16,7 +16,7 @@ from middle_auth_client import (
 
 from typing import List, Dict
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 
 authorizations = {
@@ -270,6 +270,7 @@ class SkeletonResource6(Resource):
             skeleton_version=skvn,
             rid_prefix=root_id_prefix,
             limit=limit,
+            verbose_level_=1,
         )
 
 
@@ -293,6 +294,7 @@ class SkeletonResource6a(Resource):
             skeleton_version=skvn,
             rid_prefix=root_id_prefix,
             limit=limit,
+            verbose_level_=1,
         )
 
 
