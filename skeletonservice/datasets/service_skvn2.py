@@ -12,14 +12,16 @@ class SkeletonService_skvn2(SkeletonService):
         bucket: str,
         skeleton_version: int = -1,
         rid_prefix: int = None,
-        limit: int=None
+        limit: int=None,
+        verbose_level_: int = 0,
     ):
         print(f"SkeletonService_skvn1.get_cache_contents: {bucket} {skeleton_version} {rid_prefix} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
             skeleton_version,
             rid_prefix,
-            limit
+            limit,
+            verbose_level_,
         )
 
     @staticmethod

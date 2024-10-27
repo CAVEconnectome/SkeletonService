@@ -827,13 +827,34 @@ class SkeletonService:
             return None
     
     @staticmethod
-    def get_cache_contents(bucket, skeleton_version, rid_prefix, limit=None):
+    def get_cache_contents(
+        bucket,
+        skeleton_version,
+        rid_prefix,
+        limit=None,
+        verbose_level_: int = 0
+    ):
         """
         Get the contents of the cache for a specific bucket and skeleton version.
         """
+
+        global verbose_level
+        verbose_level = verbose_level_
+
+        if verbose_level >= 1:
+            print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefix: {rid_prefix}, limit: {limit}")
+
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
+        if verbose_level >= 1:
+            print(f"get_cache_contents() prefix: {prefix}")
         files = list(cf.list(prefix=prefix))
+        
+        if verbose_level >= 1:
+            print(f"get_cache_contents() num_found: {len(files)}")
+            if len(files) > 0:
+                print(f"get_cache_contents() first result: {files[0]}")
+        
         if not limit:
             return {
                 "num_found": len(files),
