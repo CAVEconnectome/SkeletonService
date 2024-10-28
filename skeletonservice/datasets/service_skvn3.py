@@ -5,7 +5,7 @@ from skeletonservice.datasets.service import SkeletonService
 class SkeletonService_skvn3(SkeletonService):
     def __init__(self):
         super().__init__()
-        print(f"SkeletonService_skvn3 initialized")
+        print("SkeletonService_skvn3 initialized")
     
     @staticmethod
     def get_cache_contents(
@@ -15,7 +15,7 @@ class SkeletonService_skvn3(SkeletonService):
         limit: int=None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn1.get_cache_contents: {bucket} {skeleton_version} {rid_prefix} {limit}")
+        print(f"SkeletonService_skvn3.get_cache_contents: {bucket} {skeleton_version} {rid_prefix} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
             skeleton_version,

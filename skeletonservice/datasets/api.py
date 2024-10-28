@@ -448,9 +448,11 @@ class SkeletonResource8a(Resource):
 
         c = MessagingClient()
         exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
 
-        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+        print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
+        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")

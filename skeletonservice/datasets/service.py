@@ -1360,6 +1360,8 @@ class SkeletonService:
         """
         Generate multiple skeletons aynschronously without returning anything.
         """
+        global verbose_level
+        verbose_level = verbose_level_
         
         for rid in rids:
             payload = b""
@@ -1376,4 +1378,8 @@ class SkeletonService:
 
             c = MessagingClient()
             exchange = os.getenv("SKELETON_CACHE_EXCHANGE", None)
+            if verbose_level >= 1:
+                print(f"generate_bulk_skeletons_by_datastack_and_rids_async() Sending payload for rid {rid} to exchange {exchange}")
             c.publish(exchange, payload, attributes)
+
+            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
