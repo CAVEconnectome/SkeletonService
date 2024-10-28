@@ -250,7 +250,7 @@ class SkeletonService:
         return cf.exists(file_name)
 
     @staticmethod
-    def __retrieve_skeleton_from_cache(params, format):
+    def _retrieve_skeleton_from_cache(params, format):
         """
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
@@ -840,6 +840,9 @@ class SkeletonService:
 
         global verbose_level
         verbose_level = verbose_level_
+
+        if bucket[-1] != "/":
+            bucket += "/"
 
         if verbose_level >= 1:
             print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefix: {rid_prefix}, limit: {limit}")
