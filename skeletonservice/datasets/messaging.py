@@ -4,11 +4,12 @@ from messagingclient import MessagingClient
 from .service import SkeletonService
 
 def callback(payload):
-    print("Skeleton Cache received message: ", payload)
+    print("Skeleton Cache message-processer received message: ", payload)
     try:
         # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.
         # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][int(payload.attributes["skeleton_version"])]
 
+        print("Skeleton Cache message-processer calling SkeletonService.get_skeleton_by_datastack_and_rid()...")
         result = SkeletonService.get_skeleton_by_datastack_and_rid(
             payload.attributes["skeleton_params_datastack_name"],
             int(payload.attributes["skeleton_params_rid"]),
@@ -20,10 +21,12 @@ def callback(payload):
             int(payload.attributes["skeleton_version"]),
             int(payload.attributes["verbose_level"]),
         )
+        print("Skeleton Cache message-processer return from SkeletonService.get_skeleton_by_datastack_and_rid(). Result: ", result)
     except Exception as e:
         print("Error generating skeleton: ", repr(e))
         print(tb.format_exc())
         raise e
+    print("Skeleton Cache message-processer done")
 
 c = MessagingClient()
 l2cache_update_queue = getenv("SKELETON_CACHE_RETRIEVE_QUEUE", "does-not-exist")

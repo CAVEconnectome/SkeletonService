@@ -892,6 +892,8 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
 
+        print("get_skeleton_by_datastack_and_rid for rid:", rid)
+
         # DEBUG
         if (
             datastack_name == "0" or rid == 0
@@ -914,7 +916,7 @@ class SkeletonService:
 
         if verbose_level >= 1:
             print(
-                f"get_skeleton_by_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
+                f"get_skeleton_by_datastack_and_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
         
