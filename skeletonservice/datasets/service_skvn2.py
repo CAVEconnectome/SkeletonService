@@ -11,15 +11,15 @@ class SkeletonService_skvn2(SkeletonService):
     def get_cache_contents(
         bucket: str,
         skeleton_version: int = -1,
-        rid_prefix: int = None,
-        limit: int=None,
+        rid_prefixes: List = None,
+        limit: int = None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn2.get_cache_contents: {bucket} {skeleton_version} {rid_prefix} {limit}")
+        print(f"SkeletonService_skvn2.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
             skeleton_version,
-            rid_prefix,
+            rid_prefixes,
             limit,
             verbose_level_,
         )

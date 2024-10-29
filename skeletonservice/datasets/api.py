@@ -251,15 +251,19 @@ class SkeletonResource5b(Resource):
         }
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:root_id_prefix>/<int:limit>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource6(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, root_id_prefix: int, limit: int):
-        """Get skeletons in cache by root_id_prefix"""
+    def get(self, datastack_name: str, root_id_prefixes: str, limit: int):
+        """
+        Get skeletons in cache by root_id_prefix
+        
+        root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
         
         # Use the NeuroGlancer compatible version
         skvn = NEUROGLANCER_SKELETON_VERSION
@@ -268,21 +272,25 @@ class SkeletonResource6(Resource):
         return SkelClassVsn.get_cache_contents(
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             skeleton_version=skvn,
-            rid_prefix=root_id_prefix,
+            rid_prefixes=[int(v) for v in root_id_prefixes.split(',')],
             limit=limit,
             verbose_level_=1,
         )
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:skvn>/<int:root_id_prefix>/<int:limit>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:skvn>/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource6a(Resource):
     """SkeletonResource"""
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, skvn: int, root_id_prefix: int, limit: int):
-        """Get skeletons in cache by root_id_prefix"""
+    def get(self, datastack_name: str, skvn: int, root_id_prefixes: str, limit: int):
+        """
+        Get skeletons in cache by root_id_prefix
+        
+        root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
         
         # Use the NeuroGlancer compatible version
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
@@ -292,7 +300,7 @@ class SkeletonResource6a(Resource):
         return SkelClassVsn.get_cache_contents(
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             skeleton_version=skvn,
-            rid_prefix=root_id_prefix,
+            rid_prefixes=[int(v) for v in root_id_prefixes.split(',')],
             limit=limit,
             verbose_level_=1,
         )

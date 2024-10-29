@@ -828,10 +828,10 @@ class SkeletonService:
     
     @staticmethod
     def get_cache_contents(
-        bucket,
-        skeleton_version,
-        rid_prefix,
-        limit=None,
+        bucket: str,
+        skeleton_version: int,
+        rid_prefixes: List,
+        limit: int = None,
         verbose_level_: int = 0
     ):
         """
@@ -845,27 +845,31 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefix: {rid_prefix}, limit: {limit}")
+            print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
 
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
-        if verbose_level >= 1:
-            print(f"get_cache_contents() prefix: {prefix}")
-        files = list(cf.list(prefix=prefix))
-        
-        if verbose_level >= 1:
-            print(f"get_cache_contents() num_found: {len(files)}")
-            if len(files) > 0:
-                print(f"get_cache_contents() first result: {files[0]}")
+        all_files = []
+        for rid_prefix in rid_prefixes:
+            prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
+            if verbose_level >= 1:
+                print(f"get_cache_contents() prefix: {prefix}")
+            one_prefix_files = list(cf.list(prefix=prefix))
+            
+            if verbose_level >= 1:
+                print(f"get_cache_contents() num_found: {len(one_prefix_files)}")
+                if len(one_prefix_files) > 0:
+                    print(f"get_cache_contents() first result: {one_prefix_files[0]}")
+            
+            all_files.extend(one_prefix_files)
         
         if not limit:
             return {
-                "num_found": len(files),
-                "files": files,
+                "num_found": len(all_files),
+                "files": all_files,
             }
         return {
-                "num_found": len(files),
-                "files": files[:limit],
+                "num_found": len(all_files),
+                "files": all_files[:limit],
             }
 
     @staticmethod
