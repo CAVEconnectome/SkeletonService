@@ -1293,6 +1293,9 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
 
+        if bucket[-1] != "/":
+            bucket += "/"
+
         if verbose_level >= 1:
             print(
                 f"get_bulk_skeletons_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
