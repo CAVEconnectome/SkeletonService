@@ -1323,21 +1323,23 @@ class SkeletonService:
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
             if verbose_level >= 1:
-                print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for rid {rid}: {skeleton is not None}")
+                print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
-            if skeleton is None and generate_missing_skeletons:
-                skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
-                    datastack_name,
-                    rid,
-                    output_format,
-                    bucket,
-                    root_resolution,
-                    collapse_soma,
-                    collapse_radius,
-                    skeleton_version,
-                    False,
-                    verbose_level_,
-                )
+            # The following boolean combintatorics can be simplified if CACHE_NON_H5_SKELETONS is set to False.
+            if skeleton is None:
+                if generate_missing_skeletons or SkeletonService._confirm_skeleton_in_cache(params, "h5"):
+                    skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
+                        datastack_name,
+                        rid,
+                        output_format,
+                        bucket,
+                        root_resolution,
+                        collapse_soma,
+                        collapse_radius,
+                        skeleton_version,
+                        False,
+                        verbose_level_,
+                    )
             if verbose_level >= 1:
                 print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
             if skeleton is not None:
