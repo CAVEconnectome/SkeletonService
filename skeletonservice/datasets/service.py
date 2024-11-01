@@ -1,5 +1,6 @@
 from io import BytesIO
 import binascii
+from timeit import default_timer
 from typing import List
 import os
 import traceback
@@ -9,7 +10,7 @@ import numpy as np
 import pandas as pd
 import json
 import gzip
-from flask import send_file, Response, request, has_request_context
+from flask import send_file, Response, request, has_request_context, jsonify
 from .skeleton_io_from_meshparty import SkeletonIO
 from meshparty import skeleton
 import caveclient
@@ -815,6 +816,8 @@ class SkeletonService:
                 return response
 
             response.data = compression.gzip_compress(response.data)
+            if verbose_level >= 1:
+                print(f"_after_request() Compressed data size: {len(response.data)}")
 
             response.headers["Content-Encoding"] = "gzip"
             response.headers["Vary"] = "Accept-Encoding"
@@ -1006,6 +1009,20 @@ class SkeletonService:
                             cached_skeleton
                         )
                     )
+                if verbose_level >= 1:
+                    print(len(json.dumps(cached_skeleton)))
+                    print(len(cached_skeleton))
+                
+                if via_requests and has_request_context():
+                    t0 = default_timer()
+                    response = jsonify(cached_skeleton)
+                    if verbose_level >= 1:
+                        t1 = default_timer()
+                        et = t1 - t0
+                        print(f"Time to jsonify json dict: {et}s")
+                    response.headers.update(SkeletonService._response_headers())
+                    response = SkeletonService._after_request(response)
+                    return response
                 return cached_skeleton
             elif output_format == "jsoncompressed":
                 # We can't return the compressed JSON file directly. We need to convert it to a bytes stream object.
@@ -1020,6 +1037,11 @@ class SkeletonService:
                     return response
                 return cached_skeleton
             elif output_format == "arrays":
+                if via_requests and has_request_context():
+                    response = jsonify(cached_skeleton)
+                    response.headers.update(SkeletonService._response_headers())
+                    response = SkeletonService._after_request(response)
+                    return response
                 return cached_skeleton
             elif output_format == "arrayscompressed":
                 # We can't return the compresses ARRAYS file directly. We need to convert it to a bytes stream object.
@@ -1182,6 +1204,11 @@ class SkeletonService:
                             skeleton_json
                         )
                     )
+                if via_requests and has_request_context():
+                    response = jsonify(skeleton_json)
+                    response.headers.update(SkeletonService._response_headers())
+                    response = SkeletonService._after_request(response)
+                    return response
                 return skeleton_json
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
@@ -1195,6 +1222,8 @@ class SkeletonService:
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
+                    if verbose_level >= 1:
+                        print(f"Compressed JSON size: {len(skeleton_bytes)}")
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
@@ -1214,6 +1243,11 @@ class SkeletonService:
             try:
                 skeleton_arrays = SkeletonService._skeleton_to_arrays(skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_arrays, output_format)
+                if via_requests and has_request_context():
+                    response = jsonify(skeleton_arrays)
+                    response.headers.update(SkeletonService._response_headers())
+                    response = SkeletonService._after_request(response)
+                    return response
                 return skeleton_arrays
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
