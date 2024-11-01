@@ -306,6 +306,69 @@ class SkeletonResource6a(Resource):
         )
 
 
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<string:root_ids>")
+class SkeletonResource6b(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, root_ids: str):
+        """
+        Determine whether skeletons exist in the cache for a set of root ids
+        
+        root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
+        
+        # Use the NeuroGlancer compatible version
+        skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
+        root_ids = [int(v) for v in root_ids.split(',')]
+        if len(root_ids) == 1:
+            # If requesting a single root_id, then return the single root_id as an int, not as a list of one int
+            root_ids = int(root_ids[0])
+        
+        return SkelClassVsn.skeletons_exist(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            skeleton_version=skvn,
+            rids=root_ids,
+            verbose_level_=1,
+        )
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int:skvn>/<string:root_ids>")
+class SkeletonResource6bc(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, root_ids: str):
+        """
+        Determine whether skeletons exist in the cache for a set of root ids
+        
+        root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
+        
+        # Use the NeuroGlancer compatible version
+        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
+            skvn = NEUROGLANCER_SKELETON_VERSION
+        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
+        root_ids = [int(v) for v in root_ids.split(',')]
+        if len(root_ids) == 1:
+            # If requesting a single root_id, then return the single root_id as an int, not as a list of one int
+            root_ids = int(root_ids[0])
+        
+        return SkelClassVsn.skeletons_exist(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            skeleton_version=skvn,
+            rids=root_ids,
+            verbose_level_=1,
+        )
+
+
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource7(Resource):
     """SkeletonResource"""
@@ -516,7 +579,7 @@ class SkeletonResource9a(Resource):
 
         return SkelClassVsn.get_bulk_skeletons_by_datastack_and_rids(
             datastack_name,
-            rids=map(int, rids.split(',')),
+            rids=list(map(int, rids.split(','))),
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             root_resolution=[1, 1, 1],
             collapse_soma=True,
@@ -560,7 +623,7 @@ class SkeletonResource10a(Resource):
 
         return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_async(
             datastack_name,
-            rids=map(int, rids.split(',')),
+            rids=list(map(int, rids.split(','))),
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             root_resolution=[1, 1, 1],
             collapse_soma=True,

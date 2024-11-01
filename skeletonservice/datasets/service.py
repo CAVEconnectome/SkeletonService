@@ -1,7 +1,8 @@
 from io import BytesIO
 import binascii
+import logging
 from timeit import default_timer
-from typing import List
+from typing import List, Union
 import os
 import traceback
 import datetime
@@ -30,6 +31,7 @@ DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeleto
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 NEUROGLANCER_SKELETON_VERSION = 2
+MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 VERSION_PARAMS = {
     1: {},
     2: {},  # Includes radius and axon/dendrite information
@@ -851,29 +853,68 @@ class SkeletonService:
             print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
 
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        all_files = []
+        all_h5_files = []
         for rid_prefix in rid_prefixes:
             prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
             if verbose_level >= 1:
                 print(f"get_cache_contents() prefix: {prefix}")
             one_prefix_files = list(cf.list(prefix=prefix))
+            one_prefix_h5_files = [f for f in one_prefix_files if f.endswith(".h5.gz")]
             
             if verbose_level >= 1:
-                print(f"get_cache_contents() num_found: {len(one_prefix_files)}")
-                if len(one_prefix_files) > 0:
-                    print(f"get_cache_contents() first result: {one_prefix_files[0]}")
+                print(f"get_cache_contents() num_found: {len(one_prefix_h5_files)}")
+                if len(one_prefix_h5_files) > 0:
+                    print(f"get_cache_contents() first result: {one_prefix_h5_files[0]}")
             
-            all_files.extend(one_prefix_files)
+            all_h5_files.extend(one_prefix_h5_files)
         
         if not limit:
             return {
-                "num_found": len(all_files),
-                "files": all_files,
+                "num_found": len(all_h5_files),
+                "files": all_h5_files,
             }
         return {
-                "num_found": len(all_files),
-                "files": all_files[:limit],
+                "num_found": len(all_h5_files),
+                "files": all_h5_files[:limit],
             }
+    
+    @staticmethod
+    def skeletons_exist(
+        bucket: str,
+        skeleton_version: int,
+        rids: Union[List, int],
+        verbose_level_: int = 0
+    ):
+        """
+        Confirm or deny that a set of root ids have H5 skeletons in the cache.
+        """
+
+        global verbose_level
+        verbose_level = verbose_level_
+
+        if bucket[-1] != "/":
+            bucket += "/"
+
+        if verbose_level >= 1:
+            print(f"skeletons_exist() bucket: {bucket}, skeleton_version: {skeleton_version}, rids: {rids}")
+        
+        return_single_value = False
+        if not isinstance(rids, list):
+            return_single_value = True
+            rids = [rids]
+
+        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+        filenames = [f"skeleton__v{skeleton_version}__rid-{rid}__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz" for rid in rids]
+        exist_results = cf.exists(filenames)
+        exist_results_clean = {
+            # See _get_skeleton_filename() for the format of the filename.
+            int(filename[(filename.find("rid-")+len("rid-")):filename.find("__ds")]): result for filename, result in exist_results.items()
+        }
+
+        if return_single_value:
+            exist_results_clean = exist_results_clean[rids[0]]
+
+        return exist_results_clean
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(
@@ -1342,7 +1383,12 @@ class SkeletonService:
     
         assert (output_format == "json" or output_format == "swc")
         output_format += "compressed"
+
+        if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
+            rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
+            logging.warning(f"get_bulk_skeletons_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
         
+        num_new_h5_skeletons = 0
         skeletons = {}
         for rid in rids:
             params = [
@@ -1360,8 +1406,11 @@ class SkeletonService:
                 print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
             # The following boolean combintatorics can be simplified if CACHE_NON_H5_SKELETONS is set to False.
-            if skeleton is None:
-                if generate_missing_skeletons or SkeletonService._confirm_skeleton_in_cache(params, "h5"):
+            if skeleton is None:  # No JSON or SWC skeleton was found (but the H5 status is unknown at this point)
+                h5_available = SkeletonService._confirm_skeleton_in_cache(params, "h5")
+                if h5_available or (generate_missing_skeletons and num_new_h5_skeletons < MAX_BULK_SYNCHRONOUS_SKELETONS):
+                    if not h5_available:
+                        num_new_h5_skeletons += 1
                     skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
                         datastack_name,
                         rid,

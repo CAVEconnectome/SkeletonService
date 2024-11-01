@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 from skeletonservice.datasets.service import SkeletonService
 
 
@@ -21,6 +21,21 @@ class SkeletonService_skvn3(SkeletonService):
             skeleton_version,
             rid_prefixes,
             limit,
+            verbose_level_,
+        )
+    
+    @staticmethod
+    def skeletons_exist(
+        bucket: str,
+        skeleton_version: int = -1,
+        rids: Union[List, int] = None,
+        verbose_level_: int = 0,
+    ):
+        print(f"SkeletonService_skvn3.skeletons_exist: {bucket} {skeleton_version} {rids}")
+        return SkeletonService.skeletons_exist(
+            bucket,
+            skeleton_version,
+            rids,
             verbose_level_,
         )
 
