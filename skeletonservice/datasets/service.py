@@ -817,9 +817,10 @@ class SkeletonService:
             ):
                 return response
 
+            pre_compressed_size = response.data
             response.data = compression.gzip_compress(response.data)
             if verbose_level >= 1:
-                print(f"_after_request() Compressed data size: {len(response.data)}")
+                print(f"_after_request() Compressed data size from {pre_compressed_size} to {len(response.data)}")
 
             response.headers["Content-Encoding"] = "gzip"
             response.headers["Vary"] = "Accept-Encoding"
@@ -1051,8 +1052,7 @@ class SkeletonService:
                         )
                     )
                 if verbose_level >= 1:
-                    print(len(json.dumps(cached_skeleton)))
-                    print(len(cached_skeleton))
+                    print(f"Length of cached skeleton: {len(cached_skeleton)} and corresponding json: {len(json.dumps(cached_skeleton))}")
                 
                 if via_requests and has_request_context():
                     t0 = default_timer()
@@ -1074,7 +1074,8 @@ class SkeletonService:
                         cached_skeleton, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                    response = SkeletonService._after_request(response)
+                    # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
                     return response
                 return cached_skeleton
             elif output_format == "arrays":
@@ -1093,7 +1094,8 @@ class SkeletonService:
                         cached_skeleton, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                    response = SkeletonService._after_request(response)
+                    # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
                     return response
                 return cached_skeleton
             elif output_format == "h5":
@@ -1226,7 +1228,8 @@ class SkeletonService:
                             file_content, mimetype="application/octet-stream"
                         )
                         response.headers.update(SkeletonService._response_headers())
-                        response = SkeletonService._after_request(response)
+                        # Don't call after_request to compress the data since it is already compressed.
+                        # response = SkeletonService._after_request(response)
 
                     return response
                 return file_content
@@ -1269,7 +1272,8 @@ class SkeletonService:
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                    response = SkeletonService._after_request(response)
+                        # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
                     if response:
                         return response
                 return skeleton_bytes
@@ -1309,7 +1313,8 @@ class SkeletonService:
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                    response = SkeletonService._after_request(response)
+                    # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
                     if response:
                         return response
                 return skeleton_bytes
