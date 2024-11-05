@@ -313,6 +313,26 @@ class SkeletonService:
                 skeleton,
                 compress=COMPRESSION if include_compression else None,
             )
+    
+    @staticmethod
+    def _archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time):
+        """
+        Archive the skeletonization time for a given root id.
+        TODO: This function does not lock or mutex the file while it alters it (which GCP buckets do not support).
+            Multiple skeleton workers could collide here (get1, get2, put1, put2) such that only the last overlapping worker's data is saved.
+        """
+        if verbose_level >= 1:
+            print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
+        
+        file_name = "skeletonization_times.csv"
+        cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
+        if cf.exists(file_name):
+            skeleton_times = cf.get(file_name)
+        else:
+            skeleton_times = ""
+        
+        skeleton_times += f"{rid},{skeleton_version},{skeletonization_elapsed_time}\n"
+        cf.put(file_name, skeleton_times, compress=True)
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -1143,14 +1163,18 @@ class SkeletonService:
                 if not skeleton:
                     if verbose_level >= 1:
                         print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
+                    skeletonization_start_time = default_timer()
                     if skeleton_version == 1:
                         skeleton = SkeletonService._generate_v1_skeleton(*params)
                     elif skeleton_version == 2:
                         nrn, skeleton = SkeletonService._generate_v2_skeleton(*params)
                     elif skeleton_version == 3:
                         nrn, skeleton = SkeletonService._generate_v3_skeleton(*params)
+                    skeletonization_end_time = default_timer()
+                    skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
-                        print(f"Skeleton successfully generated: {skeleton}")
+                        print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
+                    SkeletonService._archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time)
                 else:
                     if verbose_level >= 1:
                         print("Local (debugging) skeleton was found.")
