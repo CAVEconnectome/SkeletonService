@@ -1483,6 +1483,6 @@ class SkeletonService:
             print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
 
         skeleton_generation_time_estimate_secs = 60  # seconds
-        num_workers = 15  # Number of skeleton worker (Kubernetes pods) available
+        num_workers = 15  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         estimated_async_time_secs_upper_bound =  math.ceil(len(rids) / num_workers) * skeleton_generation_time_estimate_secs
         return estimated_async_time_secs_upper_bound
