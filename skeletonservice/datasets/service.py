@@ -1,6 +1,7 @@
 from io import BytesIO
 import binascii
 import logging
+import math
 from timeit import default_timer
 from typing import List, Union
 import os
@@ -1480,3 +1481,8 @@ class SkeletonService:
             c.publish(exchange, payload, attributes)
 
             print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+
+        skeleton_generation_time_estimate_secs = 60  # seconds
+        num_workers = 15  # Number of skeleton worker (Kubernetes pods) available
+        estimated_async_time_secs_upper_bound =  math.ceil(len(rids) / num_workers) * skeleton_generation_time_estimate_secs
+        return estimated_async_time_secs_upper_bound
