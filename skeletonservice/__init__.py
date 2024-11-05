@@ -5,6 +5,7 @@ from skeletonservice.config import configure_app
 from skeletonservice.utils import get_instance_folder_path
 from skeletonservice.datasets.api import api_bp
 from skeletonservice.datasets.views import views_bp
+from skeletonservice.datasets.service import VERSION_PARAMS
 from flask_restx import Api
 from flask_cors import CORS
 import logging
@@ -76,7 +77,7 @@ def create_app(test_config=None):
     @auth_required
     @baseapi_bp.route("/versions")
     def versions():
-        return jsonify([1, 2]), 200
+        return jsonify(list(VERSION_PARAMS.keys())), 200
 
     with app.app_context():
         app.register_blueprint(views_bp, url_prefix="/skeletoncache")
