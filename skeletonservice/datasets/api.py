@@ -313,7 +313,7 @@ class SkeletonResource6b(Resource):
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     @api_bp.doc("SkeletonResource", security="apikey")
-    def get(self, datastack_name: str, skvn: int, root_ids: str):
+    def get(self, datastack_name: str, root_ids: str):
         """
         Determine whether skeletons exist in the cache for a set of root ids
         
