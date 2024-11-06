@@ -27,6 +27,8 @@ from skeletonservice.datasets.models import (
 #     SkeletonSchema,
 # )
 
+__version__ = "0.5.13"
+
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
@@ -327,12 +329,14 @@ class SkeletonService:
         file_name = "skeletonization_times.csv"
         cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
         if cf.exists(file_name):
-            skeleton_times = cf.get(file_name)
+            skeleton_times = cf.get(file_name).decode("utf-8")
         else:
-            skeleton_times = ""
+            # Initialize a new empty CSV file with a header line
+            skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Root_ID,Skeletonization_Time_Secs\n"
         
-        skeleton_times += f"{rid},{skeleton_version},{skeletonization_elapsed_time}\n"
-        cf.put(file_name, skeleton_times, compress=True)
+        skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{skeleton_version},{rid},{skeletonization_elapsed_time}\n"
+        skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()
+        cf.put(file_name, skeleton_times_bytes, compress=True)
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -838,7 +842,7 @@ class SkeletonService:
             ):
                 return response
 
-            pre_compressed_size = response.data
+            pre_compressed_size = len(response.data)
             response.data = compression.gzip_compress(response.data)
             if verbose_level >= 1:
                 print(f"_after_request() Compressed data size from {pre_compressed_size} to {len(response.data)}")
@@ -1174,7 +1178,12 @@ class SkeletonService:
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
                         print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
-                    SkeletonService._archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time)
+                    try:
+                        SkeletonService._archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time)
+                    except Exception as e:
+                        # This is a non-critical operation, so don't let it stop the process.
+                        print(f"Exception while archiving skeletonization time: {str(e)}. Traceback:")
+                        traceback.print_exc()
                 else:
                     if verbose_level >= 1:
                         print("Local (debugging) skeleton was found.")
