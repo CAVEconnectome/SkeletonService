@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import json
 import gzip
-from flask import send_file, Response, request, has_request_context, jsonify
+from flask import current_app, send_file, Response, request, has_request_context, jsonify
 from .skeleton_io_from_meshparty import SkeletonIO
 from meshparty import skeleton
 import caveclient
@@ -1516,9 +1516,12 @@ class SkeletonService:
             print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
 
         skeleton_generation_time_estimate_secs = 60  # seconds
-        num_workers = os.environ.get("SKELETONCACHE_MAX_REPLICAS", 15)  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
+        try:
+            num_workers = current_app.config["SKELETONCACHE_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
+        except KeyError:
+            print("Flask config variable SKELETONCACHE_MAX_REPLICAS not found. Using default value of 15.")
+            num_workers = 15
         estimated_async_time_secs_upper_bound =  math.ceil(len(rids) / num_workers) * skeleton_generation_time_estimate_secs
         if verbose_level >= 1:
-            print(f"SKELETONCACHE_MAX_REPLICAS in environment: {'SKELETONCACHE_MAX_REPLICAS' in os.environ}")
             print(f"Estimated async time: ceiling({len(rids)} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
         return estimated_async_time_secs_upper_bound
