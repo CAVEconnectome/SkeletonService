@@ -216,7 +216,7 @@ class SkeletonResource5(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/info/<int:skvn>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/info")
 class SkeletonResource5a(Resource):
     """SkeletonInfoResource"""
 
