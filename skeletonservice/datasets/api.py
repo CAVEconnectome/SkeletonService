@@ -1,3 +1,4 @@
+import logging
 import os
 # Import flask dependencies
 from flask import jsonify, render_template, current_app, make_response, Blueprint
@@ -6,7 +7,7 @@ from flask_restx import Namespace, Resource
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_VERSION_PARAMS, SkeletonService
+from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
     auth_required,
@@ -216,7 +217,7 @@ class SkeletonResource5(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/info")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/info")
 class SkeletonResource5a(Resource):
     """SkeletonInfoResource"""
 
@@ -227,9 +228,8 @@ class SkeletonResource5a(Resource):
         """Get skeleton info"""
         
         # TODO: I presume that since having added datastack_name to the route, I should be using it here in some fashion
-
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
+            return {"Error": f"Invalid skeleton version: v{skvn}. Valid versions: {list(current_app.config['SKELETON_VERSION_ENGINES'].keys())}"}
         return SKELETON_VERSION_PARAMS[skvn]
 
 
@@ -264,9 +264,11 @@ class SkeletonResource6(Resource):
         
         root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
+
+        logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION
+        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
         
         return SkelClassVsn.get_cache_contents(
@@ -278,7 +280,7 @@ class SkeletonResource6(Resource):
         )
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int:skvn>/<string:root_id_prefixes>/<int:limit>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int(signed=True):skvn>/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource6a(Resource):
     """SkeletonResource"""
 
@@ -292,10 +294,7 @@ class SkeletonResource6a(Resource):
         root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
         
-        # Use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
         
         return SkelClassVsn.get_cache_contents(
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
@@ -320,8 +319,10 @@ class SkeletonResource6b(Resource):
         root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
         
+        logging.warning("The endpoint for checking the existence of skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
+        
         # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION
+        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         root_ids = [int(v) for v in root_ids.split(',')]
@@ -337,7 +338,7 @@ class SkeletonResource6b(Resource):
         )
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int:skvn>/<string:root_ids>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int(signed=True):skvn>/<string:root_ids>")
 class SkeletonResource6bc(Resource):
     """SkeletonResource"""
 
@@ -351,10 +352,7 @@ class SkeletonResource6bc(Resource):
         root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
         
-        # Use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         root_ids = [int(v) for v in root_ids.split(',')]
         if len(root_ids) == 1:
@@ -379,8 +377,10 @@ class SkeletonResource7(Resource):
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
         
+        logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
+        
         # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION
+        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
@@ -399,7 +399,7 @@ class SkeletonResource7(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource7a(Resource):
     """SkeletonResource"""
 
@@ -409,10 +409,7 @@ class SkeletonResource7a(Resource):
     def get(self, datastack_name: str, skvn: int, rid: int):
         """Get skeleton by rid"""
 
-        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
         # return SkeletonService.get_skeleton_by_datastack_and_rid(
@@ -430,7 +427,7 @@ class SkeletonResource7a(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:skvn>/<int:rid>/<string:output_format>")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/<int:rid>/<string:output_format>")
 class SkeletonResource7b(Resource):
     """SkeletonResource"""
 
@@ -443,10 +440,7 @@ class SkeletonResource7b(Resource):
         if output_format == 'none':
             return SkeletonResource8a.process(datastack_name, skvn, rid)
 
-        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.get_skeleton_by_datastack_and_rid(
         # return SkeletonService.get_skeleton_by_datastack_and_rid(
@@ -473,6 +467,8 @@ class SkeletonResource8(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
+        logging.warning("The endpoint for generating skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
+        
         return SkeletonResource8a.process(datastack_name, 0, rid)
     
         # from messagingclient import MessagingClient
@@ -497,7 +493,7 @@ class SkeletonResource8(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int:skvn>/<int:rid>")
+@api_bp.route("/<string:datastack_name>/precomputed_via_msg/skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource8a(Resource):
     """SkeletonResource"""
 
@@ -566,16 +562,13 @@ class SkeletonResource9(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<int:skvn>/<string:output_format>/<bool:gms>/<string:rids>")
+@api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<int(signed=True):skvn>/<string:output_format>/<bool:gms>/<string:rids>")
 class SkeletonResource9a(Resource):
     """SkeletonResource"""
 
     @staticmethod
     def process(datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str):
-        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.get_bulk_skeletons_by_datastack_and_rids(
             datastack_name,
@@ -610,16 +603,13 @@ class SkeletonResource10(Resource):
 
 
 
-@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int:skvn>/<string:rids>")
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int(signed=True):skvn>/<string:rids>")
 class SkeletonResource10a(Resource):
     """SkeletonResource"""
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rids: str):
-        # If no skeleton version is specified or an illegal version is specified, then use the NeuroGlancer compatible version
-        if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
-            skvn = NEUROGLANCER_SKELETON_VERSION
-        SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_async(
             datastack_name,

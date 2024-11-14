@@ -33,17 +33,13 @@ CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benef
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
-NEUROGLANCER_SKELETON_VERSION = 2
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
-VERSION_PARAMS = {
-    1: {},
-    2: {},  # Includes radius and axon/dendrite information
-    3: {},  # Includes radius and axon/dendrite information and uses uint8 for compartment encoding
-}
 DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
     'flywire_fafb_public': 'flywire_fafb_production',
 }
+NEUROGLANCER_SKELETON_VERSION = 2
+SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]
 SKELETON_VERSION_PARAMS = {
     1: {'@type': 'neuroglancer_skeletons',
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
@@ -52,7 +48,7 @@ SKELETON_VERSION_PARAMS = {
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
                 {
-                    # TODO: Do to a Neuroglancer limitation, the compartment must be encoded as a float.
+                    # TODO: Due to a Neuroglancer limitation, the compartment must be encoded as a float.
                     # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
                     'id': 'radius',
                     'data_type': 'float32',
@@ -64,7 +60,7 @@ SKELETON_VERSION_PARAMS = {
                     'num_components': 1,
                 },
                 ]},
-    3: {'@type': 'neuroglancer_skeletons',  # This is explicitly *not* a NeuroGlancer representation. So what is the type?
+    3: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
                 {
@@ -84,6 +80,16 @@ verbose_level = 0
 
 
 class SkeletonService:
+    @staticmethod
+    def get_version_specific_handler(skvn: int):
+        if skvn == -1:
+            skvn = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
+        elif skvn == 0:
+            skvn = NEUROGLANCER_SKELETON_VERSION
+        elif skvn not in SKELETON_VERSION_PARAMS.keys():
+            raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
+        return current_app.config['SKELETON_VERSION_ENGINES'][skvn]
+
     @staticmethod
     def _minimize_json_skeleton_for_easier_debugging(skeleton_json):
         """
@@ -392,6 +398,7 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
+        prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         """
         From https://caveconnectome.github.io/pcg_skel/tutorial/
@@ -594,7 +601,7 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
-        prep_for_neuroglancer=True,
+        prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         return SkeletonService._generate_v2_skeleton(
             rid,
@@ -1015,7 +1022,7 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
-        skeleton_version: int = 0,
+        skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         via_requests: bool = True,
         verbose_level_: int = 0,
     ):
@@ -1070,14 +1077,13 @@ class SkeletonService:
             or output_format == "swccompressed"
         )
 
-        # If no skeleton version is specified or an illegal version is specified, then use the Neuroglancer compatible version
-        if skeleton_version not in VERSION_PARAMS.keys():
+        # Resolve various default skeleton version options
+        if skeleton_version == -1:
+            skeleton_version = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
+        elif skeleton_version == 0:
             skeleton_version = NEUROGLANCER_SKELETON_VERSION
-        version_params = (
-            VERSION_PARAMS[skeleton_version]
-            if skeleton_version in VERSION_PARAMS
-            else VERSION_PARAMS[1]
-        )
+        elif skeleton_version not in SKELETON_VERSION_PARAMS.keys():
+            raise ValueError(f"Invalid skeleton version: v{skeleton_version}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
 
         # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
         # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
@@ -1500,7 +1506,7 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
-        skeleton_version: int = 0,
+        skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         output_format: str = "flatdict",
         generate_missing_skeletons: bool = False,
         verbose_level_: int = 0,
@@ -1588,7 +1594,7 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
-        skeleton_version: int = 0,
+        skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         verbose_level_: int = 0,
     ):
         """
