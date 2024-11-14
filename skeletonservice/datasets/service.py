@@ -150,6 +150,7 @@ class SkeletonService:
 
         assert (
             format == "none"
+            or format == "flatdict"
             or format == "json"
             or format == "jsoncompressed"
             or format == "arrays"
@@ -210,7 +211,9 @@ class SkeletonService:
 
             skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
-            if format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
+            if format == "flatdict":
+                skeleton = SkeletonService._skeleton_to_flatdict(skeleton)
+            elif format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
                 skeleton = SkeletonService._skeleton_to_json(skeleton)
             elif format == "precomputed":
                 cv_skeleton = cloudvolume.Skeleton(
@@ -272,9 +275,11 @@ class SkeletonService:
             print(f"_retrieve_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if cf.exists(file_name):
-            if format == "json" or format == "arrays":
+            if format == "flatdict":
+                return cf.get(file_name)
+            elif format == "json" or format == "arrays":
                 return cf.get_json(file_name)
-            if format == "jsoncompressed" or format == "arrayscompressed":
+            elif format == "jsoncompressed" or format == "arrayscompressed":
                 return cf.get(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
@@ -309,7 +314,7 @@ class SkeletonService:
             cf.put_json(
                 file_name, skeleton, COMPRESSION if include_compression else None
             )
-        else:  # format == 'precomputed' or 'h5' or 'swc' or 'jsoncompressed' or 'arrayscompressed'
+        else:  # format == 'precomputed' or 'h5' or 'swc' or 'flatdict' or 'jsoncompressed' or 'arrayscompressed'
             cf.put(
                 file_name,
                 skeleton,
@@ -670,7 +675,7 @@ class SkeletonService:
     @staticmethod
     def _skeleton_metadata_to_json(skeleton_metadata):
         """
-        Used by _skeleton_to_json().
+        Used by _skeleton_to_json() and _skeleton_to_flatdict().
         """
         return {
             "root_id": skeleton_metadata.root_id,
@@ -756,6 +761,63 @@ class SkeletonService:
         if skel.voxel_scaling is not None:
             sk_json["voxel_scaling"] = skel.voxel_scaling
         return sk_json
+
+    @staticmethod
+    def _skeleton_to_flatdict(skel):
+        """
+        Convert a skeleton object to a FLAT DICT object.
+        """
+        sk_flatdict = {
+            "sk_dict_structure_version": "1.0",
+        }
+        if skel.branch_points is not None:
+            sk_flatdict["branch_points"] = skel.branch_points.tolist()
+        if skel.branch_points_undirected is not None:
+            sk_flatdict["branch_points_undirected"] = skel.branch_points_undirected.tolist()
+        if skel.distance_to_root is not None:
+            sk_flatdict["distance_to_root"] = skel.distance_to_root.tolist()
+        if skel.edges is not None:
+            sk_flatdict["edges"] = skel.edges.tolist()
+        if skel.end_points is not None:
+            sk_flatdict["end_points"] = skel.end_points.tolist()
+        if skel.end_points_undirected is not None:
+            sk_flatdict["end_points_undirected"] = skel.end_points_undirected.tolist()
+        if skel.hops_to_root is not None:
+            sk_flatdict["hops_to_root"] = skel.hops_to_root.tolist()
+        if skel.indices_unmasked is not None:
+            sk_flatdict["indices_unmasked"] = skel.indices_unmasked.tolist()
+        if skel.mesh_index is not None:
+            sk_flatdict["mesh_index"] = skel.mesh_index.tolist()
+        if skel.mesh_to_skel_map is not None:
+            sk_flatdict["mesh_to_skel_map"] = skel.mesh_to_skel_map.tolist()
+        if skel.mesh_to_skel_map_base is not None:
+            sk_flatdict["mesh_to_skel_map_base"] = skel.mesh_to_skel_map_base.tolist()
+        if skel.meta is not None:
+            sk_flatdict["meta"] = SkeletonService._skeleton_metadata_to_json(skel.meta)
+        if skel.node_mask is not None:
+            sk_flatdict["node_mask"] = skel.node_mask.tolist()
+        if skel.root is not None:
+            sk_flatdict["root"] = skel.root.tolist()
+        if skel.root_position is not None:
+            sk_flatdict["root_position"] = skel.root_position.tolist()
+        if skel.segment_map is not None:
+            sk_flatdict["segment_map"] = skel.segment_map.tolist()
+        if skel.topo_points is not None:
+            sk_flatdict["topo_points"] = skel.topo_points.tolist()
+        if skel.unmasked_size is not None:
+            sk_flatdict["unmasked_size"] = skel.unmasked_size
+        if skel.vertices is not None:
+            sk_flatdict["vertices"] = skel.vertices.tolist()
+        if skel.voxel_scaling is not None:
+            sk_flatdict["voxel_scaling"] = skel.voxel_scaling
+        if skel.vertex_properties is not None:
+            for key in skel.vertex_properties.keys():
+                assert(key not in sk_flatdict)
+                if isinstance(skel.vertex_properties[key], np.ndarray):
+                    sk_flatdict[key] = skel.vertex_properties[key].tolist()
+                else:
+                    sk_flatdict[key] = skel.vertex_properties[key]
+        return sk_flatdict
 
     @staticmethod
     def _json_to_skeleton(sk_json):
@@ -997,6 +1059,7 @@ class SkeletonService:
 
         assert (
             output_format == "none"
+            or output_format == "flatdict"
             or output_format == "json"
             or output_format == "jsoncompressed"
             or output_format == "arrays"
@@ -1067,6 +1130,19 @@ class SkeletonService:
                     )
                     response.headers.update(SkeletonService._response_headers())
                     response = SkeletonService._after_request(response)
+                    return response
+                return cached_skeleton
+            elif output_format == "flatdict":
+                # We can't return the compressed FLAT DICT file directly. We need to convert it to a bytes stream object.
+                # skeleton_bytes = cached_skeleton
+
+                if via_requests and has_request_context():
+                    response = Response(
+                        cached_skeleton, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService._response_headers())
+                    # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
                     return response
                 return cached_skeleton
             elif output_format == "json":
@@ -1141,7 +1217,8 @@ class SkeletonService:
         # There is no need to check for an H5 skeleton if the requested format is H5 or None, since both seek an H5 above.
         if not skeleton and not skeleton_bytes:
             if (
-                output_format == "json"
+                output_format == "flatdict"
+                or output_format == "json"
                 or output_format == "jsoncompressed"
                 or output_format == "arrays"
                 or output_format == "arrayscompressed"
@@ -1272,6 +1349,29 @@ class SkeletonService:
                 traceback.print_exc()
             return
 
+        if output_format == "flatdict":
+            try:
+                if not skeleton_bytes:
+                    assert skeleton is not None
+                    skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton)
+                    skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
+                    SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
+                if via_requests and has_request_context():
+                    if verbose_level >= 1:
+                        print(f"Compressed FLAT DICT size: {len(skeleton_bytes)}")
+                    response = Response(
+                        skeleton_bytes, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService._response_headers())
+                        # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
+                    if response:
+                        return response
+                return skeleton_bytes
+            except Exception as e:
+                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
+
         if output_format == "json":
             try:
                 skeleton_json = SkeletonService._skeleton_to_json(skeleton)
@@ -1401,7 +1501,7 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,
-        output_format: str = "json",
+        output_format: str = "flatdict",
         generate_missing_skeletons: bool = False,
         verbose_level_: int = 0,
     ):
@@ -1420,7 +1520,7 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
             )
     
-        assert (output_format == "json" or output_format == "swc")
+        assert (output_format == "flatdict" or output_format == "json" or output_format == "swc")
         output_format += "compressed"
 
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
@@ -1468,7 +1568,10 @@ class SkeletonService:
                 # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
                 # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
                 # I haven't measured the respective sizes to compare and confirm.
-                if output_format == "jsoncompressed":
+                if output_format == "flatdict":
+                    skeleton_hex_ascii = binascii.hexlify(skeleton).decode('ascii')
+                    skeletons[rid] = skeleton_hex_ascii
+                elif output_format == "jsoncompressed":
                     skeleton_hex_ascii = binascii.hexlify(skeleton).decode('ascii')
                     skeletons[rid] = skeleton_hex_ascii
                 elif output_format == "swccompressed":
