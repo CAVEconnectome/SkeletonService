@@ -264,7 +264,6 @@ class SkeletonResource6(Resource):
         
         root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
-
         logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version
@@ -318,7 +317,6 @@ class SkeletonResource6b(Resource):
         
         root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
-        
         logging.warning("The endpoint for checking the existence of skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version
@@ -376,7 +374,6 @@ class SkeletonResource7(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, rid: int):
         """Get skeleton by rid"""
-        
         logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version

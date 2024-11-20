@@ -170,7 +170,7 @@ class SkeletonService:
             file_name += f".{format}"
         else:
             # If no output is specified, then request or generate an h5 skeleton.
-            file_name += f".h5"
+            file_name += ".h5"
 
         if include_compression:
             if COMPRESSION == "gzip":
@@ -1527,7 +1527,8 @@ class SkeletonService:
             )
     
         assert (output_format == "flatdict" or output_format == "json" or output_format == "swc")
-        output_format += "compressed"
+        if (output_format == "json" or output_format == "swc"):
+            output_format += "compressed"
 
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
