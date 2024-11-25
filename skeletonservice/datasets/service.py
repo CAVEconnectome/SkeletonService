@@ -113,25 +113,6 @@ class SkeletonService:
         skeleton_json["vertices"] = 0
         return skeleton_json
 
-    # Placeholder. I'm not sure there is a need for a "get all" or even a "get many" interaction regarding skeletons.
-    @staticmethod
-    def get_all() -> List[Skeleton]:
-        return [{"name": "Skeleton #1"}]  # Skeleton.query.all()
-
-    # @staticmethod
-    # def retrieve_sid_for_rid(rid, datastack_name, materialize_version):
-    #     '''
-    #     Given a root id, find the nucleus id (aka soma id)
-    #     '''
-    #     client = caveclient.CAVEclient(datastack_name)
-    #     client.materialize.version = materialize_version
-    #     proof = client.materialize.query_table('proofreading_status_public_release')
-    #     rid2 = proof[proof['valid_id']==rid].iloc[0]['pt_root_id']
-    #     neurons = client.materialize.query_table('nucleus_ref_neuron_svm', desired_resolution=[1000, 1000, 1000])
-    #     nid = neurons[neurons['pt_root_id']==rid2].iloc[0]['id_ref']  # target_id seems to be an equivalent column option here
-
-    #     return nid
-
     @staticmethod
     def _get_skeleton_filename(
         rid,
