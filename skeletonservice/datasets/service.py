@@ -38,6 +38,7 @@ DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
     'flywire_fafb_public': 'flywire_fafb_production',
 }
+MESHWORK_VERSION = 1
 NEUROGLANCER_SKELETON_VERSION = 2
 SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]
 SKELETON_VERSION_PARAMS = {
@@ -112,6 +113,37 @@ class SkeletonService:
         skeleton_json["topo_points"] = 0
         skeleton_json["vertices"] = 0
         return skeleton_json
+
+    @staticmethod
+    def _get_meshwork_filename(
+        rid,
+        bucket,
+        skeleton_version_UNUSED,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+        include_compression=True,
+    ):
+        """
+        Build a filename for a meshwork file based on the parameters.
+        The format and optional compression will be appended as extensions as necessary.
+        """
+        datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
+
+        file_name = f"meshwork__v{MESHWORK_VERSION}__rid-{rid}__ds-{datastack_name_remapped}__res-{root_resolution[0]}x{root_resolution[1]}x{root_resolution[2]}__cs-{collapse_soma}__cr-{collapse_radius}"
+
+        file_name += ".h5"
+
+        if include_compression:
+            if COMPRESSION == "gzip":
+                file_name += ".gz"
+            elif COMPRESSION == "br":
+                file_name += ".br"
+            elif COMPRESSION == "zstd":
+                file_name += ".zst"
+
+        return file_name
 
     @staticmethod
     def _get_skeleton_filename(
@@ -283,7 +315,25 @@ class SkeletonService:
         return None
 
     @staticmethod
-    def _cache_skeleton(params, skeleton, format, include_compression=True):
+    def _cache_meshwork(params, nrn_file_content, include_compression=True):
+        """
+        Cache the meshwork in the requested format to the indicated location (likely a Google bucket).
+        """
+        file_name = SkeletonService._get_meshwork_filename(
+            *params, include_compression=include_compression
+        )
+        bucket = params[1]
+        if verbose_level >= 1:
+            print(f"Caching meshwork to {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
+        cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
+        cf.put(
+            file_name,
+            nrn_file_content,
+            compress=COMPRESSION if include_compression else None,
+        )
+
+    @staticmethod
+    def _cache_skeleton(params, skeleton_file_content, format, include_compression=True):
         """
         Cache the skeleton in the requested format to the indicated location (likely a Google bucket).
         """
@@ -299,12 +349,12 @@ class SkeletonService:
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
         if format == "json" or format == "arrays":
             cf.put_json(
-                file_name, skeleton, COMPRESSION if include_compression else None
+                file_name, skeleton_file_content, COMPRESSION if include_compression else None
             )
         else:  # format == 'precomputed' or 'h5' or 'swc' or 'flatdict' or 'jsoncompressed' or 'arrayscompressed'
             cf.put(
                 file_name,
-                skeleton,
+                skeleton_file_content,
                 compress=COMPRESSION if include_compression else None,
             )
     
@@ -522,11 +572,14 @@ class SkeletonService:
                 # comp_mask: str = "is_axon",
             )
 
+            # del nrn.anno['pre_syn']
+            # del nrn.anno['post_syn']
             skel = nrn.skeleton
         except np.exceptions.AxisError as e:
             use_default_radii = True
             use_default_compartments = True
 
+            nrn = None
             skel = SkeletonService._generate_v1_skeleton(
                 rid,
                 bucket,
@@ -1256,7 +1309,7 @@ class SkeletonService:
                 traceback.print_exc()
                 return f"Exception while generating skeleton for {rid}: {str(e)}"
 
-        # Cache the skeleton in the requested format and return the content in various formats.
+        # Cache the meshwork and the skeleton in the requested format and return the content in various formats.
         # Also cache the H5 skeleton if it was generated.
 
         # Wrap all attemps to cache the skeleton in a try/except block to catch any exceptions.
@@ -1275,22 +1328,28 @@ class SkeletonService:
                         skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
                     )
 
-                file_content = BytesIO()
-                SkeletonIO.write_skeleton_h5(skeleton, file_content)
+                nrn_file_content = BytesIO()
+                nrn.save_meshwork(nrn_file_content, overwrite=False)
+                nrn_file_content_val = nrn_file_content.getvalue()
+                SkeletonService._cache_meshwork(params, nrn_file_content_val)
+                nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+
+                sk_file_content = BytesIO()
+                SkeletonIO.write_skeleton_h5(skeleton, sk_file_content)
                 # file_content_sz = file_content.getbuffer().nbytes
-                file_content_val = file_content.getvalue()
-                SkeletonService._cache_skeleton(params, file_content_val, "h5")
-                file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                sk_file_content_val = sk_file_content.getvalue()
+                SkeletonService._cache_skeleton(params, sk_file_content_val, "h5")
+                sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 if output_format == "h5":
                     if via_requests and has_request_context():
                         file_name = SkeletonService._get_skeleton_filename(
                             *params, output_format, include_compression=False
                         )
-                        response = send_file(file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
+                        response = send_file(sk_file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
                         response = SkeletonService._after_request(response)
                         return response
-                    return file_content
+                    return sk_file_content
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
