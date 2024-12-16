@@ -1,9 +1,9 @@
 import logging
 import os
 # Import flask dependencies
-from flask import jsonify, render_template, current_app, make_response, Blueprint
+from flask import jsonify, render_template, current_app, request, make_response, Blueprint
 from flask_accepts import accepts, responds
-from flask_restx import Namespace, Resource
+from flask_restx import Namespace, Resource, reqparse
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
@@ -26,6 +26,22 @@ authorizations = {
 
 api_bp = Namespace(
     "Skeletonservice", authorizations=authorizations, description="Skeleton Service"
+)
+
+bulk_async_parser = reqparse.RequestParser()
+bulk_async_parser.add_argument(
+    "root_ids",
+    type=List,
+    default=True,
+    location="args",
+    help="list of root ids",
+)
+bulk_async_parser.add_argument(
+    "skeleton_version",
+    type=int,
+    default=True,
+    location="args",
+    help="skeleton version",
 )
 
 @api_bp.route("/skeletons")
@@ -544,3 +560,42 @@ class SkeletonResource__gen_bulk_async_skeletons_B(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, skvn: int, rids: str):
         return self.process(datastack_name, skvn, rids)
+
+
+
+
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons")
+class SkeletonResource__gen_bulk_async_skeletons_C(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rids: List):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        return SkelClassVsn.generate_bulk_skeletons_by_datastack_and_rids_async(
+            datastack_name,
+            rids=rids,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            verbose_level_=1,
+        )
+
+    @api_bp.expect(bulk_async_parser)
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def post(self, datastack_name: str):
+        # I don't understand why other examples (AnnotationEngine, MaterializationEngine)
+        # use request.parsed_obj to retrieve post data,
+        # which doesn't exist in this case, instead of request.json, which does exist.
+        
+        # data = request.parsed_obj  # Doesn't work, doesn't exist
+        
+        data = request.json
+        rids = data['root_ids']
+        skvn = data['skeleton_version']
+        response = self.process(datastack_name, skvn, rids)
+        return response, 200
