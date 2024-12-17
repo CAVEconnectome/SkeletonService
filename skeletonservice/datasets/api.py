@@ -524,6 +524,8 @@ class SkeletonResource__gen_bulk_skeletons_B(Resource):
 
 
 
+# NOTE: Use of this endpoint is only supported by CAVEclient:SkeletonService when applied to older versions of this server code,
+# and likewise it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<string:rids>")
 class SkeletonResource__gen_bulk_async_skeletons_A(Resource):
     """SkeletonResource"""
@@ -535,7 +537,8 @@ class SkeletonResource__gen_bulk_async_skeletons_A(Resource):
         return SkeletonResource__gen_bulk_async_skeletons_B.process(datastack_name, 0, rids)
 
 
-
+# NOTE: Use of this endpoint is only supported by CAVEclient:SkeletonService when applied to older versions of this server code,
+# and likewise it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int(signed=True):skvn>/<string:rids>")
 class SkeletonResource__gen_bulk_async_skeletons_B(Resource):
     """SkeletonResource"""
