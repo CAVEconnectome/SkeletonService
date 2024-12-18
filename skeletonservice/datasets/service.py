@@ -27,7 +27,7 @@ from skeletonservice.datasets.models import (
 #     SkeletonSchema,
 # )
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
