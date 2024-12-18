@@ -362,6 +362,44 @@ class SkeletonResource__skeleton_exists_B(Resource):
         return self.process(skvn, root_ids)
 
 
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists")
+class SkeletonResource__skeleton_exists_C(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(skvn: int, root_ids: List):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        if len(root_ids) == 1:
+            # If requesting a single root_id, then return the single root_id as an int, not as a list of one int
+            root_ids = int(root_ids[0])
+        
+        return SkelClassVsn.skeletons_exist(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            skeleton_version=skvn,
+            rids=root_ids,
+            verbose_level_=1,
+        )
+
+    @api_bp.expect(bulk_async_parser)
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def post(self, datastack_name: str):
+        """
+        Determine whether skeletons exist in the cache for a set of root ids
+        
+        root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
+        # data = request.parsed_obj  # Doesn't work, doesn't exist
+        
+        data = request.json
+        rids = data['root_ids']
+        skvn = data['skeleton_version']
+        response = self.process(skvn, rids)
+        return response, 200
+
+
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource__gen_skeletons_A(Resource):
     """SkeletonResource"""
@@ -563,7 +601,6 @@ class SkeletonResource__gen_bulk_async_skeletons_B(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, skvn: int, rids: str):
         return self.process(datastack_name, skvn, rids)
-
 
 
 
