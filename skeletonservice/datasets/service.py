@@ -20,15 +20,16 @@ import pcg_skel
 from cloudfiles import CloudFiles, compression
 import cloudvolume
 
-from skeletonservice.datasets.models import (
-    Skeleton,
-)
+# from skeletonservice.datasets.models import (
+#     Skeleton,
+# )
 # from skeletonservice.datasets.schemas import (
 #     SkeletonSchema,
 # )
 
 __version__ = "0.9.0"
 
+CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
@@ -90,7 +91,7 @@ class SkeletonService:
         elif skvn not in SKELETON_VERSION_PARAMS.keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
         return current_app.config['SKELETON_VERSION_ENGINES'][skvn]
-
+    
     @staticmethod
     def _minimize_json_skeleton_for_easier_debugging(skeleton_json):
         """
@@ -429,16 +430,12 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
-        prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
+        cave_client,
+        # prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         """
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         """
-        server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
-        client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=server,
-        )
         if (datastack_name == "minnie65_public") or (
             datastack_name == "minnie65_phase3_v1"
         ):
@@ -447,7 +444,7 @@ class SkeletonService:
             soma_tables = None
 
         root_ts, soma_location, soma_resolution = SkeletonService._get_root_soma(
-            rid, client, soma_tables
+            rid, cave_client, soma_tables
         )
         if verbose_level >= 1:
             print(f"soma_resolution: {soma_resolution}")
@@ -462,7 +459,7 @@ class SkeletonService:
         # Use the above parameters in the skeletonization:
         skel = pcg_skel.pcg_skeleton(
             rid,
-            client,
+            cave_client,
             root_point=soma_location,
             root_point_resolution=soma_resolution,
             collapse_soma=collapse_soma,
@@ -480,6 +477,7 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
+        cave_client,
         prep_for_neuroglancer=True,
     ):
         """
@@ -487,13 +485,6 @@ class SkeletonService:
         """
         if verbose_level >= 1:
             print("_generate_v2_skeleton()")
-        server = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
-        if verbose_level >= 1:
-            print(f"_generate_v2_skeleton() server: {server}")
-        client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=server,
-        )
         if verbose_level >= 1:
             print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
@@ -504,7 +495,7 @@ class SkeletonService:
             soma_tables = None
 
         root_ts, soma_location, soma_resolution = SkeletonService._get_root_soma(
-            rid, client, soma_tables
+            rid, cave_client, soma_tables
         )
         if verbose_level >= 1:
             print(f"soma_resolution: {soma_resolution}")
@@ -524,7 +515,7 @@ class SkeletonService:
             nrn = pcg_skel.pcg_meshwork(
                 rid,
                 datastack_name,
-                client,
+                cave_client,
                 root_point=soma_location,
                 root_point_resolution=soma_resolution,
                 collapse_soma=collapse_soma,
@@ -532,7 +523,7 @@ class SkeletonService:
                 timestamp=root_ts,
                 require_complete=True,
                 synapses='all',
-                synapse_table=client.info.get_datastack_info().get('synapse_table'),
+                synapse_table=cave_client.info.get_datastack_info().get('synapse_table'),
             )
         
             # Add synapse annotations.
@@ -550,7 +541,7 @@ class SkeletonService:
             # Add volumetric properties
             pcg_skel.features.add_volumetric_properties(
                 nrn,
-                client,
+                cave_client,
                 # attributes: list[str] = VOL_PROPERTIES,
                 # l2id_anno_name: str = "lvl2_ids",
                 # l2id_col_name: str = "lvl2_id",
@@ -635,7 +626,8 @@ class SkeletonService:
         root_resolution,
         collapse_soma,
         collapse_radius,
-        prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
+        cave_client,
+        # prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         return SkeletonService._generate_v2_skeleton(
             rid,
@@ -645,6 +637,7 @@ class SkeletonService:
             root_resolution,
             collapse_soma,
             collapse_radius,
+            cave_client,
             False,
         )
     
@@ -1095,6 +1088,15 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
         
+        # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
+        if not cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
+            raise ValueError(f"Invalid root id: {rid} (perhaps this is an idea corresponding to a different level of the PCG, e.g., a supervoxel id)")
+        
         if not output_format:
             output_format = "none"
 
@@ -1286,11 +1288,11 @@ class SkeletonService:
                         print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
                     skeletonization_start_time = default_timer()
                     if skeleton_version == 1:
-                        skeleton = SkeletonService._generate_v1_skeleton(*params)
+                        skeleton = SkeletonService._generate_v1_skeleton(*params, cave_client)
                     elif skeleton_version == 2:
-                        nrn, skeleton = SkeletonService._generate_v2_skeleton(*params)
+                        nrn, skeleton = SkeletonService._generate_v2_skeleton(*params, cave_client)
                     elif skeleton_version == 3:
-                        nrn, skeleton = SkeletonService._generate_v3_skeleton(*params)
+                        nrn, skeleton = SkeletonService._generate_v3_skeleton(*params, cave_client)
                     skeletonization_end_time = default_timer()
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
