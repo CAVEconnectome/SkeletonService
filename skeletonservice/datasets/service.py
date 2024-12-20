@@ -76,6 +76,20 @@ SKELETON_VERSION_PARAMS = {
                     'num_components': 1,
                 },
                 ]},
+    4: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [
+                {
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },
+                {
+                    'id': 'compartment',
+                    'data_type': 'uint8',
+                    'num_components': 1,
+                },
+                ]},
 }
 
 verbose_level = 0
@@ -231,8 +245,10 @@ class SkeletonService:
 
             skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
+            skeleton_version = params[2]
+
             if format == "flatdict":
-                skeleton = SkeletonService._skeleton_to_flatdict(skeleton)
+                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, None, skeleton_version)
             elif format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
                 skeleton = SkeletonService._skeleton_to_json(skeleton)
             elif format == "precomputed":
@@ -431,7 +447,6 @@ class SkeletonService:
         collapse_soma,
         collapse_radius,
         cave_client,
-        # prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         """
         From https://caveconnectome.github.io/pcg_skel/tutorial/
@@ -627,7 +642,6 @@ class SkeletonService:
         collapse_soma,
         collapse_radius,
         cave_client,
-        # prep_for_neuroglancer_UNUSED=True,  # This is a placeholder due to the caller's passing in "*params" (the "generate" functions all have the same interface).
     ):
         return SkeletonService._generate_v2_skeleton(
             rid,
@@ -640,6 +654,34 @@ class SkeletonService:
             cave_client,
             False,
         )
+
+    @staticmethod
+    def _generate_v4_skeleton(
+        rid,
+        bucket,
+        skeleton_version,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+        cave_client,
+    ):
+        nrn, sk = SkeletonService._generate_v3_skeleton(
+            rid,
+            bucket,
+            skeleton_version,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            cave_client,
+        )
+
+        lvl2_df = nrn.anno.lvl2_ids.df
+        lvl2_df.sort_values(by='mesh_ind', inplace=True)
+        lvl2_ids = list(lvl2_df['lvl2_id'])
+
+        return nrn, sk, lvl2_ids
     
     @staticmethod
     def compressBytes(inputBytes: BytesIO):
@@ -797,12 +839,14 @@ class SkeletonService:
         return sk_json
 
     @staticmethod
-    def _skeleton_to_flatdict(skel):
+    def _skeleton_to_flatdict(skel, lvl2_ids, skeleton_version):
         """
         Convert a skeleton object to a FLAT DICT object.
         """
+        sk_flatdict_vsn = "1.0" if skeleton_version <= 3 else "2.0"
+
         sk_flatdict = {
-            "sk_dict_structure_version": "1.0",
+            "sk_dict_structure_version": sk_flatdict_vsn,
         }
         if skel.branch_points is not None:
             sk_flatdict["branch_points"] = skel.branch_points.tolist()
@@ -851,6 +895,9 @@ class SkeletonService:
                     sk_flatdict[key] = skel.vertex_properties[key].tolist()
                 else:
                     sk_flatdict[key] = skel.vertex_properties[key]
+        if lvl2_ids is not None:
+            sk_flatdict["lvl2_ids"] = lvl2_ids
+
         return sk_flatdict
 
     @staticmethod
@@ -1158,6 +1205,7 @@ class SkeletonService:
 
         skeleton = None
         skeleton_bytes = None
+        lvl2_ids = None
         if cached_skeleton:
             # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
             # if output_format == "none":
@@ -1293,6 +1341,8 @@ class SkeletonService:
                         nrn, skeleton = SkeletonService._generate_v2_skeleton(*params, cave_client)
                     elif skeleton_version == 3:
                         nrn, skeleton = SkeletonService._generate_v3_skeleton(*params, cave_client)
+                    elif skeleton_version == 4:
+                        nrn, skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(*params, cave_client)
                     skeletonization_end_time = default_timer()
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
@@ -1401,7 +1451,7 @@ class SkeletonService:
             try:
                 if not skeleton_bytes:
                     assert skeleton is not None
-                    skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton)
+                    skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():

@@ -277,9 +277,8 @@ class SkeletonResource__query_cache_A(Resource):
         """
         logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
-        # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
-        return SkeletonResource__query_cache_B.process(skvn, root_id_prefixes, limit)
+        # Use the NeuroGlancer compatible version\
+        return SkeletonResource__query_cache_B.process(NEUROGLANCER_SKELETON_VERSION, root_id_prefixes, limit)
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int(signed=True):skvn>/<string:root_id_prefixes>/<int:limit>")
@@ -326,8 +325,7 @@ class SkeletonResource__skeleton_exists_A(Resource):
         logging.warning("The endpoint for checking the existence of skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
-        return SkeletonResource__skeleton_exists_B.process(skvn, root_ids)
+        return SkeletonResource__skeleton_exists_B.process(NEUROGLANCER_SKELETON_VERSION, root_ids)
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int(signed=True):skvn>/<string:root_ids>")
@@ -412,8 +410,7 @@ class SkeletonResource__gen_skeletons_A(Resource):
         logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
         
         # Use the NeuroGlancer compatible version
-        skvn = NEUROGLANCER_SKELETON_VERSION  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
-        return SkeletonResource__gen_skeletons_B.process(datastack_name, skvn, rid)
+        return SkeletonResource__gen_skeletons_B.process(datastack_name, NEUROGLANCER_SKELETON_VERSION, rid)
 
 
 

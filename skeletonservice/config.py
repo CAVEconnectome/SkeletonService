@@ -6,6 +6,7 @@ import json
 from .datasets.service_skvn1 import SkeletonService_skvn1
 from .datasets.service_skvn2 import SkeletonService_skvn2
 from .datasets.service_skvn3 import SkeletonService_skvn3
+from .datasets.service_skvn4 import SkeletonService_skvn4
 
 
 class BaseConfig(object):
@@ -44,6 +45,7 @@ class BaseConfig(object):
         1: SkeletonService_skvn1,
         2: SkeletonService_skvn2,
         3: SkeletonService_skvn3,
+        4: SkeletonService_skvn4,
     }
 
     # GLOBAL_SERVER_URL = os.environ.get("GLOBAL_SERVER_URL")
