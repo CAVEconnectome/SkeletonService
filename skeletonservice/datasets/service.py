@@ -41,7 +41,7 @@ DATASTACK_NAME_REMAPPING = {
 }
 MESHWORK_VERSION = 1
 NEUROGLANCER_SKELETON_VERSION = 2
-SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]
+SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neuroglancer version
 SKELETON_VERSION_PARAMS = {
     # V1: Basic skeletons
     1: {'@type': 'neuroglancer_skeletons',
@@ -1384,11 +1384,11 @@ class SkeletonService:
                         skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
                     )
 
-                nrn_file_content = BytesIO()
-                nrn.save_meshwork(nrn_file_content, overwrite=False)
-                nrn_file_content_val = nrn_file_content.getvalue()
-                SkeletonService._cache_meshwork(params, nrn_file_content_val)
-                nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                # nrn_file_content = BytesIO()
+                # nrn.save_meshwork(nrn_file_content, overwrite=False)
+                # nrn_file_content_val = nrn_file_content.getvalue()
+                # SkeletonService._cache_meshwork(params, nrn_file_content_val)
+                # nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 sk_file_content = BytesIO()
                 SkeletonIO.write_skeleton_h5(skeleton, sk_file_content)
