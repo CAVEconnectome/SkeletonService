@@ -439,19 +439,23 @@ class SkeletonResource__gen_skeletons_C(Resource):
     def process(datastack_name: str, skvn: int, rid: int, output_format: str):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
-        return SkelClassVsn.get_skeleton_by_datastack_and_rid(
-        # return SkeletonService.get_skeleton_by_datastack_and_rid(
-            datastack_name=datastack_name,
-            rid=rid,
-            output_format=output_format,
-            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
-            root_resolution=[1, 1, 1],
-            collapse_soma=True,
-            collapse_radius=7500,
-            skeleton_version=skvn,
-            via_requests=True,
-            verbose_level_=1,
-        )
+        try:
+            return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+                datastack_name=datastack_name,
+                rid=rid,
+                output_format=output_format,
+                bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+                root_resolution=[1, 1, 1],
+                collapse_soma=True,
+                collapse_radius=7500,
+                skeleton_version=skvn,
+                via_requests=True,
+                verbose_level_=1,
+            )
+        except ValueError as e:
+            return {"Error": str(e)}, 400
+        except Exception as e:
+            return {"Error": str(e)}, 500
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
