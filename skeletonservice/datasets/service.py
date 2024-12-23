@@ -1146,7 +1146,7 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
         if not cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
-            raise ValueError(f"Invalid root id: {rid} (perhaps this is an idea corresponding to a different level of the PCG, e.g., a supervoxel id)")
+            raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
         
         if not output_format:
             output_format = "none"
