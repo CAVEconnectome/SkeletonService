@@ -50,50 +50,41 @@ SKELETON_VERSION_PARAMS = {
     # V2: V1 extended to include radii and compartments, compatible with Neuroglancer
     2: {'@type': 'neuroglancer_skeletons',
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [
-                {
+            'vertex_attributes': [{
                     # TODO: Due to a Neuroglancer limitation, the compartment must be encoded as a float.
                     # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
                     'id': 'radius',
                     'data_type': 'float32',
                     'num_components': 1,
-                },
-                {
+                },{
                     'id': 'compartment',
                     'data_type': 'float32',
                     'num_components': 1,
-                },
-                ]},
+                }]},
     # V3: V2 storing compartments more efficiently as uint8 instead of float32, which is not compatible with Neuroglancer
     3: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [
-                {
+            'vertex_attributes': [{
                     'id': 'radius',
                     'data_type': 'float32',
                     'num_components': 1,
-                },
-                {
+                },{
                     'id': 'compartment',
                     'data_type': 'uint8',
                     'num_components': 1,
-                },
-                ]},
+                }]},
     # V4: V3 extended to include level-2 ids (not included when requesting an SWC skeleton and therefore identical to V3 in the SWC case)
     4: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [
-                {
+            'vertex_attributes': [{
                     'id': 'radius',
                     'data_type': 'float32',
                     'num_components': 1,
-                },
-                {
+                },{
                     'id': 'compartment',
                     'data_type': 'uint8',
                     'num_components': 1,
-                },
-                ]},
+                }]},
 }
 
 verbose_level = 0
