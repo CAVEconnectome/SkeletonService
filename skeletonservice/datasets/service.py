@@ -838,51 +838,56 @@ class SkeletonService:
         """
         Convert a skeleton object to a FLAT DICT object.
         """
-        sk_flatdict_vsn = "1.0" if skeleton_version <= 3 else "2.0"
+        sk_flatdict_vsn = 4  # "1" if skeleton_version <= 3 else "2"
 
-        sk_flatdict = {
-            "sk_dict_structure_version": sk_flatdict_vsn,
-        }
-        if skel.branch_points is not None:
-            sk_flatdict["branch_points"] = skel.branch_points.tolist()
-        if skel.branch_points_undirected is not None:
-            sk_flatdict["branch_points_undirected"] = skel.branch_points_undirected.tolist()
-        if skel.distance_to_root is not None:
-            sk_flatdict["distance_to_root"] = skel.distance_to_root.tolist()
-        if skel.edges is not None:
-            sk_flatdict["edges"] = skel.edges.tolist()
-        if skel.end_points is not None:
-            sk_flatdict["end_points"] = skel.end_points.tolist()
-        if skel.end_points_undirected is not None:
-            sk_flatdict["end_points_undirected"] = skel.end_points_undirected.tolist()
-        if skel.hops_to_root is not None:
-            sk_flatdict["hops_to_root"] = skel.hops_to_root.tolist()
-        if skel.indices_unmasked is not None:
-            sk_flatdict["indices_unmasked"] = skel.indices_unmasked.tolist()
-        if skel.mesh_index is not None:
-            sk_flatdict["mesh_index"] = skel.mesh_index.tolist()
-        if skel.mesh_to_skel_map is not None:
-            sk_flatdict["mesh_to_skel_map"] = skel.mesh_to_skel_map.tolist()
-        if skel.mesh_to_skel_map_base is not None:
-            sk_flatdict["mesh_to_skel_map_base"] = skel.mesh_to_skel_map_base.tolist()
+        sk_flatdict = {}
+        
         if skel.meta is not None:
             sk_flatdict["meta"] = SkeletonService._skeleton_metadata_to_json(skel.meta)
-        if skel.node_mask is not None:
-            sk_flatdict["node_mask"] = skel.node_mask.tolist()
+        else:
+            sk_flatdict["meta"] = {}
+        sk_flatdict["meta"]["sk_dict_structure_version"] = sk_flatdict_vsn
+        sk_flatdict["meta"]["skeleton_version"] = skeleton_version
+        
+        # if skel.branch_points is not None:
+        #     sk_flatdict["branch_points"] = skel.branch_points.tolist()
+        # if skel.branch_points_undirected is not None:
+        #     sk_flatdict["branch_points_undirected"] = skel.branch_points_undirected.tolist()
+        # if skel.distance_to_root is not None:
+        #     sk_flatdict["distance_to_root"] = skel.distance_to_root.tolist()
+        if skel.edges is not None:
+            sk_flatdict["edges"] = skel.edges.tolist()
+        # if skel.end_points is not None:
+        #     sk_flatdict["end_points"] = skel.end_points.tolist()
+        # if skel.end_points_undirected is not None:
+        #     sk_flatdict["end_points_undirected"] = skel.end_points_undirected.tolist()
+        # if skel.hops_to_root is not None:
+        #     sk_flatdict["hops_to_root"] = skel.hops_to_root.tolist()
+        # if skel.indices_unmasked is not None:
+        #     sk_flatdict["indices_unmasked"] = skel.indices_unmasked.tolist()
+        # if skel.mesh_index is not None:
+        #     sk_flatdict["mesh_index"] = skel.mesh_index.tolist()
+        if skel.mesh_to_skel_map is not None:
+            sk_flatdict["mesh_to_skel_map"] = skel.mesh_to_skel_map.tolist()
+        # if skel.mesh_to_skel_map_base is not None:
+        #     sk_flatdict["mesh_to_skel_map_base"] = skel.mesh_to_skel_map_base.tolist()
+        # if skel.node_mask is not None:
+        #     sk_flatdict["node_mask"] = skel.node_mask.tolist()
         if skel.root is not None:
             sk_flatdict["root"] = skel.root.tolist()
-        if skel.root_position is not None:
-            sk_flatdict["root_position"] = skel.root_position.tolist()
-        if skel.segment_map is not None:
-            sk_flatdict["segment_map"] = skel.segment_map.tolist()
-        if skel.topo_points is not None:
-            sk_flatdict["topo_points"] = skel.topo_points.tolist()
-        if skel.unmasked_size is not None:
-            sk_flatdict["unmasked_size"] = skel.unmasked_size
+        # if skel.root_position is not None:
+        #     sk_flatdict["root_position"] = skel.root_position.tolist()
+        # if skel.segment_map is not None:
+        #     sk_flatdict["segment_map"] = skel.segment_map.tolist()
+        # if skel.topo_points is not None:
+        #     sk_flatdict["topo_points"] = skel.topo_points.tolist()
+        # if skel.unmasked_size is not None:
+        #     sk_flatdict["unmasked_size"] = skel.unmasked_size
         if skel.vertices is not None:
             sk_flatdict["vertices"] = skel.vertices.tolist()
-        if skel.voxel_scaling is not None:
-            sk_flatdict["voxel_scaling"] = skel.voxel_scaling
+        # if skel.voxel_scaling is not None:
+        #     sk_flatdict["voxel_scaling"] = skel.voxel_scaling
+        # vertex_properties should provide radius and compartment
         if skel.vertex_properties is not None:
             for key in skel.vertex_properties.keys():
                 assert(key not in sk_flatdict)
