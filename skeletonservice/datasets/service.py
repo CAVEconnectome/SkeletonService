@@ -494,7 +494,7 @@ class SkeletonService:
         Templated and modified from _generate_v1_skeleton().
         """
         if verbose_level >= 1:
-            print("_generate_v2_skeleton()")
+            print("_generate_v2_skeleton()", rid)
         if verbose_level >= 1:
             print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
@@ -638,6 +638,8 @@ class SkeletonService:
         collapse_radius,
         cave_client,
     ):
+        if verbose_level >= 1:
+            print("_generate_v3_skeleton() (which will pass through to v2)", rid)
         return SkeletonService._generate_v2_skeleton(
             rid,
             bucket,
@@ -661,6 +663,8 @@ class SkeletonService:
         collapse_radius,
         cave_client,
     ):
+        if verbose_level >= 1:
+            print("_generate_v4_skeleton() (which will pass through to v3)", rid)
         nrn, sk = SkeletonService._generate_v3_skeleton(
             rid,
             bucket,
@@ -675,6 +679,8 @@ class SkeletonService:
         lvl2_df = nrn.anno.lvl2_ids.df
         lvl2_df.sort_values(by='mesh_ind', inplace=True)
         lvl2_ids = list(lvl2_df['lvl2_id'])
+        if verbose_level >= 1:
+            print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
 
         return nrn, sk, lvl2_ids
     
