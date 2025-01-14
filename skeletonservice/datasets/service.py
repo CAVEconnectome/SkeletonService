@@ -238,12 +238,12 @@ class SkeletonService:
                     "_retrieve_skeleton_from_local() Local debug skeleton file found. Reading it..."
                 )
 
-            skeleton = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
+            skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
 
             skeleton_version = params[2]
 
             if format == "flatdict":
-                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, None, skeleton_version)
+                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
             elif format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
                 skeleton = SkeletonService._skeleton_to_json(skeleton)
             elif format == "precomputed":
@@ -277,7 +277,7 @@ class SkeletonService:
         """
         Confirm that the specified format of the skeleton is in the cache.
         """
-        if not CACHE_NON_H5_SKELETONS and format != 'h5':
+        if not CACHE_NON_H5_SKELETONS and format != "h5":
             return False
         
         file_name = SkeletonService._get_skeleton_filename(*params, format)
@@ -295,10 +295,11 @@ class SkeletonService:
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
         But if the requested format is H5 or SWC, then return the location of the skeleton file.
         """
-        if not CACHE_NON_H5_SKELETONS and format != 'h5':
+        if not CACHE_NON_H5_SKELETONS and format != "h5" and format != "h5_mpsk":
             return None
         
-        file_name = SkeletonService._get_skeleton_filename(*params, format)
+        cached_format = format if format != "h5_mpsk" else "h5"
+        file_name = SkeletonService._get_skeleton_filename(*params, cached_format)
         if verbose_level >= 1:
             print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version = params[1], params[2]
@@ -314,17 +315,21 @@ class SkeletonService:
                 return cf.get(file_name)
             elif format == "precomputed":
                 return cf.get(file_name)
-            elif format == 'h5':
+            elif format == "h5":
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
-                skeleton = SkeletonIO.read_skeleton_h5(skeleton_bytes)
-                return skeleton
+                return skeleton_bytes
+            elif format == "h5_mpsk":
+                skeleton_bytes = cf.get(file_name)
+                skeleton_bytes = BytesIO(skeleton_bytes)
+                skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(skeleton_bytes)
+                return skeleton, lvl2_ids
             elif format == "swc" or format == "swccompressed":
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
                 return skeleton_bytes  # Don't even bother building a skeleton object
                 
-        return None
+        return None if format != "h5_mpsk" else (None, None)
 
     @staticmethod
     def _cache_meshwork(params, nrn_file_content, include_compression=True):
@@ -681,7 +686,7 @@ class SkeletonService:
         lvl2_ids = list(lvl2_df['lvl2_id'])
         if verbose_level >= 1:
             print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
-
+        
         return nrn, sk, lvl2_ids
     
     @staticmethod
@@ -902,7 +907,10 @@ class SkeletonService:
                 else:
                     sk_flatdict[key] = skel.vertex_properties[key]
         if lvl2_ids is not None:
-            sk_flatdict["lvl2_ids"] = lvl2_ids
+            if isinstance(lvl2_ids, np.ndarray):
+                sk_flatdict["lvl2_ids"] = lvl2_ids.tolist()
+            else:
+                sk_flatdict["lvl2_ids"] = lvl2_ids
 
         return sk_flatdict
 
@@ -1187,6 +1195,7 @@ class SkeletonService:
         ]
 
         cached_skeleton = None
+        lvl2_ids = None
         if output_format == "none":
             skel_confirmation = SkeletonService._confirm_skeleton_in_cache(
                 params, "h5"
@@ -1211,7 +1220,6 @@ class SkeletonService:
 
         skeleton = None
         skeleton_bytes = None
-        lvl2_ids = None
         if cached_skeleton:
             # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
             # if output_format == "none":
@@ -1297,7 +1305,8 @@ class SkeletonService:
                 return cached_skeleton
             elif output_format == "h5":
                 # We can't return the H5 file directly. We need to convert it to a bytes stream object.
-                skeleton = cached_skeleton
+                # skeleton = cached_skeleton
+                return cached_skeleton
             elif output_format == "swc":
                 skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
             elif output_format == "swccompressed":
@@ -1322,7 +1331,7 @@ class SkeletonService:
                 or output_format == "swccompressed"
                 or output_format == "precomputed"
             ):
-                skeleton = SkeletonService._retrieve_skeleton_from_cache(params, "h5")
+                skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
             if verbose_level >= 1:
                 print(f"H5 cache query result: {skeleton}")
 
@@ -1383,7 +1392,7 @@ class SkeletonService:
                         *params, output_format, False
                     )
                     SkeletonIO.write_skeleton_h5(
-                        skeleton, DEBUG_SKELETON_CACHE_LOC + file_name
+                        skeleton, lvl2_ids, DEBUG_SKELETON_CACHE_LOC + file_name
                     )
 
                 # nrn_file_content = BytesIO()
@@ -1393,7 +1402,7 @@ class SkeletonService:
                 # nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 sk_file_content = BytesIO()
-                SkeletonIO.write_skeleton_h5(skeleton, sk_file_content)
+                SkeletonIO.write_skeleton_h5(skeleton, lvl2_ids, sk_file_content)
                 # file_content_sz = file_content.getbuffer().nbytes
                 sk_file_content_val = sk_file_content.getvalue()
                 SkeletonService._cache_skeleton(params, sk_file_content_val, "h5")
@@ -1457,6 +1466,7 @@ class SkeletonService:
             try:
                 if not skeleton_bytes:
                     assert skeleton is not None
+                    print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids else 0)
                     skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)

@@ -90,7 +90,12 @@ class SkeletonIO:
             else:
                 root = None
 
-        return vertices, edges, meta, mesh_to_skel_map, vertex_properties, root
+            if "lvl2_ids" in f.keys():
+                lvl2_ids = f["lvl2_ids"][()]
+            else:
+                lvl2_ids = None
+
+        return vertices, edges, meta, mesh_to_skel_map, vertex_properties, root, lvl2_ids
     
     @staticmethod
     def read_skeleton_h5(filename, remove_zero_length_edges=False):
@@ -105,6 +110,7 @@ class SkeletonIO:
             mesh_to_skel_map,
             vertex_properties,
             root,
+            lvl2_ids,
         ) = SkeletonIO._read_skeleton_h5_by_part(filename)
         return skeleton.Skeleton(
             vertices=vertices,
@@ -114,7 +120,7 @@ class SkeletonIO:
             root=root,
             remove_zero_length_edges=remove_zero_length_edges,
             meta=meta,
-        )
+        ), lvl2_ids
 
 #==================================================================================================
 #==================================================================================================
@@ -139,6 +145,7 @@ class SkeletonIO:
         mesh_to_skel_map=None,
         vertex_properties={},
         root=None,
+        lvl2_ids=None,
         overwrite=False,
     ):
         '''
@@ -169,9 +176,11 @@ class SkeletonIO:
                 SkeletonIO._write_dict_to_group(f, "vertex_properties", vertex_properties)
             if root is not None:
                 f.create_dataset("root", data=root)
+            if lvl2_ids is not None:
+                f.create_dataset("lvl2_ids", data=lvl2_ids)
     
     @staticmethod
-    def write_skeleton_h5(sk, filename, overwrite=False):
+    def write_skeleton_h5(sk, lvl2_ids, filename, overwrite=False):
         '''
         Adapted from meshparty.skeleton_io.write_skeleton_h5()
         '''
@@ -187,6 +196,7 @@ class SkeletonIO:
             mesh_to_skel_map=sk.mesh_to_skel_map,
             vertex_properties=sk.vertex_properties,
             root=sk.root,
+            lvl2_ids=lvl2_ids,
             overwrite=overwrite,
         )
 
