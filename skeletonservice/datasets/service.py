@@ -1466,7 +1466,7 @@ class SkeletonService:
             try:
                 if not skeleton_bytes:
                     assert skeleton is not None
-                    print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids else 0)
+                    print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
                     skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
