@@ -1149,11 +1149,17 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
         
-        # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
+        # Confirm the rid validity in a few ways
         cave_client = caveclient.CAVEclient(
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
         )
+
+        # Confirm that the rid exists
+        if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
+        
+        # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
         if not cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
