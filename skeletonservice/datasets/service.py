@@ -31,7 +31,7 @@ __version__ = "0.12.4"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
-DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
+# DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
@@ -223,14 +223,19 @@ class SkeletonService:
             if verbose_level >= 1:
                 print("_retrieve_skeleton_from_local()")
 
+            debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
+            if debug_skeleton_cache_loc is None:
+                print("DEBUG_SKELETON_CACHE_LOC is not set.")
+                return None
+            
             file_name = SkeletonService._get_skeleton_filename(
                 *params, "h5", include_compression=False
             )
             if verbose_level >= 1:
-                print(f"_retrieve_skeleton_from_local() Looking at {DEBUG_SKELETON_CACHE_LOC + file_name}")
-            if not os.path.exists(DEBUG_SKELETON_CACHE_LOC + file_name):
+                print(f"_retrieve_skeleton_from_local() Looking at {debug_skeleton_cache_loc + file_name}")
+            if not os.path.exists(debug_skeleton_cache_loc + file_name):
                 if verbose_level >= 1:
-                    print(f"_retrieve_skeleton_from_local() No local skeleton file found at {DEBUG_SKELETON_CACHE_LOC + file_name}")
+                    print(f"_retrieve_skeleton_from_local() No local skeleton file found at {debug_skeleton_cache_loc + file_name}")
                 return None
 
             if verbose_level >= 1:
@@ -238,7 +243,7 @@ class SkeletonService:
                     "_retrieve_skeleton_from_local() Local debug skeleton file found. Reading it..."
                 )
 
-            skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(DEBUG_SKELETON_CACHE_LOC + file_name)
+            skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(debug_skeleton_cache_loc + file_name)
 
             skeleton_version = params[2]
 
@@ -1346,12 +1351,17 @@ class SkeletonService:
         # H5 will be used to generate all the other formats as needed.
         generate_new_skeleton = not skeleton and not skeleton_bytes
         if generate_new_skeleton:  # No H5 skeleton was found
+            # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
+            # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
             try:
-                # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
-                # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
                 skeleton = SkeletonService._retrieve_skeleton_from_local(
                     params, "h5"
                 )
+            except Exception as e:
+                print(f"Exception while retrieving local debugging skeleton for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
+            
+            try:
                 if not skeleton:
                     if verbose_level >= 1:
                         print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
@@ -1392,15 +1402,21 @@ class SkeletonService:
 
         if output_format == "h5" or generate_new_skeleton:
             try:
-                if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
-                    # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
-                    file_name = SkeletonService._get_skeleton_filename(
-                        *params, output_format, False
-                    )
-                    SkeletonIO.write_skeleton_h5(
-                        skeleton, lvl2_ids, DEBUG_SKELETON_CACHE_LOC + file_name
-                    )
+                debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
+                if debug_skeleton_cache_loc:
+                    if os.path.exists(debug_skeleton_cache_loc):
+                        # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
+                        file_name = SkeletonService._get_skeleton_filename(
+                            *params, "h5", False
+                        )
+                        SkeletonIO.write_skeleton_h5(
+                            skeleton, lvl2_ids, debug_skeleton_cache_loc + file_name
+                        )
+            except Exception as e:
+                print(f"Exception while saving local debugging skeleton for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
 
+            try:
                 # nrn_file_content = BytesIO()
                 # nrn.save_meshwork(nrn_file_content, overwrite=False)
                 # nrn_file_content_val = nrn_file_content.getvalue()
