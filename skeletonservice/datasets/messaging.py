@@ -29,4 +29,4 @@ def callback(payload):
 
 c = MessagingClient()
 l2cache_update_queue = getenv("SKELETON_CACHE_RETRIEVE_QUEUE", "does-not-exist")
-c.consume_multiple(l2cache_update_queue, callback)
+c.consume_multiple([l2cache_update_queue, l2cache_update_queue], callback)
