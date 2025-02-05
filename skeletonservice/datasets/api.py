@@ -506,7 +506,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
         }
 
         c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_EXCHANGE", "skeleton")
+        exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", "skeleton")
         print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
 
