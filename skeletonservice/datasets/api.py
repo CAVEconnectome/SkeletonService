@@ -449,7 +449,6 @@ class SkeletonResource__gen_skeletons_C(Resource):
                 collapse_soma=True,
                 collapse_radius=7500,
                 skeleton_version=skvn,
-                via_requests=True,
                 verbose_level_=1,
             )
         except ValueError as e:
@@ -506,7 +505,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
         }
 
         c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", "skeleton")
+        exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", "skeleton")
         print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
 
@@ -560,6 +559,76 @@ class SkeletonResource__gen_bulk_skeletons_B(Resource):
     @api_bp.doc("SkeletonResource", security="apikey")
     def get(self, datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str):
         return self.process(datastack_name, skvn, output_format, gms, rids)
+
+
+@api_bp.route("/<string:datastack_name>/async/skeleton/<int:rid>")
+class SkeletonResource__gen_skeletons_async_A(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rid: int):
+        """Get skeleton by rid"""
+        logging.warning("The endpoint for getting skeletons without specifying a skeleton version will be deprecated in the future. Please specify a skeleton version.")
+        
+        # Use the NeuroGlancer compatible version
+        return SkeletonResource__gen_skeletons_async_B.process(datastack_name, NEUROGLANCER_SKELETON_VERSION, rid)
+
+
+
+@api_bp.route("/<string:datastack_name>/async/skeleton/<int(signed=True):skvn>/<int:rid>")
+class SkeletonResource__gen_skeletons_async_B(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rid: int):
+        return SkeletonResource__gen_skeletons_async_C.process(datastack_name, skvn, rid, 'precomputed')
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rid: int):
+        """Get skeleton by rid"""
+        return SkeletonResource__gen_skeletons_async_C.process(datastack_name, skvn, rid, 'precomputed')
+
+
+
+@api_bp.route("/<string:datastack_name>/async/skeleton/<int(signed=True):skvn>/<int:rid>/<string:output_format>")
+class SkeletonResource__gen_skeletons_async_C(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rid: int, output_format: str):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        try:
+            return SkelClassVsn.get_skeleton_by_datastack_and_rid_async(
+                datastack_name=datastack_name,
+                rid=rid,
+                output_format=output_format,
+                bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+                root_resolution=[1, 1, 1],
+                collapse_soma=True,
+                collapse_radius=7500,
+                skeleton_version=skvn,
+                verbose_level_=1,
+            )
+        except ValueError as e:
+            return {"Error": str(e)}, 400
+        except Exception as e:
+            return {"Error": str(e)}, 500
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rid: int, output_format: str):
+        """Get skeleton by rid"""
+
+        if output_format == 'none':
+            return SkeletonResource__gen_skeletons_via_msg_B.process(datastack_name, skvn, rid)
+
+        return self.process(datastack_name, skvn, rid, output_format)
 
 
 

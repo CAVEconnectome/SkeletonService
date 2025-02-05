@@ -2,6 +2,7 @@ from io import BytesIO
 import binascii
 import logging
 import math
+import time
 from timeit import default_timer
 from typing import List, Union
 import os
@@ -1716,6 +1717,96 @@ class SkeletonService:
                     skeletons[rid] = skeleton_hex_ascii
         
         return skeletons
+    
+    @staticmethod
+    def get_skeleton_by_datastack_and_rid_async(
+        datastack_name: str,
+        rid: int,
+        output_format: str,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
+        verbose_level_: int = 0,
+    ):
+        """
+        Generate a skeleton aynschronously. Then poll for the result to be ready and return it.
+        """
+        global verbose_level
+        verbose_level = verbose_level_
+        
+        t0 = default_timer()
+
+        payload = b""
+        attributes = {
+            "skeleton_params_rid": f"{rid}",
+            "skeleton_params_bucket": bucket,
+            "skeleton_params_datastack_name": datastack_name,
+            "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
+            "skeleton_params_collapse_soma": f"{collapse_soma}",
+            "skeleton_params_collapse_radius": f"{collapse_radius}",
+            "skeleton_version": f"{skeleton_version}",
+            "verbose_level": f"{verbose_level_}",
+        }
+
+        c = MessagingClient()
+        exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", None)
+        if verbose_level >= 1:
+            print(f"get_skeleton_by_datastack_and_rid_async() Sending payload for rid {rid} to exchange {exchange}")
+        c.publish(exchange, payload, attributes)
+
+        print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+
+        t1 = default_timer()
+
+        print(f"Polling for skeleton to be available for rid {rid}...")
+        while not SkeletonService.skeletons_exist(
+            bucket,
+            skeleton_version,
+            rid,
+            verbose_level_
+        ):
+            time.sleep(5)
+        print(f"Skeleton is now available for rid {rid}.")
+        
+        t2 = default_timer()
+
+        skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
+            datastack_name,
+            rid,
+            output_format,
+            bucket,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            skeleton_version,
+            False,
+            verbose_level_,
+        )
+        
+        t3 = default_timer()
+
+        if verbose_level >= 1:
+            et1 = t1 - t0
+            et2 = t2 - t1
+            et3 = t3 - t2
+            print(f"get_bulk_skeletons_by_datastack_and_rids() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s")
+
+        if verbose_level >= 1:
+            print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
+        
+        if skeleton is not None:
+            # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
+            # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
+            # I haven't measured the respective sizes to compare and confirm.
+            if output_format == "flatdict":
+                return binascii.hexlify(skeleton).decode('ascii')
+            elif output_format == "jsoncompressed":
+                return binascii.hexlify(skeleton).decode('ascii')
+            elif output_format == "swccompressed":
+                return binascii.hexlify(skeleton.getvalue()).decode('ascii')
+
     
     @staticmethod
     def generate_bulk_skeletons_by_datastack_and_rids_async(
