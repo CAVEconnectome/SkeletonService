@@ -1748,7 +1748,7 @@ class SkeletonService:
             }
 
             c = MessagingClient()
-            exchange = os.getenv("SKELETON_CACHE_EXCHANGE", None)
+            exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", None)
             if verbose_level >= 1:
                 print(f"generate_bulk_skeletons_by_datastack_and_rids_async() Sending payload for rid {rid} to exchange {exchange}")
             c.publish(exchange, payload, attributes)
