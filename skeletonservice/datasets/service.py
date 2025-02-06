@@ -1796,16 +1796,17 @@ class SkeletonService:
         if verbose_level >= 1:
             print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
         
-        if skeleton is not None:
-            # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
-            # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
-            # I haven't measured the respective sizes to compare and confirm.
-            if output_format == "flatdict":
-                return binascii.hexlify(skeleton).decode('ascii')
-            elif output_format == "jsoncompressed":
-                return binascii.hexlify(skeleton).decode('ascii')
-            elif output_format == "swccompressed":
-                return binascii.hexlify(skeleton.getvalue()).decode('ascii')
+        return skeleton
+        # if skeleton is not None:
+        #     # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
+        #     # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
+        #     # I haven't measured the respective sizes to compare and confirm.
+        #     if output_format == "flatdict":
+        #         return binascii.hexlify(skeleton).decode('ascii')
+        #     elif output_format == "jsoncompressed":
+        #         return binascii.hexlify(skeleton).decode('ascii')
+        #     elif output_format == "swccompressed":
+        #         return binascii.hexlify(skeleton.getvalue()).decode('ascii')
 
     
     @staticmethod
