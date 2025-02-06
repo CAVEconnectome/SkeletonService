@@ -1781,7 +1781,7 @@ class SkeletonService:
             collapse_soma,
             collapse_radius,
             skeleton_version,
-            False,
+            True,
             verbose_level_,
         )
         
@@ -1791,10 +1791,10 @@ class SkeletonService:
             et1 = t1 - t0
             et2 = t2 - t1
             et3 = t3 - t2
-            print(f"get_bulk_skeletons_by_datastack_and_rids() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s")
+            print(f"get_skeleton_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s")
 
         if verbose_level >= 1:
-            print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
+            print(f"get_skeleton_by_datastack_and_rid_async() Final skeleton for rid {rid}: {skeleton is not None}")
         
         return skeleton
         # if skeleton is not None:
