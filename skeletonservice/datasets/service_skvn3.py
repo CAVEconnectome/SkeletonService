@@ -76,7 +76,6 @@ class SkeletonService_skvn3(SkeletonService):
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = -1,
-        via_requests: bool = True,
         verbose_level_: int = 0,
     ):
         print(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
@@ -89,7 +88,6 @@ class SkeletonService_skvn3(SkeletonService):
             collapse_soma,
             collapse_radius,
             skeleton_version,
-            via_requests,
             verbose_level_,
         )
 
