@@ -1738,37 +1738,48 @@ class SkeletonService:
         
         t0 = default_timer()
 
-        payload = b""
-        attributes = {
-            "skeleton_params_rid": f"{rid}",
-            "skeleton_params_bucket": bucket,
-            "skeleton_params_datastack_name": datastack_name,
-            "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
-            "skeleton_params_collapse_soma": f"{collapse_soma}",
-            "skeleton_params_collapse_radius": f"{collapse_radius}",
-            "skeleton_version": f"{skeleton_version}",
-            "verbose_level": f"{verbose_level_}",
-        }
-
-        c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", None)
-        if verbose_level >= 1:
-            print(f"get_skeleton_by_datastack_and_rid_async() Sending payload for rid {rid} to exchange {exchange}")
-        c.publish(exchange, payload, attributes)
-
-        print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
-
-        t1 = default_timer()
-
-        print(f"Polling for skeleton to be available for rid {rid}...")
-        while not SkeletonService.skeletons_exist(
+        already_exists = False
+        if not SkeletonService.skeletons_exist(
             bucket,
             skeleton_version,
             rid,
             verbose_level_
         ):
-            time.sleep(5)
-        print(f"Skeleton is now available for rid {rid}.")
+            payload = b""
+            attributes = {
+                "skeleton_params_rid": f"{rid}",
+                "skeleton_params_bucket": bucket,
+                "skeleton_params_datastack_name": datastack_name,
+                "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
+                "skeleton_params_collapse_soma": f"{collapse_soma}",
+                "skeleton_params_collapse_radius": f"{collapse_radius}",
+                "skeleton_version": f"{skeleton_version}",
+                "verbose_level": f"{verbose_level_}",
+            }
+
+            c = MessagingClient()
+            exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", None)
+            if verbose_level >= 1:
+                print(f"get_skeleton_by_datastack_and_rid_async() Sending payload for rid {rid} to exchange {exchange}")
+            c.publish(exchange, payload, attributes)
+
+            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+        else:
+            print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
+            already_exists = True
+
+        t1 = default_timer()
+
+        if not already_exists:
+            print(f"Polling for skeleton to be available for rid {rid}...")
+            while not SkeletonService.skeletons_exist(
+                bucket,
+                skeleton_version,
+                rid,
+                verbose_level_
+            ):
+                time.sleep(5)
+            print(f"Skeleton is now available for rid {rid}.")
         
         t2 = default_timer()
 
