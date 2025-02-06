@@ -67,6 +67,33 @@ class SkeletonService_skvn2(SkeletonService):
         )
 
     @staticmethod
+    def get_skeleton_by_datastack_and_rid_async(
+        datastack_name: str,
+        rid: int,
+        output_format: str,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = -1,
+        via_requests: bool = True,
+        verbose_level_: int = 0,
+    ):
+        print(f"SkeletonService_skvn2.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
+        return SkeletonService.get_skeleton_by_datastack_and_rid_async(
+            datastack_name,
+            rid,
+            output_format,
+            bucket,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            skeleton_version,
+            via_requests,
+            verbose_level_,
+        )
+
+    @staticmethod
     def get_bulk_skeletons_by_datastack_and_rids(
         datastack_name: str,
         rids: List,
