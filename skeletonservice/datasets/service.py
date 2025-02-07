@@ -1114,6 +1114,7 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int,
+        high_priority: bool,
         verbose_level_: int = 0,
     ):
         payload = b""
@@ -1129,7 +1130,9 @@ class SkeletonService:
         }
 
         c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", None)
+        exchange = os.getenv(
+            "SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE" if high_priority else "SKELETON_CACHE_LOW_PRIORITY_EXCHANGE",
+            None)
         if verbose_level >= 1:
             print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
@@ -1739,6 +1742,7 @@ class SkeletonService:
                         collapse_soma,
                         collapse_radius,
                         skeleton_version,
+                        True,
                         verbose_level_,
                     )
                     skeleton = "async"
@@ -1799,6 +1803,7 @@ class SkeletonService:
                 collapse_soma,
                 collapse_radius,
                 skeleton_version,
+                True,
                 verbose_level_,
             )
         else:
@@ -1883,6 +1888,7 @@ class SkeletonService:
                 collapse_soma,
                 collapse_radius,
                 skeleton_version,
+                False,
                 verbose_level_,
             )
         
