@@ -28,7 +28,7 @@ import cloudvolume
 #     SkeletonSchema,
 # )
 
-__version__ = "0.13.0"
+__version__ = "0.13.1"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
@@ -1106,6 +1106,37 @@ class SkeletonService:
         return exist_results_clean
 
     @staticmethod
+    def publish_skeleton_request(
+        datastack_name: str,
+        rid: int,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int,
+        verbose_level_: int = 0,
+    ):
+        payload = b""
+        attributes = {
+            "skeleton_params_rid": f"{rid}",
+            "skeleton_params_bucket": bucket,
+            "skeleton_params_datastack_name": datastack_name,
+            "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
+            "skeleton_params_collapse_soma": f"{collapse_soma}",
+            "skeleton_params_collapse_radius": f"{collapse_radius}",
+            "skeleton_version": f"{skeleton_version}",
+            "verbose_level": f"{verbose_level_}",
+        }
+
+        c = MessagingClient()
+        exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", None)
+        if verbose_level >= 1:
+            print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
+        c.publish(exchange, payload, attributes)
+
+        print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+
+    @staticmethod
     def get_skeleton_by_datastack_and_rid(
         datastack_name: str,
         rid: int,
@@ -1665,7 +1696,6 @@ class SkeletonService:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
             logging.warning(f"get_bulk_skeletons_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
         
-        num_new_h5_skeletons = 0
         skeletons = {}
         for rid in rids:
             params = [
@@ -1682,12 +1712,11 @@ class SkeletonService:
             if verbose_level >= 1:
                 print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
-            # The following boolean combintatorics can be simplified if CACHE_NON_H5_SKELETONS is set to False.
             if skeleton is None:  # No JSON or SWC skeleton was found (but the H5 status is unknown at this point)
                 h5_available = SkeletonService._confirm_skeleton_in_cache(params, "h5")
-                if h5_available or (generate_missing_skeletons and num_new_h5_skeletons < MAX_BULK_SYNCHRONOUS_SKELETONS):
-                    if not h5_available:
-                        num_new_h5_skeletons += 1
+                if verbose_level >= 1:
+                    print(f"H5 availability for rid {rid}: {h5_available}")
+                if h5_available:
                     skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
                         datastack_name,
                         rid,
@@ -1700,12 +1729,29 @@ class SkeletonService:
                         False,
                         verbose_level_,
                     )
+                if not h5_available:
+                    # No H5 skeleton was found, so generate one asynchronously
+                    SkeletonService.publish_skeleton_request(
+                        datastack_name,
+                        rid,
+                        bucket,
+                        root_resolution,
+                        collapse_soma,
+                        collapse_radius,
+                        skeleton_version,
+                        verbose_level_,
+                    )
+                    skeleton = "async"
+            
             if verbose_level >= 1:
-                print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None}")
-            if skeleton is not None:
-                # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
-                # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
-                # I haven't measured the respective sizes to compare and confirm.
+                print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None if skeleton != 'async' else skeleton}")
+            
+            # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
+            # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
+            # I haven't measured the respective sizes to compare and confirm.
+            if skeleton == "async":
+                skeletons[rid] = skeleton
+            else:
                 if output_format == "flatdict":
                     skeleton_hex_ascii = binascii.hexlify(skeleton).decode('ascii')
                     skeletons[rid] = skeleton_hex_ascii
@@ -1715,7 +1761,7 @@ class SkeletonService:
                 elif output_format == "swccompressed":
                     skeleton_hex_ascii = binascii.hexlify(skeleton.getvalue()).decode('ascii')
                     skeletons[rid] = skeleton_hex_ascii
-        
+    
         return skeletons
     
     @staticmethod
@@ -1745,25 +1791,16 @@ class SkeletonService:
             rid,
             verbose_level_
         ):
-            payload = b""
-            attributes = {
-                "skeleton_params_rid": f"{rid}",
-                "skeleton_params_bucket": bucket,
-                "skeleton_params_datastack_name": datastack_name,
-                "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
-                "skeleton_params_collapse_soma": f"{collapse_soma}",
-                "skeleton_params_collapse_radius": f"{collapse_radius}",
-                "skeleton_version": f"{skeleton_version}",
-                "verbose_level": f"{verbose_level_}",
-            }
-
-            c = MessagingClient()
-            exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", None)
-            if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid_async() Sending payload for rid {rid} to exchange {exchange}")
-            c.publish(exchange, payload, attributes)
-
-            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+            SkeletonService.publish_skeleton_request(
+                datastack_name,
+                rid,
+                bucket,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+                skeleton_version,
+                verbose_level_,
+            )
         else:
             print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
             already_exists = True
@@ -1838,26 +1875,17 @@ class SkeletonService:
         verbose_level = verbose_level_
         
         for rid in rids:
-            payload = b""
-            attributes = {
-                "skeleton_params_rid": f"{rid}",
-                "skeleton_params_bucket": bucket,
-                "skeleton_params_datastack_name": datastack_name,
-                "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
-                "skeleton_params_collapse_soma": f"{collapse_soma}",
-                "skeleton_params_collapse_radius": f"{collapse_radius}",
-                "skeleton_version": f"{skeleton_version}",
-                "verbose_level": f"{verbose_level_}",
-            }
-
-            c = MessagingClient()
-            exchange = os.getenv("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", None)
-            if verbose_level >= 1:
-                print(f"generate_bulk_skeletons_by_datastack_and_rids_async() Sending payload for rid {rid} to exchange {exchange}")
-            c.publish(exchange, payload, attributes)
-
-            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
-
+            SkeletonService.publish_skeleton_request(
+                datastack_name,
+                rid,
+                bucket,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+                skeleton_version,
+                verbose_level_,
+            )
+        
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
             num_workers = current_app.config["SKELETONCACHE_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
