@@ -1661,7 +1661,7 @@ class SkeletonService:
             return skeleton_precomputed
 
     @staticmethod
-    def get_bulk_skeletons_by_datastack_and_rids(
+    def get_skeletons_bulk_by_datastack_and_rids(
         datastack_name: str,
         rids: List,
         bucket: str,
@@ -1670,7 +1670,7 @@ class SkeletonService:
         collapse_radius: int,
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         output_format: str = "flatdict",
-        generate_missing_skeletons: bool = False,
+        generate_missing_skeletons: bool = False,  # Deprecated, unused
         verbose_level_: int = 0,
     ):
         """
@@ -1684,7 +1684,7 @@ class SkeletonService:
 
         if verbose_level >= 1:
             print(
-                f"get_bulk_skeletons_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
+                f"get_skeletons_bulk_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
             )
     
@@ -1694,7 +1694,7 @@ class SkeletonService:
 
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
-            logging.warning(f"get_bulk_skeletons_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
+            logging.warning(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
         
         skeletons = {}
         for rid in rids:
@@ -1710,7 +1710,7 @@ class SkeletonService:
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
             if verbose_level >= 1:
-                print(f"get_bulk_skeletons_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
+                print(f"get_skeletons_bulk_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
             if skeleton is None:  # No JSON or SWC skeleton was found (but the H5 status is unknown at this point)
                 h5_available = SkeletonService._confirm_skeleton_in_cache(params, "h5")
@@ -1744,7 +1744,7 @@ class SkeletonService:
                     skeleton = "async"
             
             if verbose_level >= 1:
-                print(f"get_bulk_skeletons_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None if skeleton != 'async' else skeleton}")
+                print(f"get_skeletons_bulk_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None if skeleton != 'async' else skeleton}")
             
             # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
             # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
@@ -1858,7 +1858,7 @@ class SkeletonService:
 
     
     @staticmethod
-    def generate_bulk_skeletons_by_datastack_and_rids_async(
+    def generate_skeletons_bulk_by_datastack_and_rids_async(
         datastack_name: str,
         rids: List,
         bucket: str,

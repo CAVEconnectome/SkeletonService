@@ -92,7 +92,7 @@ class SkeletonService_skvn3(SkeletonService):
         )
 
     @staticmethod
-    def get_bulk_skeletons_by_datastack_and_rids(
+    def get_skeletons_bulk_by_datastack_and_rids(
         datastack_name: str,
         rids: List,
         bucket: str,
@@ -104,8 +104,8 @@ class SkeletonService_skvn3(SkeletonService):
         generate_missing_skeletons: bool = False,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid: {datastack_name} {rids} {bucket}")
-        return SkeletonService.get_bulk_skeletons_by_datastack_and_rids(
+        print(f"SkeletonService_skvn3.get_skeletons_bulk_by_datastack_and_rids: {datastack_name} {rids} {bucket}")
+        return SkeletonService.get_skeletons_bulk_by_datastack_and_rids(
             datastack_name,
             rids,
             bucket,
@@ -119,7 +119,7 @@ class SkeletonService_skvn3(SkeletonService):
         )
 
     @staticmethod
-    def generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+    def generate_skeletons_bulk_by_datastack_and_rids_async(
         datastack_name: str,
         rids: List,
         bucket: str,
@@ -129,8 +129,8 @@ class SkeletonService_skvn3(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.generate_bulk_skeletons_by_datastack_and_rids_without_retrieval: {datastack_name} {rids} {bucket}")
-        return SkeletonService.generate_bulk_skeletons_by_datastack_and_rids_without_retrieval(
+        print(f"SkeletonService_skvn3.generate_skeletons_bulk_by_datastack_and_rids_async: {datastack_name} {rids} {bucket}")
+        return SkeletonService.generate_skeletons_bulk_by_datastack_and_rids_async(
             datastack_name,
             rids,
             bucket,
