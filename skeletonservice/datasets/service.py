@@ -1788,13 +1788,14 @@ class SkeletonService:
         
         t0 = default_timer()
 
-        already_exists = False
         if not SkeletonService.skeletons_exist(
             bucket,
             skeleton_version,
             rid,
             verbose_level_
         ):
+            t1 = default_timer()
+
             SkeletonService.publish_skeleton_request(
                 datastack_name,
                 rid,
@@ -1806,14 +1807,11 @@ class SkeletonService:
                 True,
                 verbose_level_,
             )
-        else:
-            print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
-            already_exists = True
 
-        t1 = default_timer()
+            t2 = default_timer()
 
-        if not already_exists:
-            print(f"Polling for skeleton to be available for rid {rid}...")
+            if verbose_level >= 1:
+                print(f"Polling for skeleton to be available for rid {rid}...")
             while not SkeletonService.skeletons_exist(
                 bucket,
                 skeleton_version,
@@ -1821,9 +1819,14 @@ class SkeletonService:
                 verbose_level_
             ):
                 time.sleep(5)
-            print(f"Skeleton is now available for rid {rid}.")
+            if verbose_level >= 1:
+                print(f"Skeleton is now available for rid {rid}.")
+        else:
+            t2 = t1 = default_timer()
+            if verbose_level >= 1:
+                print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
         
-        t2 = default_timer()
+        t3 = default_timer()
 
         skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name,
@@ -1838,28 +1841,17 @@ class SkeletonService:
             verbose_level_,
         )
         
-        t3 = default_timer()
+        t4 = default_timer()
 
         if verbose_level >= 1:
             et1 = t1 - t0
             et2 = t2 - t1
             et3 = t3 - t2
-            print(f"get_skeleton_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s")
-
-        if verbose_level >= 1:
+            et4 = t4 - t3
+            print(f"get_skeleton_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
             print(f"get_skeleton_by_datastack_and_rid_async() Final skeleton for rid {rid}: {skeleton is not None}")
         
         return skeleton
-        # if skeleton is not None:
-        #     # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
-        #     # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
-        #     # I haven't measured the respective sizes to compare and confirm.
-        #     if output_format == "flatdict":
-        #         return binascii.hexlify(skeleton).decode('ascii')
-        #     elif output_format == "jsoncompressed":
-        #         return binascii.hexlify(skeleton).decode('ascii')
-        #     elif output_format == "swccompressed":
-        #         return binascii.hexlify(skeleton.getvalue()).decode('ascii')
 
     
     @staticmethod

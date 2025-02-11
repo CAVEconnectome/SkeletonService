@@ -440,7 +440,8 @@ class SkeletonResource__get_skeleton_C(Resource):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         try:
-            return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+            # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+            return SkelClassVsn.get_skeleton_by_datastack_and_rid_async(
                 datastack_name=datastack_name,
                 rid=rid,
                 output_format=output_format,
