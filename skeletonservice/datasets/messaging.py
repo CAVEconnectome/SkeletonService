@@ -4,7 +4,10 @@ from messagingclient import MessagingClient
 from .service import SkeletonService
 
 def callback(payload):
-    print("Skeleton Cache message-processer received message: ", payload)
+    s = ""
+    for k in payload.attributes:
+        s += f"\n  {k}: {payload.attributes[k]}"
+    print("Skeleton Cache message-processor received message: ", s)
     try:
         # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.
         # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][int(payload.attributes["skeleton_version"])]
@@ -21,9 +24,9 @@ def callback(payload):
             False,  # via_requests
             int(payload.attributes["verbose_level"]),
         )
-        print("Skeleton Cache message-processer returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result)
+        print("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result)
     except Exception as e:
-        print("Error generating skeleton: ", repr(e))
+        print("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e))
         print(tb.format_exc())
         raise e
 
