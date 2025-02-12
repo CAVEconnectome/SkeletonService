@@ -216,7 +216,7 @@ matplotlib-inline==0.1.6
     # via ipython
 meshparty==1.16.16
     # via pcg-skel
-messagingclient
+messagingclient==0.2.1
     # via cloud-volume
 middle-auth-client==3.16.2
 msgpack==1.0.8
