@@ -1201,8 +1201,8 @@ class SkeletonService:
         
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
-        if not cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
-            raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+        if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+            return
         
         if not output_format:
             output_format = "none"
@@ -1698,6 +1698,12 @@ class SkeletonService:
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
             logging.warning(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
+
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
         
         skeletons = {}
         for rid in rids:
@@ -1710,6 +1716,10 @@ class SkeletonService:
                 collapse_soma,
                 collapse_radius,
             ]
+
+            if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+                skeletons[rid] = "invalid_rid"
+                continue
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
             if verbose_level >= 1:
@@ -1785,6 +1795,14 @@ class SkeletonService:
         """
         global verbose_level
         verbose_level = verbose_level_
+
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
+        if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+            raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
         
         t0 = default_timer()
 
@@ -1871,18 +1889,27 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
         
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
+        
+        num_valid_rids = 0
         for rid in rids:
-            SkeletonService.publish_skeleton_request(
-                datastack_name,
-                rid,
-                bucket,
-                root_resolution,
-                collapse_soma,
-                collapse_radius,
-                skeleton_version,
-                False,
-                verbose_level_,
-            )
+            if cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+                SkeletonService.publish_skeleton_request(
+                    datastack_name,
+                    rid,
+                    bucket,
+                    root_resolution,
+                    collapse_soma,
+                    collapse_radius,
+                    skeleton_version,
+                    False,
+                    verbose_level_,
+                )
+                num_valid_rids += 1
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
@@ -1890,7 +1917,7 @@ class SkeletonService:
         except KeyError:
             print("Flask config variable SKELETONCACHE_MAX_REPLICAS not found. Using default value of 15.")
             num_workers = 15
-        estimated_async_time_secs_upper_bound =  math.ceil(len(rids) / num_workers) * skeleton_generation_time_estimate_secs
+        estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * skeleton_generation_time_estimate_secs
         if verbose_level >= 1:
-            print(f"Estimated async time: ceiling({len(rids)} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
+            print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
         return estimated_async_time_secs_upper_bound
