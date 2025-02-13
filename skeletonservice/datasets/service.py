@@ -1197,7 +1197,7 @@ class SkeletonService:
 
         # Confirm that the rid exists
         if not cave_client.chunkedgraph.is_valid_nodes(rid):
-            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
+            return
         
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
@@ -1717,8 +1717,11 @@ class SkeletonService:
                 collapse_radius,
             ]
 
-            if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+            if not cave_client.chunkedgraph.is_valid_nodes(rid):
                 skeletons[rid] = "invalid_rid"
+                continue
+            if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+                skeletons[rid] = "invalid_layer_rid"
                 continue
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
@@ -1801,6 +1804,8 @@ class SkeletonService:
             server_address=CAVE_CLIENT_SERVER,
         )
         cv = cave_client.info.segmentation_cloudvolume()
+        if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
         
@@ -1897,7 +1902,7 @@ class SkeletonService:
         
         num_valid_rids = 0
         for rid in rids:
-            if cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+            if cave_client.chunkedgraph.is_valid_nodes(rid) and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,

@@ -6,7 +6,7 @@ from .service import SkeletonService
 def callback(payload):
     s = ""
     for k in payload.attributes:
-        s += f"\n__{k}: {payload.attributes[k]}"
+        s += f"\n| {k}: {payload.attributes[k]}"
     print("Skeleton Cache message-processor received message: ", s)
     try:
         # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.

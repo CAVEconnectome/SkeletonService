@@ -294,7 +294,7 @@ class SkeletonResource__query_cache_B(Resource):
             skeleton_version=skvn,
             rid_prefixes=[int(v) for v in root_id_prefixes.split(',')],
             limit=limit,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @auth_required
@@ -345,7 +345,7 @@ class SkeletonResource__skeleton_exists_B(Resource):
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             skeleton_version=skvn,
             rids=root_ids,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @auth_required
@@ -376,7 +376,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             skeleton_version=skvn,
             rids=root_ids,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @api_bp.expect(bulk_async_parser)
@@ -450,7 +450,7 @@ class SkeletonResource__get_skeleton_C(Resource):
                 collapse_soma=True,
                 collapse_radius=7500,
                 skeleton_version=skvn,
-                verbose_level_=1,
+                verbose_level_=0,
             )
         except ValueError as e:
             return {"Error": str(e)}, 400
@@ -554,7 +554,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
             skeleton_version=skvn,
             output_format=output_format,
             generate_missing_skeletons=gms,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @auth_required
@@ -615,7 +615,7 @@ class SkeletonResource__get_skeleton_async_C(Resource):
                 collapse_soma=True,
                 collapse_radius=7500,
                 skeleton_version=skvn,
-                verbose_level_=1,
+                verbose_level_=0,
             )
         except ValueError as e:
             return {"Error": str(e)}, 400
@@ -666,7 +666,7 @@ class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @auth_required
@@ -693,7 +693,7 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
-            verbose_level_=1,
+            verbose_level_=0,
         )
 
     @api_bp.expect(bulk_async_parser)
