@@ -1,11 +1,13 @@
 from typing import List, Union
 from skeletonservice.datasets.service import SkeletonService
+import logging
 
+logger = logging.getLogger(__name__)
 
 class SkeletonService_skvn3(SkeletonService):
     def __init__(self):
         super().__init__()
-        print("SkeletonService_skvn3 initialized")
+        logger.info("SkeletonService_skvn3 initialized")
     
     @staticmethod
     def get_cache_contents(
@@ -15,7 +17,7 @@ class SkeletonService_skvn3(SkeletonService):
         limit: int = None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
+        logger.info(f"SkeletonService_skvn3.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
             skeleton_version,
@@ -31,7 +33,7 @@ class SkeletonService_skvn3(SkeletonService):
         rids: Union[List, int] = None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.skeletons_exist: {bucket} {skeleton_version} {rids}")
+        logger.info(f"SkeletonService_skvn3.skeletons_exist: {bucket} {skeleton_version} {rids}")
         return SkeletonService.skeletons_exist(
             bucket,
             skeleton_version,
@@ -52,7 +54,7 @@ class SkeletonService_skvn3(SkeletonService):
         via_requests: bool = True,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid: {datastack_name} {rid} {output_format} {bucket}")
+        logger.info(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid: {datastack_name} {rid} {output_format} {bucket}")
         return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name,
             rid,
@@ -78,7 +80,7 @@ class SkeletonService_skvn3(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
+        logger.info(f"SkeletonService_skvn3.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
         return SkeletonService.get_skeleton_by_datastack_and_rid_async(
             datastack_name,
             rid,
@@ -104,7 +106,7 @@ class SkeletonService_skvn3(SkeletonService):
         generate_missing_skeletons: bool = False,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.get_skeletons_bulk_by_datastack_and_rids: {datastack_name} {rids} {bucket}")
+        logger.info(f"SkeletonService_skvn3.get_skeletons_bulk_by_datastack_and_rids: {datastack_name} {rids} {bucket}")
         return SkeletonService.get_skeletons_bulk_by_datastack_and_rids(
             datastack_name,
             rids,
@@ -129,7 +131,7 @@ class SkeletonService_skvn3(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn3.generate_skeletons_bulk_by_datastack_and_rids_async: {datastack_name} {rids} {bucket}")
+        logger.info(f"SkeletonService_skvn3.generate_skeletons_bulk_by_datastack_and_rids_async: {datastack_name} {rids} {bucket}")
         return SkeletonService.generate_skeletons_bulk_by_datastack_and_rids_async(
             datastack_name,
             rids,
