@@ -1691,7 +1691,10 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
             )
     
-        assert (output_format == "flatdict" or output_format == "json" or output_format == "swc")
+        # CaveClient has a bug (or a disagreement with SkeletonService) in terms of which output_format descriptors are valid.
+        # While I should fix the bug in CaveClient, that will involve releasing a new version of CAVEclient, which is a bit of a heavy task for such a trivial problem.
+        # I can fix it behind the scenes here more easily.
+        assert (output_format == "flatdict" or output_format == "json" or output_format == "swc" or output_format == "jsoncompressed" or output_format == "swccompressed")
         if (output_format == "json" or output_format == "swc"):
             output_format += "compressed"
 
