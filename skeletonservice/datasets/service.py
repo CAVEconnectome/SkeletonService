@@ -32,6 +32,7 @@ __version__ = "0.14.5"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
+CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
@@ -89,6 +90,7 @@ SKELETON_VERSION_PARAMS = {
 }
 
 verbose_level = 0
+logging.basicConfig(level=logging.WARNING)
 
 
 class SkeletonService:
@@ -226,7 +228,8 @@ class SkeletonService:
 
             debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
             if debug_skeleton_cache_loc is None:
-                print("DEBUG_SKELETON_CACHE_LOC is not set.")
+                if verbose_level >= 1:
+                    print("DEBUG_SKELETON_CACHE_LOC is not set.")
                 return None
             
             file_name = SkeletonService._get_skeleton_filename(
@@ -600,6 +603,7 @@ class SkeletonService:
                 root_resolution,
                 collapse_soma,
                 collapse_radius,
+                cave_client,
             )
         except Exception as e:
             print(f"Exception in _generate_v2_skeleton(): {str(e)}. Traceback:")
@@ -1452,11 +1456,12 @@ class SkeletonService:
                 traceback.print_exc()
 
             try:
-                # nrn_file_content = BytesIO()
-                # nrn.save_meshwork(nrn_file_content, overwrite=False)
-                # nrn_file_content_val = nrn_file_content.getvalue()
-                # SkeletonService._cache_meshwork(params, nrn_file_content_val)
-                # nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                if CACHE_MESHWORK:
+                    nrn_file_content = BytesIO()
+                    nrn.save_meshwork(nrn_file_content, overwrite=False)
+                    nrn_file_content_val = nrn_file_content.getvalue()
+                    SkeletonService._cache_meshwork(params, nrn_file_content_val)
+                    nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
 
                 sk_file_content = BytesIO()
                 SkeletonIO.write_skeleton_h5(skeleton, lvl2_ids, sk_file_content)
@@ -1700,7 +1705,8 @@ class SkeletonService:
 
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
-            logging.warning(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
+            if verbose_level >= 1:
+                print(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
 
         cave_client = caveclient.CAVEclient(
             datastack_name,

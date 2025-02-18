@@ -1,7 +1,10 @@
 # Define the application directory
+import logging
 import os
 # from skeletonservice.datasets.models import Base
 import json
+import sys
+from flask.logging import default_handler
 
 from .datasets.service_skvn1 import SkeletonService_skvn1
 from .datasets.service_skvn2 import SkeletonService_skvn2
@@ -13,6 +16,8 @@ class BaseConfig(object):
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
     # Statement for enabling the development environment
     DEBUG = True
+
+    LOGGING_LEVEL = logging.WARNING
 
     # Application threads. A common general assumption is
     # using 2 per available processor cores - to handle
@@ -73,6 +78,13 @@ def configure_app(app):
         # instance-folders configuration
         app.config.from_pyfile("config.cfg", silent=True)
     # from .datasets.schemas import ma
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(app.config["LOGGING_LEVEL"])
+    app.logger.removeHandler(default_handler)
+    app.logger.addHandler(handler)
+    app.logger.setLevel(app.config["LOGGING_LEVEL"])
+    app.logger.propagate = False
 
     # ma.init_app(app)
     return app
