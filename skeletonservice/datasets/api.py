@@ -509,10 +509,10 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 
         c = MessagingClient()
         exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", "skeleton")
-        print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
+        # print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
 
-        print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
+        # print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
         return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
     # @auth_required
