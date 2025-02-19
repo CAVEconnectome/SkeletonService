@@ -38,6 +38,7 @@ class BaseConfig(object):
     # I'm not sure this needs to be here, even as a to-be-filled-in-later stub
     SKELETON_CACHE_BUCKET = "CONFIGURE_ME"  # "gs://keith-dev/"
     SKELETON_CACHE_LOW_PRIORITY_EXCHANGE = "CONFIGURE_ME"  # "ltv5_SKELETON_CACHE"
+    SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE = "CONFIGURE_ME"  # "ltv5_SKELETON_CACHE"
 
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
     if os.environ.get("DAF_CREDENTIALS", None) is not None:
