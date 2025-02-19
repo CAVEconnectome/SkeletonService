@@ -17,7 +17,7 @@ from middle_auth_client import (
 
 from typing import List, Dict
 
-__version__ = "0.15.0"
+__version__ = "0.15.1"
 
 
 authorizations = {
@@ -418,21 +418,8 @@ class SkeletonResource__get_meshwork_A(Resource):
                 root_resolution=[1, 1, 1],
                 collapse_soma=True,
                 collapse_radius=7500,
-                verbose_level_=1,  # DEBUG
+                verbose_level_=0,
             )
-        
-            # Debugging is easier synchronously (comment out the similar block above)
-            # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
-            #     datastack_name=datastack_name,
-            #     rid=rid,
-            #     output_format="meshwork",
-            #     bucket=current_app.config["SKELETON_CACHE_BUCKET"],
-            #     root_resolution=[1, 1, 1],
-            #     collapse_soma=True,
-            #     collapse_radius=7500,
-            #     skeleton_version=skvn,
-            #     verbose_level_=0,
-            # )
         except ValueError as e:
             return {"Error": str(e)}, 400
         except Exception as e:

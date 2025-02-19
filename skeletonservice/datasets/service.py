@@ -28,13 +28,14 @@ import cloudvolume
 #     SkeletonSchema,
 # )
 
-__version__ = "0.15.0"
+__version__ = "0.15.1"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
+DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_easier_debugging() for explanation.
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 DATASTACK_NAME_REMAPPING = {
@@ -1256,25 +1257,7 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
 
-        if output_format == "meshwork":
-            CACHE_MESHWORK = True
-
-        # DEBUG
-        if (
-            datastack_name == "0" or rid == 0
-        ):  # Flags indicating that a default hard-coded datastack_name and rid should be used for dev and debugging
-            print("DEBUG mode engaged by either setting datastack_name to 0 or rid to 0")
-            # From https://caveconnectome.github.io/pcg_skel/tutorial/
-            # rid = 864691135397503777
-            rid = 864691134918592778
-            # datastack_name = "minnie65_public"
-            datastack_name = "minnie65_phase3_v1"
-        #     materialize_version = 795
-        # if materialize_version == 1:
-        #     materialize_version = 795
-        #     materialize_version = 1
-            verbose_level = 1
-        debug_minimize_json_skeleton = False  # DEBUG: See _minimize_json_skeleton_for_easier_debugging() for explanation.
+        cache_meshwork = CACHE_MESHWORK or output_format == "meshwork"
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1401,7 +1384,7 @@ class SkeletonService:
                     return response
                 return cached_skeleton
             elif output_format == "json":
-                if debug_minimize_json_skeleton:  # DEBUG
+                if DEBUG_MINIMIZE_JSON_SKELETON:  # DEBUG
                     cached_skeleton = (
                         SkeletonService._minimize_json_skeleton_for_easier_debugging(
                             cached_skeleton
@@ -1574,7 +1557,7 @@ class SkeletonService:
                 traceback.print_exc()
 
             try:
-                if CACHE_MESHWORK:
+                if cache_meshwork:
                     nrn_file_content = BytesIO()
                     nrn.save_meshwork(nrn_file_content, overwrite=False)
                     nrn_file_content_val = nrn_file_content.getvalue()
@@ -1686,7 +1669,7 @@ class SkeletonService:
             try:
                 skeleton_json = SkeletonService._skeleton_to_json(skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_json, output_format)
-                if debug_minimize_json_skeleton:  # DEBUG
+                if DEBUG_MINIMIZE_JSON_SKELETON:  # DEBUG
                     skeleton_json = (
                         SkeletonService._minimize_json_skeleton_for_easier_debugging(
                             skeleton_json
