@@ -3,9 +3,8 @@ import traceback as tb
 from messagingclient import MessagingClient
 from .service import SkeletonService
 
-verbose_level = 0
-
 def callback(payload):
+    verbose_level = int(payload.attributes["verbose_level"])
     if verbose_level >= 1:
         s = ""
         for k in payload.attributes:
@@ -18,7 +17,7 @@ def callback(payload):
         result = SkeletonService.get_skeleton_by_datastack_and_rid(
             payload.attributes["skeleton_params_datastack_name"],
             int(payload.attributes["skeleton_params_rid"]),
-            None,  # output_format
+            payload.attributes["skeleton_params_output_format"],
             payload.attributes["skeleton_params_bucket"],
             [int(v) for v in payload.attributes["skeleton_params_root_resolution"].split()],
             False if payload.attributes["skeleton_params_collapse_soma"].lower() in ["false", "f", "0"] else True,

@@ -299,6 +299,24 @@ class SkeletonService:
         return cf.exists(file_name)
 
     @staticmethod
+    def _retrieve_meshwork_from_cache(params, include_compression):
+        """
+        """
+        file_name = SkeletonService._get_meshwork_filename(
+            *params, include_compression=include_compression
+        )
+        if verbose_level >= 1:
+            print("_retrieve_meshwork_from_cache() File name being sought in cache:", file_name)
+        bucket = params[1]
+        if verbose_level >= 1:
+            print(f"_retrieve_meshwork_from_cache() Querying meshwork at {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
+        cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
+        if cf.exists(file_name):
+            return cf.get(file_name)
+        
+        return None
+
+    @staticmethod
     def _retrieve_skeleton_from_cache(params, format):
         """
         If the requested format is JSON or PRECOMPUTED, then read the skeleton and return it as native content.
@@ -739,6 +757,23 @@ class SkeletonService:
             inputDictStr = inputDictStr.replace(' ', '')
         inputDictStrBytes = SkeletonService.compressStringToBytes(inputDictStr)
         return inputDictStrBytes
+    
+    @staticmethod
+    def decompressBytes(inputBytes):
+        """
+        Modeled on compressStringToBytes()
+        """
+        bio = BytesIO()
+        stream = BytesIO(inputBytes)
+        decompressor = gzip.GzipFile(fileobj=stream, mode='r')
+        while True:  # until EOF
+            chunk = decompressor.read(8192)
+            if not chunk:
+                decompressor.close()
+                bio.seek(0)
+                return bio.read()
+            bio.write(chunk)
+        return None
 
     @staticmethod
     def decompressBytesToString(inputBytes):
@@ -1072,6 +1107,50 @@ class SkeletonService:
             }
     
     @staticmethod
+    def meshworks_exist(
+        bucket: str,
+        rids: Union[List, int],
+        verbose_level_: int = 0
+    ):
+        """
+        Confirm or deny that a set of root ids have meshworks in the cache.
+        """
+
+        global verbose_level
+        verbose_level = verbose_level_
+
+        if bucket[-1] != "/":
+            bucket += "/"
+
+        if verbose_level >= 1:
+            print(f"meshworks_exist() bucket: {bucket}, rids: {rids}")
+        
+        return_single_value = False
+        if not isinstance(rids, list):
+            return_single_value = True
+            rids = [rids]
+
+        cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
+        if True:  # include_compression:
+            if COMPRESSION == "gzip":
+                compression_suffix = ".gz"
+            elif COMPRESSION == "br":
+                compression_suffix = ".br"
+            elif COMPRESSION == "zstd":
+                compression_suffix = ".zst"
+        filenames = [f"meshwork__v{MESHWORK_VERSION}__rid-{rid}__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5" + compression_suffix for rid in rids]
+        exist_results = cf.exists(filenames)
+        exist_results_clean = {
+            # See _get_meshwork_filename() for the format of the filename.
+            int(filename[(filename.find("rid-")+len("rid-")):filename.find("__ds")]): result for filename, result in exist_results.items()
+        }
+
+        if return_single_value:
+            exist_results_clean = exist_results_clean[rids[0]]
+
+        return exist_results_clean
+    
+    @staticmethod
     def skeletons_exist(
         bucket: str,
         skeleton_version: int,
@@ -1097,7 +1176,14 @@ class SkeletonService:
             rids = [rids]
 
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        filenames = [f"skeleton__v{skeleton_version}__rid-{rid}__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz" for rid in rids]
+        if True:  # include_compression:
+            if COMPRESSION == "gzip":
+                compression_suffix = ".gz"
+            elif COMPRESSION == "br":
+                compression_suffix = ".br"
+            elif COMPRESSION == "zstd":
+                compression_suffix = ".zst"
+        filenames = [f"skeleton__v{skeleton_version}__rid-{rid}__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5" + compression_suffix for rid in rids]
         exist_results = cf.exists(filenames)
         exist_results_clean = {
             # See _get_skeleton_filename() for the format of the filename.
@@ -1113,6 +1199,7 @@ class SkeletonService:
     def publish_skeleton_request(
         datastack_name: str,
         rid: int,
+        output_format: str,
         bucket: str,
         root_resolution: List,
         collapse_soma: bool,
@@ -1124,6 +1211,7 @@ class SkeletonService:
         payload = b""
         attributes = {
             "skeleton_params_rid": f"{rid}",
+            "skeleton_params_output_format": output_format,
             "skeleton_params_bucket": bucket,
             "skeleton_params_datastack_name": datastack_name,
             "skeleton_params_root_resolution": f"{' '.join(map(str, root_resolution))}",
@@ -1167,6 +1255,9 @@ class SkeletonService:
         """
         global verbose_level
         verbose_level = verbose_level_
+
+        if output_format == "meshwork":
+            CACHE_MESHWORK = True
 
         # DEBUG
         if (
@@ -1223,6 +1314,7 @@ class SkeletonService:
             or output_format == "h5"
             or output_format == "swc"
             or output_format == "swccompressed"
+            or output_format == "meshwork"
         )
 
         # Resolve various default skeleton version options
@@ -1246,6 +1338,7 @@ class SkeletonService:
         ]
 
         cached_skeleton = None
+        cached_meshwork = None
         lvl2_ids = None
         if output_format == "none":
             skel_confirmation = SkeletonService._confirm_skeleton_in_cache(
@@ -1257,19 +1350,26 @@ class SkeletonService:
                     print(f"Skeleton is already in cache: {rid}")
                 return
             # At this point, fall through with cached_skeleton set to None to trigger generating a new skeleton.
-        else:
+        elif output_format != "meshwork":
             cached_skeleton = SkeletonService._retrieve_skeleton_from_cache(
                 params, output_format
             )
             if verbose_level >= 1:
-                print(f"Cache query result: {cached_skeleton is not None}")
+                print(f"Cached skeleton query result: {cached_skeleton is not None}")
             if verbose_level >= 2:
-                print(f"Cache query result: {cached_skeleton}")
+                print(f"Cache skeleton query result: {cached_skeleton}")
+        else:  # output_format == "meshwork":
+            cached_meshwork = SkeletonService._retrieve_meshwork_from_cache(
+                params, True
+            )
+            if verbose_level >= 1:
+                print(f"Cached meshwork query result: {cached_meshwork is not None}")
+            if verbose_level >= 2:
+                print(f"Cached meshwork query result: {cached_meshwork}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
         #     cached_skeleton = SkeletonService._retrieve_skeleton_from_local(params, output_format)
 
-        skeleton = None
         skeleton_bytes = None
         if cached_skeleton:
             # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
@@ -1356,12 +1456,27 @@ class SkeletonService:
                 return cached_skeleton
             elif output_format == "h5":
                 # We can't return the H5 file directly. We need to convert it to a bytes stream object.
-                # skeleton = cached_skeleton
                 return cached_skeleton
             elif output_format == "swc":
                 skeleton_bytes = cached_skeleton  # In this case, skeleton will just be a BytesIO object.
             elif output_format == "swccompressed":
                 skeleton_bytes = cached_skeleton
+        elif cached_meshwork:
+            if via_requests and has_request_context():
+                file_name = SkeletonService._get_meshwork_filename(
+                    *params, include_compression=True
+                )
+                file_content = SkeletonService.compressBytes(BytesIO(cached_meshwork))
+                
+                response = Response(
+                    file_content, mimetype="application/octet-stream"
+                )
+                response.headers.update(SkeletonService._response_headers())
+                # Don't call after_request to compress the data since it is already compressed.
+                # response = SkeletonService._after_request(response)
+
+                return response
+            return cached_meshwork
         
         # At this point:
         # either a cached skeleton was found that could be returned immediately,
@@ -1371,7 +1486,9 @@ class SkeletonService:
         # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
         # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
         # There is no need to check for an H5 skeleton if the requested format is H5 or None, since both seek an H5 above.
-        if not skeleton and not skeleton_bytes:
+        nrn = None
+        skeleton = None
+        if not skeleton_bytes:
             if (
                 output_format == "flatdict"
                 or output_format == "json"
@@ -1440,7 +1557,7 @@ class SkeletonService:
         # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
         # but it maximizes the chance of returning a skeleton to the user.
 
-        if output_format == "h5" or generate_new_skeleton:
+        if output_format == "h5" or output_format == "meshwork" or generate_new_skeleton:
             try:
                 debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
                 if debug_skeleton_cache_loc:
@@ -1480,6 +1597,22 @@ class SkeletonService:
                         response = SkeletonService._after_request(response)
                         return response
                     return sk_file_content
+                elif output_format == "meshwork":
+                    if via_requests and has_request_context():
+                        file_name = SkeletonService._get_meshwork_filename(
+                            *params, include_compression=True
+                        )
+                        file_content = SkeletonService.compressBytes(nrn_file_content)
+                        
+                        response = Response(
+                            file_content, mimetype="application/octet-stream"
+                        )
+                        response.headers.update(SkeletonService._response_headers())
+                        # Don't call after_request to compress the data since it is already compressed.
+                        # response = SkeletonService._after_request(response)
+
+                        return response
+                    return nrn_file_content
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
@@ -1760,6 +1893,7 @@ class SkeletonService:
                     SkeletonService.publish_skeleton_request(
                         datastack_name,
                         rid,
+                        "none",
                         bucket,
                         root_resolution,
                         collapse_soma,
@@ -1790,6 +1924,100 @@ class SkeletonService:
                     skeletons[rid] = skeleton_hex_ascii
     
         return skeletons
+    
+    @staticmethod
+    def get_meshwork_by_datastack_and_rid_async(
+        datastack_name: str,
+        rid: int,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        verbose_level_: int = 0,
+    ):
+        """
+        Generate a meshwork aynschronously. Then poll for the result to be ready and return it.
+        """
+        global verbose_level
+        verbose_level = verbose_level_
+
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
+        if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
+        if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+            raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+        
+        skeleton_version = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
+
+        t0 = default_timer()
+
+        if not SkeletonService.meshworks_exist(
+            bucket,
+            rid,
+            verbose_level_
+        ):
+            t1 = default_timer()
+
+            SkeletonService.publish_skeleton_request(
+                datastack_name,
+                rid,
+                "meshwork",
+                bucket,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+                skeleton_version,
+                True,
+                verbose_level_,
+            )
+
+            t2 = default_timer()
+
+            if verbose_level >= 1:
+                print(f"Polling for meshwork to be available for rid {rid}...")
+            while not SkeletonService.meshworks_exist(
+                bucket,
+                rid,
+                verbose_level_
+            ):
+                time.sleep(5)
+            if verbose_level >= 1:
+                print(f"Meshwork is now available for rid {rid}.")
+        else:
+            t2 = t1 = default_timer()
+            if verbose_level >= 1:
+                print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
+        
+        t3 = default_timer()
+
+        meshwork = SkeletonService.get_skeleton_by_datastack_and_rid(
+            datastack_name,
+            rid,
+            "meshwork",
+            bucket,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            skeleton_version,
+            True,
+            verbose_level_,
+        )
+        
+        t4 = default_timer()
+
+        if verbose_level >= 1:
+            et1 = t1 - t0
+            et2 = t2 - t1
+            et3 = t3 - t2
+            et4 = t4 - t3
+            print(f"get_meshwork_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
+            print(f"get_meshwork_by_datastack_and_rid_async() Final skeleton for rid {rid}: {meshwork is not None}")
+        
+        return meshwork
     
     @staticmethod
     def get_skeleton_by_datastack_and_rid_async(
@@ -1832,6 +2060,7 @@ class SkeletonService:
             SkeletonService.publish_skeleton_request(
                 datastack_name,
                 rid,
+                "none",
                 bucket,
                 root_resolution,
                 collapse_soma,
@@ -1916,6 +2145,7 @@ class SkeletonService:
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
+                    "none",
                     bucket,
                     root_resolution,
                     collapse_soma,

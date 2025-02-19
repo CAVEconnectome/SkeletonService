@@ -398,6 +398,47 @@ class SkeletonResource__skeleton_exists_C(Resource):
         return response, 200
 
 
+@api_bp.route("/<string:datastack_name>/precomputed/meshwork/<int:rid>")
+class SkeletonResource__get_meshwork_A(Resource):
+    """SkeletonResource"""
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, rid: int):
+        """Get meshwork by rid"""
+        try:
+            skvn = -1
+            SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+            
+            return SkelClassVsn.get_meshwork_by_datastack_and_rid_async(
+                datastack_name=datastack_name,
+                rid=rid,
+                bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+                root_resolution=[1, 1, 1],
+                collapse_soma=True,
+                collapse_radius=7500,
+                verbose_level_=1,  # DEBUG
+            )
+        
+            # Debugging is easier synchronously (comment out the similar block above)
+            # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
+            #     datastack_name=datastack_name,
+            #     rid=rid,
+            #     output_format="meshwork",
+            #     bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            #     root_resolution=[1, 1, 1],
+            #     collapse_soma=True,
+            #     collapse_radius=7500,
+            #     skeleton_version=skvn,
+            #     verbose_level_=0,
+            # )
+        except ValueError as e:
+            return {"Error": str(e)}, 400
+        except Exception as e:
+            return {"Error": str(e)}, 500
+
+
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource__get_skeleton_A(Resource):
     """SkeletonResource"""
@@ -498,13 +539,14 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
         payload = b""
         attributes = {
             "skeleton_params_rid": f"{rid}",
+            "skeleton_params_output_format": "none",
             "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
             "skeleton_params_datastack_name": datastack_name,
             "skeleton_params_root_resolution": "1 1 1",
             "skeleton_params_collapse_soma": "True",
             "skeleton_params_collapse_radius": "7500",
             "skeleton_version": f"{skvn}",
-            "verbose_level": "1",
+            "verbose_level": "0",
         }
 
         c = MessagingClient()
