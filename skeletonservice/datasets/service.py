@@ -1231,7 +1231,7 @@ class SkeletonService:
         c.publish(exchange, payload, attributes)
 
         if verbose_level_ >= 1:
-            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skeleton_version} {bucket}")
+            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} output_format: {output_format} skvn:{skeleton_version} {bucket}")
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(
@@ -2128,7 +2128,7 @@ class SkeletonService:
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
-                    "none",
+                    "meshwork",
                     bucket,
                     root_resolution,
                     collapse_soma,
