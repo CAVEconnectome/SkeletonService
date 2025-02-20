@@ -1257,7 +1257,7 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
 
-        cache_meshwork = CACHE_MESHWORK or output_format == "meshwork"
+        cache_meshwork = CACHE_MESHWORK or output_format == "meshwork" or output_format == "meshwork_none"
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1533,7 +1533,7 @@ class SkeletonService:
         # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
         # but it maximizes the chance of returning a skeleton to the user.
 
-        if output_format == "h5" or output_format == "meshwork" or generate_new_skeleton:
+        if output_format == "h5" or output_format == "meshwork" or output_format == "meshwork_none" or generate_new_skeleton:
             try:
                 debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
                 if debug_skeleton_cache_loc:
