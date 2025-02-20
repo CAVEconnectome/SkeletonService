@@ -692,7 +692,7 @@ class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
-            verbose_level_=0,
+            verbose_level_=1,  # DEBUG
         )
     
         return response, 200

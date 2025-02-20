@@ -2113,12 +2113,15 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
         
+        if verbose_level_ >= 1:
+            print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
+
         cave_client = caveclient.CAVEclient(
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
         )
         cv = cave_client.info.segmentation_cloudvolume()
-        
+
         num_valid_rids = 0
         for rid in rids:
             if cave_client.chunkedgraph.is_valid_nodes(rid) and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
