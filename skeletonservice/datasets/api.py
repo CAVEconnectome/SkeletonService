@@ -664,6 +664,41 @@ class SkeletonResource__get_skeleton_async_C(Resource):
 
 
 
+@api_bp.route("/<string:datastack_name>/bulk/gen_meshworks")
+class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
+    """SkeletonResource"""
+
+    @api_bp.expect(bulk_async_parser)
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def post(self, datastack_name: str):
+        # I don't understand why other examples (AnnotationEngine, MaterializationEngine)
+        # use request.parsed_obj to retrieve post data,
+        # which doesn't exist in this case, instead of request.json, which does exist.
+        
+        # data = request.parsed_obj  # Doesn't work, doesn't exist
+        
+        data = request.json
+        rids = data['root_ids']
+        
+        skvn = -1
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        response = SkelClassVsn.generate_meshworks_bulk_by_datastack_and_rids_async(
+            datastack_name,
+            rids=rids,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            verbose_level_=0,
+        )
+    
+        return response, 200
+
+
+
 # NOTE: Use of this endpoint is only supported by CAVEclient:SkeletonService when applied to older versions of this server code,
 # and likewise it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<string:rids>")

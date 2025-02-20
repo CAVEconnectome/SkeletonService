@@ -1934,8 +1934,6 @@ class SkeletonService:
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
         
-        skeleton_version = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
-
         t0 = default_timer()
 
         if not SkeletonService.meshworks_exist(
@@ -1953,7 +1951,7 @@ class SkeletonService:
                 root_resolution,
                 collapse_soma,
                 collapse_radius,
-                skeleton_version,
+                -1,
                 True,
                 verbose_level_,
             )
@@ -1985,7 +1983,7 @@ class SkeletonService:
             root_resolution,
             collapse_soma,
             collapse_radius,
-            skeleton_version,
+            -1,
             True,
             verbose_level_,
         )
@@ -2097,6 +2095,57 @@ class SkeletonService:
             print(f"get_skeleton_by_datastack_and_rid_async() Final skeleton for rid {rid}: {skeleton is not None}")
         
         return skeleton
+
+    
+    @staticmethod
+    def generate_meshworks_bulk_by_datastack_and_rids_async(
+        datastack_name: str,
+        rids: List,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        verbose_level_: int = 0,
+    ):
+        """
+        Generate multiple skeletons aynschronously without returning anything.
+        """
+        global verbose_level
+        verbose_level = verbose_level_
+        
+        cave_client = caveclient.CAVEclient(
+            datastack_name,
+            server_address=CAVE_CLIENT_SERVER,
+        )
+        cv = cave_client.info.segmentation_cloudvolume()
+        
+        num_valid_rids = 0
+        for rid in rids:
+            if cave_client.chunkedgraph.is_valid_nodes(rid) and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+                SkeletonService.publish_skeleton_request(
+                    datastack_name,
+                    rid,
+                    "none",
+                    bucket,
+                    root_resolution,
+                    collapse_soma,
+                    collapse_radius,
+                    -1,
+                    False,
+                    verbose_level_,
+                )
+                num_valid_rids += 1
+        
+        meshwork_generation_time_estimate_secs = 60  # seconds
+        try:
+            num_workers = current_app.config["SKELETONCACHE_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
+        except KeyError:
+            print("Flask config variable SKELETONCACHE_MAX_REPLICAS not found. Using default value of 15.")
+            num_workers = 15
+        estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * meshwork_generation_time_estimate_secs
+        if verbose_level >= 1:
+            print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {meshwork_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
+        return estimated_async_time_secs_upper_bound
 
     
     @staticmethod
