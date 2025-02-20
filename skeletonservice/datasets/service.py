@@ -1287,17 +1287,7 @@ class SkeletonService:
             output_format = "none"
 
         assert (
-            output_format == "none"
-            or output_format == "flatdict"
-            or output_format == "json"
-            or output_format == "jsoncompressed"
-            or output_format == "arrays"
-            or output_format == "arrayscompressed"
-            or output_format == "precomputed"
-            or output_format == "h5"
-            or output_format == "swc"
-            or output_format == "swccompressed"
-            or output_format == "meshwork"
+            output_format in ["none", "meshwork_none", "flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "precomputed", "h5", "swc", "swccompressed", "meshwork"]
         )
 
         # Resolve various default skeleton version options
@@ -1333,7 +1323,17 @@ class SkeletonService:
                     print(f"Skeleton is already in cache: {rid}")
                 return
             # At this point, fall through with cached_skeleton set to None to trigger generating a new skeleton.
-        elif output_format != "meshwork":
+        elif output_format == "meshwork_none":
+            meshwork_confirmation = SkeletonService._retrieve_meshwork_from_cache(
+                params, True
+            )
+            if meshwork_confirmation:
+                # Nothing else to do, so return
+                if verbose_level >= 1:
+                    print(f"Meshwork is already in cache: {rid}")
+                return
+            # At this point, fall through with cached_meshwork set to None to trigger generating a new skeleton.
+        elif output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "precomputed", "h5", "swc", "swccompressed"]:
             cached_skeleton = SkeletonService._retrieve_skeleton_from_cache(
                 params, output_format
             )
@@ -1445,21 +1445,23 @@ class SkeletonService:
             elif output_format == "swccompressed":
                 skeleton_bytes = cached_skeleton
         elif cached_meshwork:
-            if via_requests and has_request_context():
-                file_name = SkeletonService._get_meshwork_filename(
-                    *params, include_compression=True
-                )
-                file_content = SkeletonService.compressBytes(BytesIO(cached_meshwork))
-                
-                response = Response(
-                    file_content, mimetype="application/octet-stream"
-                )
-                response.headers.update(SkeletonService._response_headers())
-                # Don't call after_request to compress the data since it is already compressed.
-                # response = SkeletonService._after_request(response)
+            # Currently, the only possible output_format is "meshwork"
+            if output_format == "meshwork":
+                if via_requests and has_request_context():
+                    file_name = SkeletonService._get_meshwork_filename(
+                        *params, include_compression=True
+                    )
+                    file_content = SkeletonService.compressBytes(BytesIO(cached_meshwork))
+                    
+                    response = Response(
+                        file_content, mimetype="application/octet-stream"
+                    )
+                    response.headers.update(SkeletonService._response_headers())
+                    # Don't call after_request to compress the data since it is already compressed.
+                    # response = SkeletonService._after_request(response)
 
-                return response
-            return cached_meshwork
+                    return response
+                return cached_meshwork
         
         # At this point:
         # either a cached skeleton was found that could be returned immediately,
@@ -1472,16 +1474,7 @@ class SkeletonService:
         nrn = None
         skeleton = None
         if not skeleton_bytes:
-            if (
-                output_format == "flatdict"
-                or output_format == "json"
-                or output_format == "jsoncompressed"
-                or output_format == "arrays"
-                or output_format == "arrayscompressed"
-                or output_format == "swc"
-                or output_format == "swccompressed"
-                or output_format == "precomputed"
-            ):
+            if output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "swc", "swccompressed", "precomputed"]:
                 skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
             if verbose_level >= 1:
                 print(f"H5 cache query result: {skeleton}")
@@ -2128,7 +2121,7 @@ class SkeletonService:
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
-                    "meshwork",
+                    "meshwork_none",
                     bucket,
                     root_resolution,
                     collapse_soma,
