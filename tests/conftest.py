@@ -8,6 +8,8 @@ from skeletonservice.datasets.service_skvn2 import SkeletonService_skvn2
 from skeletonservice.datasets.service_skvn3 import SkeletonService_skvn3
 from skeletonservice.datasets.service_skvn4 import SkeletonService_skvn4
 
+from cloudfiles import CloudFiles
+
 test_logger = logging.getLogger(__name__)
 
 test_config = {
@@ -33,3 +35,7 @@ def test_app():
         # Establish an application context
         with flask_app.app_context():
             yield testing_client  #
+
+@pytest.fixture()
+def cloudfiles():
+    return CloudFiles("gs://test_bucket")

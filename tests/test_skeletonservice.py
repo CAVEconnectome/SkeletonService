@@ -1,14 +1,9 @@
 import io
-import unittest
+from unittest.mock import patch
 from skeletonservice.datasets.service import SkeletonService
+from cloudfiles import CloudFiles
 
 class TestSkeletonsService:
-    def test_foo(self):
-        assert True
-    
-    # def test_bar(self):
-    #     assert False
-
     def test_create_versioned_skeleton_service(self, test_app):
         SkelClassVsn = SkeletonService.get_version_specific_handler(1)
         assert SkelClassVsn.__name__ == "SkeletonService_skvn1"
@@ -46,8 +41,27 @@ class TestSkeletonsService:
         data_decompressed = SkelClassVsn.decompressBytesToDict(data_compressed)
         assert data_decompressed == data
 
-    def test_get_cache_contents(self, test_app):
-        pass
+    # @patch.object(CloudFiles, "list")
+    def test_get_cache_contents(self, test_app, cloudfiles, mocker):
+        rid_prefix = "a"
+        skeleton_version = 4
+        prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
+        filename = f"{prefix}.h5.gz"
+
+        patcher = patch.object(CloudFiles, "list", return_value=[filename])
+        mock = patcher.start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        cache_contents = SkelClassVsn.get_cache_contents(
+            bucket="gs://test_bucket",
+            skeleton_version=4,
+            rid_prefixes=[rid_prefix])
+        
+        assert cache_contents == {
+            "num_found": 1,
+            "files": [filename]
+        }
 
     def test_meshworks_exist(self, test_app):
         pass
