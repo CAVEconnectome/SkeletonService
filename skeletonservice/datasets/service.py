@@ -10,7 +10,6 @@ import traceback
 import datetime
 from messagingclient import MessagingClient
 import numpy as np
-import pandas as pd
 import json
 import gzip
 from flask import current_app, send_file, Response, request, has_request_context, jsonify
@@ -1287,7 +1286,8 @@ class SkeletonService:
             output_format = "none"
 
         assert (
-            output_format in ["none", "meshwork_none", "flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "precomputed", "h5", "swc", "swccompressed", "meshwork"]
+            output_format in ["none", "meshwork_none", "flatdict", "json", "jsoncompressed", "arrays",
+                              "arrayscompressed", "precomputed", "h5", "swc", "swccompressed", "meshwork"]
         )
 
         # Resolve various default skeleton version options
@@ -1333,7 +1333,8 @@ class SkeletonService:
                     print(f"Meshwork is already in cache: {rid}")
                 return
             # At this point, fall through with cached_meshwork set to None to trigger generating a new skeleton.
-        elif output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "precomputed", "h5", "swc", "swccompressed"]:
+        elif output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed",
+                               "precomputed", "h5", "swc", "swccompressed"]:
             cached_skeleton = SkeletonService._retrieve_skeleton_from_cache(
                 params, output_format
             )
@@ -1649,7 +1650,7 @@ class SkeletonService:
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                        # Don't call after_request to compress the data since it is already compressed.
+                    # Don't call after_request to compress the data since it is already compressed.
                     # response = SkeletonService._after_request(response)
                     if response:
                         return response
@@ -1692,7 +1693,7 @@ class SkeletonService:
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
                     response.headers.update(SkeletonService._response_headers())
-                        # Don't call after_request to compress the data since it is already compressed.
+                    # Don't call after_request to compress the data since it is already compressed.
                     # response = SkeletonService._after_request(response)
                     if response:
                         return response
