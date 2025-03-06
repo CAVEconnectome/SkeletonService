@@ -214,7 +214,7 @@ matplotlib==3.8.4
     #   vtk
 matplotlib-inline==0.1.6
     # via ipython
-meshparty==1.16.16
+meshparty==1.18.0
     # via pcg-skel
 messagingclient==0.2.1
 microviewer==1.11.0

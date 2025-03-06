@@ -7,8 +7,7 @@ flask-accepts
 responses
 middle-auth-client>=3.16.0
 caveclient>=6.2.0
-meshparty
+meshparty>=1.16.16
 pcg_skel>=1.0.3
 messagingclient
 cloud-volume>=8.29.0
-meshparty>=1.16.16
