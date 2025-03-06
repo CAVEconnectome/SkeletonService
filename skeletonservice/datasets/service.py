@@ -1342,7 +1342,7 @@ class SkeletonService:
                 print(f"Cached skeleton query result: {cached_skeleton is not None}")
             if verbose_level >= 2:
                 print(f"Cache skeleton query result: {cached_skeleton}")
-        else:  # output_format == "meshwork":
+        elif output_format == "meshwork":
             cached_meshwork = SkeletonService._retrieve_meshwork_from_cache(
                 params, True
             )
@@ -1350,6 +1350,8 @@ class SkeletonService:
                 print(f"Cached meshwork query result: {cached_meshwork is not None}")
             if verbose_level >= 2:
                 print(f"Cached meshwork query result: {cached_meshwork}")
+        else:
+            raise ValueError(f"Unknown output format: {output_format}")
 
         # if os.path.exists(DEBUG_SKELETON_CACHE_LOC):
         #     cached_skeleton = SkeletonService._retrieve_skeleton_from_local(params, output_format)
@@ -1357,11 +1359,6 @@ class SkeletonService:
         skeleton_bytes = None
         if cached_skeleton:
             # cached_skeleton will be JSON or PRECOMPUTED content, or H5 or SWC file bytes.
-            # if output_format == "none":
-            #     # If no output format is specified (e.g. the messaging interface), then returning a skeleton is not requested,
-            #     # merely generating one if it doesn't exist, so, since a skeleton already exists in the cache, we're done.
-            #     # There's nothing to generate and nothing to return.
-            #     return
             if output_format == "precomputed":
                 if via_requests and has_request_context():
                     response = Response(
@@ -1447,27 +1444,27 @@ class SkeletonService:
                 skeleton_bytes = cached_skeleton
         elif cached_meshwork:
             # Currently, the only possible output_format is "meshwork"
-            if output_format == "meshwork":
-                if via_requests and has_request_context():
-                    file_name = SkeletonService._get_meshwork_filename(
-                        *params, include_compression=True
-                    )
-                    file_content = SkeletonService.compressBytes(BytesIO(cached_meshwork))
-                    
-                    response = Response(
-                        file_content, mimetype="application/octet-stream"
-                    )
-                    response.headers.update(SkeletonService._response_headers())
-                    # Don't call after_request to compress the data since it is already compressed.
-                    # response = SkeletonService._after_request(response)
+            assert output_format == "meshwork"
+            if via_requests and has_request_context():
+                file_name = SkeletonService._get_meshwork_filename(
+                    *params, include_compression=True
+                )
+                file_content = SkeletonService.compressBytes(BytesIO(cached_meshwork))
+                
+                response = Response(
+                    file_content, mimetype="application/octet-stream"
+                )
+                response.headers.update(SkeletonService._response_headers())
+                # Don't call after_request to compress the data since it is already compressed.
+                # response = SkeletonService._after_request(response)
 
-                    return response
-                return cached_meshwork
+                return response
+            return cached_meshwork
         
         # At this point:
-        # either a cached skeleton was found that could be returned immediately,
-        # or a cached skeleton was found, but needs further conversion,
-        # or no cached skeleton was found.
+        # Either a cached skeleton was found that could be returned immediately,
+        # Or a cached skeleton was found, but needs further conversion,
+        # Or no cached skeleton was found.
         
         # If the requested format was JSON or SWC or PRECOMPUTED (and getting to this point implies no file already exists),
         # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
@@ -1534,6 +1531,11 @@ class SkeletonService:
         # Admittedly, this approach risks shielding developers/debuggers from detecting problems with the cache system, such as bucket failures,
         # but it maximizes the chance of returning a skeleton to the user.
 
+        # The "none" output_format will be caught by the first condition below
+        # because generate_new_skeleton must be True at this point if output_format is "none".
+        if output_format == "none":
+            assert generate_new_skeleton
+        
         if output_format == "h5" or output_format == "meshwork" or output_format == "meshwork_none" or generate_new_skeleton:
             try:
                 debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
@@ -1590,6 +1592,8 @@ class SkeletonService:
 
                         return response
                     return nrn_file_content
+                elif output_format == "none" or output_format == "meshwork_none":
+                    return None
             except Exception as e:
                 print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()

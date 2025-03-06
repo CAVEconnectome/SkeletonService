@@ -195,7 +195,7 @@ class TestSkeletonsService:
             collapse_radius=7500,
         )
 
-        # This test patches away the actual call to get_skeleton_by_datastack_and_rid, so it will return None.
+        # This test patches away the actual call to get_skeleton_by_datastack_and_rid(), so it will return None.
         assert mw is None
 
     @responses.activate
@@ -228,7 +228,7 @@ class TestSkeletonsService:
             skeleton_version=skvn,
         )
 
-        # This test patches away the actual call to get_skeleton_by_datastack_and_rid, so it will return None.
+        # This test patches away the actual call to get_skeleton_by_datastack_and_rid(), so it will return None.
         assert sk is None
 
     def test_generate_meshworks_bulk_by_datastack_and_rids_async(self, test_app, caveclient_mock, cloudvolume_mock):
@@ -257,7 +257,6 @@ class TestSkeletonsService:
             collapse_radius=7500,
         )
 
-        # This test patches away the actual call to get_skeleton_by_datastack_and_rid, so it will return None.
         assert et == 60
 
     def test_generate_skeletons_bulk_by_datastack_and_rids_async(self, test_app, caveclient_mock, cloudvolume_mock):
@@ -288,5 +287,4 @@ class TestSkeletonsService:
             skeleton_version=skvn,
         )
 
-        # This test patches away the actual call to get_skeleton_by_datastack_and_rid, so it will return None.
         assert et == 60
