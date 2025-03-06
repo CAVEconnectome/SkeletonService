@@ -368,8 +368,6 @@ pytz==2024.1
     #   pandas
 pyvista==0.43.6
     # via pymeshfix
-pyyaml==6.0.2
-    # via responses
 referencing==0.33.0
     # via
     #   jsonschema
@@ -383,8 +381,6 @@ requests==2.31.0
     #   google-cloud-storage
     #   middle-auth-client
     #   pooch
-    #   responses
-responses==0.25.6
 rpds-py==0.18.0
     # via
     #   jsonschema
@@ -459,7 +455,6 @@ urllib3==2.2.1
     #   cloud-files
     #   cloud-volume
     #   requests
-    #   responses
 vtk==9.3.0
     # via
     #   meshparty
