@@ -4,7 +4,7 @@ Flask<3.0
 flask-cors
 flask-restx
 flask-accepts
-# responses
+responses
 middle-auth-client>=3.16.0
 caveclient>=6.2.0
 meshparty>=1.16.16
