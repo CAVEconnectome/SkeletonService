@@ -423,6 +423,26 @@ class SkeletonService:
         skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{skeleton_version},{rid},{skeletonization_elapsed_time}\n"
         skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()
         cf.put(file_name, skeleton_times_bytes, compress=True)
+    
+    @staticmethod
+    def _check_root_id_against_list(bucket, rid):
+        """
+        Some root ids cannot be meaningfully skeletonized. For example, some correspond to gigantic objects. Such root ids should not be processed.
+        Return True if the root id is in the list of root ids to refuse skeletonization.
+        """
+        if verbose_level >= 1:
+            print(f"Reading list of root ids for which to refuse skeletonization from {bucket}")
+        
+        if isinstance(rid, int):
+            rid = str(rid)
+
+        file_name = "skeletonization_refusal_root_ids.txt"
+        cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
+        skeletonization_refusal_root_ids = []
+        if cf.exists(file_name):
+            skeletonization_refusal_root_ids_txt = cf.get(file_name).decode("utf-8")
+            skeletonization_refusal_root_ids = skeletonization_refusal_root_ids_txt.split("\n")
+        return rid in skeletonization_refusal_root_ids
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -1267,6 +1287,12 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
         
+        # Confirm that the rid isn't in the refusal list
+        if SkeletonService._check_root_id_against_list(bucket, rid):
+            if verbose_level >= 1:
+                print(f"get_skeleton_by_datastack_and_rid() rid {rid} is in the refusal list and therefore won't be skeletonized.")
+            return
+        
         # Confirm the rid validity in a few ways
         cave_client = caveclient.CAVEclient(
             datastack_name,
@@ -1275,11 +1301,15 @@ class SkeletonService:
 
         # Confirm that the rid exists
         if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            if verbose_level >= 1:
+                print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
             return
         
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+            if verbose_level >= 1:
+                print(f"get_skeleton_by_datastack_and_rid() rid {rid} isn't a root id (perhaps it is a supervoxel id) and therefore won't be skeletonized.")
             return
         
         if not output_format:
@@ -1841,6 +1871,8 @@ class SkeletonService:
                 collapse_radius,
             ]
 
+            if SkeletonService._check_root_id_against_list(bucket, rid):
+                continue
             if not cave_client.chunkedgraph.is_valid_nodes(rid):
                 skeletons[rid] = "invalid_rid"
                 continue
@@ -1922,6 +1954,9 @@ class SkeletonService:
         global verbose_level
         verbose_level = verbose_level_
 
+        if SkeletonService._check_root_id_against_list(bucket, rid):
+            raise ValueError(f"Problematic root id: {rid} is in the refusal list")
+        
         cave_client = caveclient.CAVEclient(
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
@@ -2015,6 +2050,9 @@ class SkeletonService:
         """
         global verbose_level
         verbose_level = verbose_level_
+
+        if SkeletonService._check_root_id_against_list(bucket, rid):
+            raise ValueError(f"Problematic root id: {rid} is in the refusal list")
 
         cave_client = caveclient.CAVEclient(
             datastack_name,
@@ -2122,7 +2160,9 @@ class SkeletonService:
 
         num_valid_rids = 0
         for rid in rids:
-            if cave_client.chunkedgraph.is_valid_nodes(rid) and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+            if not SkeletonService._check_root_id_against_list(bucket, rid) \
+                    and cave_client.chunkedgraph.is_valid_nodes(rid) \
+                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
@@ -2174,7 +2214,9 @@ class SkeletonService:
         
         num_valid_rids = 0
         for rid in rids:
-            if cave_client.chunkedgraph.is_valid_nodes(rid) and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+            if not SkeletonService._check_root_id_against_list(bucket, rid) \
+                    and cave_client.chunkedgraph.is_valid_nodes(rid) \
+                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
