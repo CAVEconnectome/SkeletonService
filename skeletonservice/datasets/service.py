@@ -89,7 +89,7 @@ SKELETON_VERSION_PARAMS = {
                 }]},
 }
 
-verbose_level = os.environ.get('VERBOSE_LEVEL', 0)
+verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 logging.basicConfig(level=logging.WARNING)
 
 
