@@ -146,8 +146,13 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.chunkedgraph, 'is_valid_nodes', return_value=True).start()
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
-        results_mock = {"rid-1__ds": True}
-        patch.object(CloudFiles, "exists", return_value=results_mock).start()
+        def exists_side_effect(*args, **kwargs):
+            # Customize the return value based on the function's parameters
+            if args[0] == "skeleton__v4__rid-1__ds-test_stack__res-1x1x1__cs-True__cr-7500.h5.gz":
+                return {"rid-1__ds": True}
+            elif args[0] == "skeletonization_refusal_root_ids.txt":
+                return False
+        patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
 
         skvn = 4
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
@@ -179,8 +184,13 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.chunkedgraph, 'is_valid_nodes', return_value=True).start()
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
-        results_mock = {"rid-1__ds": True}
-        patch.object(CloudFiles, "exists", return_value=results_mock).start()
+        def exists_side_effect(*args, **kwargs):
+            # Customize the return value based on the function's parameters
+            if args[0] == ['meshwork__v1__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
+                return {"rid-1__ds": True}
+            elif args[0] == "skeletonization_refusal_root_ids.txt":
+                return False
+        patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
 
         patch.object(SkeletonService, "get_skeleton_by_datastack_and_rid", return_value=None).start()
 
@@ -209,8 +219,13 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.chunkedgraph, 'is_valid_nodes', return_value=True).start()
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
-        results_mock = {"rid-1__ds": True}
-        patch.object(CloudFiles, "exists", return_value=results_mock).start()
+        def exists_side_effect(*args, **kwargs):
+            # Customize the return value based on the function's parameters
+            if args[0] == ['skeleton__v4__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
+                return {"rid-1__ds": True}
+            elif args[0] == "skeletonization_refusal_root_ids.txt":
+                return False
+        patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
 
         patch.object(SkeletonService, "get_skeleton_by_datastack_and_rid", return_value=None).start()
 
@@ -241,8 +256,13 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.chunkedgraph, 'is_valid_nodes', return_value=True).start()
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
-        results_mock = {"rid-1__ds": True}
-        patch.object(CloudFiles, "exists", return_value=results_mock).start()
+        def exists_side_effect(*args, **kwargs):
+            # Customize the return value based on the function's parameters
+            if args[0] == ['meshwork__v4__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
+                return {"rid-1__ds": True}
+            elif args[0] == "skeletonization_refusal_root_ids.txt":
+                return False
+        patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
 
         patch.object(SkeletonService, "publish_skeleton_request", return_value=None).start()
 
@@ -269,8 +289,13 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.chunkedgraph, 'is_valid_nodes', return_value=True).start()
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
-        results_mock = {"rid-1__ds": True}
-        patch.object(CloudFiles, "exists", return_value=results_mock).start()
+        def exists_side_effect(*args, **kwargs):
+            # Customize the return value based on the function's parameters
+            if args[0] == ['skeleton__v4__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
+                return {"rid-1__ds": True}
+            elif args[0] == "skeletonization_refusal_root_ids.txt":
+                return False
+        patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
 
         patch.object(SkeletonService, "publish_skeleton_request", return_value=None).start()
 
