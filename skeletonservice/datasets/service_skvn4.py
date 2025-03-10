@@ -15,7 +15,8 @@ class SkeletonService_skvn4(SkeletonService):
         limit: int = None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
             skeleton_version,
@@ -31,7 +32,8 @@ class SkeletonService_skvn4(SkeletonService):
         rids: Union[List, int] = None,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.skeletons_exist: {bucket} {skeleton_version} {rids}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.skeletons_exist: {bucket} {skeleton_version} {rids}")
         return SkeletonService.skeletons_exist(
             bucket,
             skeleton_version,
@@ -52,7 +54,8 @@ class SkeletonService_skvn4(SkeletonService):
         via_requests: bool = True,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid: {datastack_name} {rid} {output_format} {bucket}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid: {datastack_name} {rid} {output_format} {bucket}")
         return SkeletonService.get_skeleton_by_datastack_and_rid(
             datastack_name,
             rid,
@@ -78,7 +81,8 @@ class SkeletonService_skvn4(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid_async: {datastack_name} {rid} {output_format} {bucket}")
         return SkeletonService.get_skeleton_by_datastack_and_rid_async(
             datastack_name,
             rid,
@@ -104,7 +108,8 @@ class SkeletonService_skvn4(SkeletonService):
         generate_missing_skeletons: bool = False,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid: {datastack_name} {rids} {bucket}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.get_skeleton_by_datastack_and_rid: {datastack_name} {rids} {bucket}")
         return SkeletonService.get_skeletons_bulk_by_datastack_and_rids(
             datastack_name,
             rids,
@@ -129,7 +134,8 @@ class SkeletonService_skvn4(SkeletonService):
         skeleton_version: int = -1,
         verbose_level_: int = 0,
     ):
-        print(f"SkeletonService_skvn4.generate_skeletons_bulk_by_datastack_and_rids_async: {datastack_name} {rids} {bucket}")
+        if verbose_level_ >= 1:
+            print(f"SkeletonService_skvn4.generate_skeletons_bulk_by_datastack_and_rids_async: {datastack_name} {rids} {bucket}")
         return SkeletonService.generate_skeletons_bulk_by_datastack_and_rids_async(
             datastack_name,
             rids,
