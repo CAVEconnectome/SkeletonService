@@ -344,13 +344,14 @@ class SkeletonResource__skeleton_exists_A(Resource):
         return SkeletonResource__skeleton_exists_B.process(NEUROGLANCER_SKELETON_VERSION, root_ids)
 
 
+# NOTE: Use of this endpoint has been removed from CAVEclient:SkeletonService, but it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int(signed=True):skvn>/<string:root_ids>")
 class SkeletonResource__skeleton_exists_B(Resource):
     """SkeletonResource"""
 
     @staticmethod
     def process(skvn: int, root_ids: str):
-        return SkeletonResource__skeleton_exists_C.process(NEUROGLANCER_SKELETON_VERSION, root_ids)
+        return SkeletonResource__skeleton_exists_C.process(skvn, root_ids)
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -364,8 +365,28 @@ class SkeletonResource__skeleton_exists_B(Resource):
         return self.process(skvn, root_ids)
 
 
-@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists")
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int(signed=True):skvn>/<string:root_ids>/<int:verbose_level>")
 class SkeletonResource__skeleton_exists_C(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(skvn: int, root_ids: str, verbose_level: int=0):
+        return SkeletonResource__skeleton_exists_D.process(skvn, root_ids, verbose_level)
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, root_ids: str, verbose_level: int):
+        """
+        Determine whether skeletons exist in the cache for a set of root ids
+        
+        root_ids could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
+        """
+        return self.process(skvn, root_ids, verbose_level)
+
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists")
+class SkeletonResource__skeleton_exists_D(Resource):
     """SkeletonResource"""
 
     @staticmethod
@@ -462,6 +483,7 @@ class SkeletonResource__get_skeleton_A(Resource):
         return SkeletonResource__get_skeleton_B.process(datastack_name, NEUROGLANCER_SKELETON_VERSION, rid)
 
 
+# NOTE: Use of this endpoint has been removed from CAVEclient:SkeletonService, but it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource__get_skeleton_B(Resource):
     """SkeletonResource"""
@@ -661,6 +683,7 @@ class SkeletonResource__get_skeletons_bulk_C(Resource):
         return self.process(datastack_name, skvn, output_format, gms, rids, verbose_level)
 
 
+# I'm unsure if a past version of CAVEclient used this, so it should be left in place. It hasn't been used in recent versions however.
 @api_bp.route("/<string:datastack_name>/async/get_skeleton/<int:rid>")
 class SkeletonResource__get_skeleton_async_A(Resource):
     """SkeletonResource"""
@@ -676,6 +699,7 @@ class SkeletonResource__get_skeleton_async_A(Resource):
         return SkeletonResource__get_skeleton_async_B.process(datastack_name, NEUROGLANCER_SKELETON_VERSION, rid)
 
 
+# I'm unsure if a past version of CAVEclient used this, so it should be left in place. It hasn't been used in recent versions however.
 @api_bp.route("/<string:datastack_name>/async/get_skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource__get_skeleton_async_B(Resource):
     """SkeletonResource"""
@@ -820,8 +844,25 @@ class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
         return self.process(datastack_name, skvn, rids)
 
 
-@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons")
+# NOTE: Use of this endpoint is only supported by CAVEclient:SkeletonService when applied to older versions of this server code,
+# and likewise it can't be removed from here if there are any older clients in the wild that might access it.
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int(signed=True):skvn>/<string:rids>/<int:verbose_level>")
 class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
+    """SkeletonResource"""
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rids: str, verbose_level: int=0):
+        return SkeletonResource__gen_skeletons_bulk_async_D.process(datastack_name, skvn, rids, verbose_level)
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str, skvn: int, rids: str, verbose_level: int):
+        return self.process(datastack_name, skvn, rids, verbose_level)
+
+
+@api_bp.route("/<string:datastack_name>/bulk/gen_skeletons")
+class SkeletonResource__gen_skeletons_bulk_async_D(Resource):
     """SkeletonResource"""
 
     @staticmethod

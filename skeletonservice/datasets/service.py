@@ -1092,7 +1092,8 @@ class SkeletonService:
         """
 
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1137,7 +1138,8 @@ class SkeletonService:
         """
 
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1182,7 +1184,8 @@ class SkeletonService:
         """
 
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1274,7 +1277,8 @@ class SkeletonService:
         If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         cache_meshwork = CACHE_MESHWORK or output_format == "meshwork" or output_format == "meshwork_none"
 
@@ -1831,7 +1835,8 @@ class SkeletonService:
         Provide bulk retrieval (and optional generation) of skeletons by a list of root ids.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1953,7 +1958,8 @@ class SkeletonService:
         Generate a meshwork aynschronously. Then poll for the result to be ready and return it.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if SkeletonService._check_root_id_against_list(bucket, rid):
             raise ValueError(f"Problematic root id: {rid} is in the refusal list")
@@ -2050,7 +2056,8 @@ class SkeletonService:
         Generate a skeleton aynschronously. Then poll for the result to be ready and return it.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
 
         if SkeletonService._check_root_id_against_list(bucket, rid):
             raise ValueError(f"Problematic root id: {rid} is in the refusal list")
@@ -2148,7 +2155,8 @@ class SkeletonService:
         Generate multiple skeletons aynschronously without returning anything.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
         
         if verbose_level_ >= 1:
             print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
@@ -2205,7 +2213,8 @@ class SkeletonService:
         Generate multiple skeletons aynschronously without returning anything.
         """
         global verbose_level
-        verbose_level = verbose_level_
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
         
         cave_client = caveclient.CAVEclient(
             datastack_name,
