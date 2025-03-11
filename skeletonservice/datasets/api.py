@@ -17,7 +17,7 @@ from middle_auth_client import (
 
 from typing import List, Dict
 
-__version__ = "0.17.6"
+__version__ = "0.17.7"
 
 
 authorizations = {
@@ -322,7 +322,8 @@ class SkeletonResource__query_cache_C(Resource):
         
         root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
-        return self.process(skvn, root_id_prefixes, limit, verbose_level)
+        verbose_level_ = int(request.args.get('verbose_level')) if 'verbose_level' in request.args else 0
+        return self.process(skvn, root_id_prefixes, limit, verbose_level_)
 
 # NOTE: Use of this endpoint has been removed from CAVEclient:SkeletonService, but it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<string:root_ids>")
