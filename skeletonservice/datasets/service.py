@@ -1175,6 +1175,7 @@ class SkeletonService:
     @staticmethod
     def skeletons_exist(
         bucket: str,
+        datastack_name: str,
         skeleton_version: int,
         rids: Union[List, int],
         verbose_level_: int = 0
@@ -1191,7 +1192,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"skeletons_exist() bucket: {bucket}, skeleton_version: {skeleton_version}, rids: {rids}")
+            print(f"skeletons_exist() bucket: {bucket}, datastack_name: {datastack_name}, skeleton_version: {skeleton_version}, rids: {rids}")
         
         return_single_value = False
         if not isinstance(rids, list):
@@ -1199,14 +1200,21 @@ class SkeletonService:
             rids = [rids]
 
         cf = CloudFiles(f"{bucket}{skeleton_version}/")
-        if True:  # include_compression:
-            if COMPRESSION == "gzip":
-                compression_suffix = ".gz"
-            elif COMPRESSION == "br":
-                compression_suffix = ".br"
-            elif COMPRESSION == "zstd":
-                compression_suffix = ".zst"
-        filenames = [f"skeleton__v{skeleton_version}__rid-{rid}__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5" + compression_suffix for rid in rids]
+        
+        filenames = [
+            SkeletonService._get_skeleton_filename(
+                rid,
+                bucket,
+                skeleton_version,
+                datastack_name,
+                [1, 1, 1],
+                True,
+                7500,
+                "h5",
+                True,
+            )
+            for rid in rids
+        ]
         exist_results = cf.exists(filenames)
         exist_results_clean = {
             # See _get_skeleton_filename() for the format of the filename.
@@ -2076,6 +2084,7 @@ class SkeletonService:
 
         if not SkeletonService.skeletons_exist(
             bucket,
+            datastack_name,
             skeleton_version,
             rid,
             verbose_level_
@@ -2101,6 +2110,7 @@ class SkeletonService:
                 print(f"Polling for skeleton to be available for rid {rid}...")
             while not SkeletonService.skeletons_exist(
                 bucket,
+                datastack_name,
                 skeleton_version,
                 rid,
                 verbose_level_
