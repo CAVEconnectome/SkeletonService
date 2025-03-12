@@ -208,13 +208,11 @@ class SkeletonService:
 
         return file_name
 
-    # @staticmethod
-    # def _get_skeleton_location(params, format):
-    #     """
-    #     Build a location for a skeleton file based on the parameters and the cache location (likely a Google bucket).
-    #     """
-    #     bucket, skeleton_version = params[1], params[2]
-    #     return f"{bucket}{skeleton_version}/{SkeletonService._get_skeleton_filename(*params, format)}"
+    @staticmethod
+    def _get_bucket_subdirectory(bucket, datastack_name, skeleton_version):
+        if bucket[-1] != "/":
+            bucket += "/"
+        return f"{bucket}{datastack_name}/{skeleton_version}/"
 
     @staticmethod
     def _retrieve_skeleton_from_local(params, format):
@@ -292,10 +290,10 @@ class SkeletonService:
         file_name = SkeletonService._get_skeleton_filename(*params, format)
         if verbose_level >= 1:
             print("File name being sought in cache:", file_name)
-        bucket, skeleton_version = params[1], params[2]
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_confirm_skeleton_in_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+            print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         return cf.exists(file_name)
 
     @staticmethod
@@ -329,10 +327,10 @@ class SkeletonService:
         file_name = SkeletonService._get_skeleton_filename(*params, cached_format)
         if verbose_level >= 1:
             print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
-        bucket, skeleton_version = params[1], params[2]
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_retrieve_skeleton_from_cache() Querying skeleton at {bucket}{skeleton_version}/{file_name}")
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+            print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if cf.exists(file_name):
             if format == "flatdict":
                 return cf.get(file_name)
@@ -387,10 +385,10 @@ class SkeletonService:
         file_name = SkeletonService._get_skeleton_filename(
             *params, format, include_compression=include_compression
         )
-        bucket, skeleton_version = params[1], params[2]
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"Caching skeleton to {bucket}{skeleton_version}/{file_name}")
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+            print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if format == "json" or format == "arrays":
             cf.put_json(
                 file_name, skeleton_file_content, COMPRESSION if include_compression else None
@@ -1082,6 +1080,7 @@ class SkeletonService:
     @staticmethod
     def get_cache_contents(
         bucket: str,
+        datastack_name: str,
         skeleton_version: int,
         rid_prefixes: List,
         limit: int = None,
@@ -1099,9 +1098,9 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"get_cache_contents() bucket: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
+            print(f"get_cache_contents() bucket: {bucket}, datastack_name: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
 
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         all_h5_files = []
         for rid_prefix in rid_prefixes:
             prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
@@ -1199,7 +1198,7 @@ class SkeletonService:
             return_single_value = True
             rids = [rids]
 
-        cf = CloudFiles(f"{bucket}{skeleton_version}/")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         
         filenames = [
             SkeletonService._get_skeleton_filename(

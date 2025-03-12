@@ -68,7 +68,8 @@ class TestSkeletonsService:
         SkelClassVsn = SkeletonService.get_version_specific_handler(4)
 
         cache_contents = SkelClassVsn.get_cache_contents(
-            bucket="gs://test_bucket",
+            bucket="gs://test_bucket/",
+            datastack_name=datastack_dict["datastack_name"],
             skeleton_version=4,
             rid_prefixes=[rid_prefix],
         )

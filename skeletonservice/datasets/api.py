@@ -275,7 +275,7 @@ class SkeletonResource__query_cache_A(Resource):
         
         # Use the NeuroGlancer compatible version
         verbose_level = int(request.args.get('verbose_level')) if 'verbose_level' in request.args else 0
-        return SkeletonResource__query_cache_B.process(NEUROGLANCER_SKELETON_VERSION, root_id_prefixes, limit, verbose_level)
+        return SkeletonResource__query_cache_B.process(datastack_name, NEUROGLANCER_SKELETON_VERSION, root_id_prefixes, limit, verbose_level)
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int(signed=True):skvn>/<string:root_id_prefixes>/<int:limit>")
@@ -283,11 +283,12 @@ class SkeletonResource__query_cache_B(Resource):
     """SkeletonResource"""
 
     @staticmethod
-    def process(skvn: int, root_id_prefixes: str, limit: int, verbose_level: int=0):
+    def process(datastack_name: str, skvn: int, root_id_prefixes: str, limit: int, verbose_level: int=0):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
         
         return SkelClassVsn.get_cache_contents(
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            datastack_name=datastack_name,
             skeleton_version=skvn,
             rid_prefixes=[int(v) for v in root_id_prefixes.split(',')],
             limit=limit,
@@ -304,7 +305,7 @@ class SkeletonResource__query_cache_B(Resource):
         root_id_prefixes could be a single int (as a string), a single string (i.e. one int as a string), or a comma-separated list of strings (i.e. multiple ints as a single string).
         """
         verbose_level = int(request.args.get('verbose_level')) if 'verbose_level' in request.args else 0
-        return self.process(skvn, root_id_prefixes, limit, verbose_level)
+        return self.process(datastack_name, skvn, root_id_prefixes, limit, verbose_level)
 
 
 # NOTE: Use of this endpoint has been removed from CAVEclient:SkeletonService, but it can't be removed from here if there are any older clients in the wild that might access it.

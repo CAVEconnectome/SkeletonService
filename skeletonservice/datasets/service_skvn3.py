@@ -10,6 +10,7 @@ class SkeletonService_skvn3(SkeletonService):
     @staticmethod
     def get_cache_contents(
         bucket: str,
+        datastack_name: str,
         skeleton_version: int = -1,
         rid_prefixes: List = None,
         limit: int = None,
@@ -19,6 +20,7 @@ class SkeletonService_skvn3(SkeletonService):
             print(f"SkeletonService_skvn3.get_cache_contents: {bucket} {skeleton_version} {rid_prefixes} {limit}")
         return SkeletonService.get_cache_contents(
             bucket,
+            datastack_name,
             skeleton_version,
             rid_prefixes,
             limit,
