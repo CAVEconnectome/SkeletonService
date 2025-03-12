@@ -103,6 +103,7 @@ class TestSkeletonsService:
 
         results = SkelClassVsn.skeletons_exist(
             bucket="gs://test_bucket",
+            datastack_name=datastack_dict["datastack_name"],
             rids=rids
         )
         assert results == {
@@ -221,7 +222,7 @@ class TestSkeletonsService:
 
         def exists_side_effect(*args, **kwargs):
             # Customize the return value based on the function's parameters
-            if args[0] == ['skeleton__v4__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
+            if args[0] == [f'skeleton__v4__rid-1__ds-{datastack_dict["datastack_name"]}__res-1x1x1__cs-True__cr-7500.h5.gz']:
                 return {"rid-1__ds": True}
             elif args[0] == "skeletonization_refusal_root_ids.txt":
                 return False
