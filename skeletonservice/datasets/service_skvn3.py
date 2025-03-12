@@ -28,6 +28,7 @@ class SkeletonService_skvn3(SkeletonService):
     @staticmethod
     def skeletons_exist(
         bucket: str,
+        datastack_name: str,
         skeleton_version: int = -1,
         rids: Union[List, int] = None,
         verbose_level_: int = 0,
@@ -36,6 +37,7 @@ class SkeletonService_skvn3(SkeletonService):
             print(f"SkeletonService_skvn3.skeletons_exist: {bucket} {skeleton_version} {rids}")
         return SkeletonService.skeletons_exist(
             bucket,
+            datastack_name,
             skeleton_version,
             rids,
             verbose_level_,
