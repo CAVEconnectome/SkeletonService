@@ -2197,10 +2197,10 @@ class SkeletonService:
         
         meshwork_generation_time_estimate_secs = 60  # seconds
         try:
-            num_workers = current_app.config["SKELETONCACHE_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
+            num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
-            print("Flask config variable SKELETONCACHE_MAX_REPLICAS not found. Using default value of 15.")
             num_workers = 15
+            print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
         estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * meshwork_generation_time_estimate_secs
         if verbose_level >= 1:
             print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {meshwork_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
@@ -2252,10 +2252,10 @@ class SkeletonService:
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
-            num_workers = current_app.config["SKELETONCACHE_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
+            num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
-            print("Flask config variable SKELETONCACHE_MAX_REPLICAS not found. Using default value of 15.")
             num_workers = 15
+            print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
         estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * skeleton_generation_time_estimate_secs
         if verbose_level >= 1:
             print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
