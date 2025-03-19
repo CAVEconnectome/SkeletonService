@@ -1248,6 +1248,7 @@ class SkeletonService:
             "skeleton_params_collapse_soma": f"{collapse_soma}",
             "skeleton_params_collapse_radius": f"{collapse_radius}",
             "skeleton_version": f"{skeleton_version}",
+            "high_priority": f"{high_priority}",
             "verbose_level": f"{verbose_level_}",
         }
 
