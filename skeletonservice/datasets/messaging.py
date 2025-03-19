@@ -68,9 +68,8 @@ def callback(payload):
 c = MessagingClient()
 l2cache_low_priority_update_queue = getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", "does-not-exist")
 l2cache_high_priority_update_queue = getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", "does-not-exist")
-l2cache_low_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", "does-not-exist")
+l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", "does-not-exist")
 c.consume_multiple([l2cache_low_priority_update_queue,
                     l2cache_high_priority_update_queue,
-                    l2cache_low_dead_update_queue,
-                    l2cache_low_dead_update_queue],
+                    l2cache_dead_update_queue],
                     callback)
