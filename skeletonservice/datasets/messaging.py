@@ -25,8 +25,9 @@ def callback(payload):
     
     if verbose_level >= 1:
         try:
-            print("Skeleton Cache message-processor retrieving message 'payload.attributes.googleclient_deliveryattempt'...")
-            print("Skeleton Cache message-processor message attempt 2: ", type(payload.attributes.googleclient_deliveryattempt), payload.attributes.googleclient_deliveryattempt)
+            print("Skeleton Cache message-processor retrieving message 'payload.attributes.get(\"googleclient_deliveryattempt\", 0)'...")
+            print("Skeleton Cache message-processor message attempt 2: ", payload.attributes.get("googleclient_deliveryattempt", 0))
+            delivery_attempt = payload.attributes.get("googleclient_deliveryattempt", 0)
         except Exception as e:
             print("Skeleton Cache message-processor message attempt 2 error: ", repr(e))
             print(tb.format_exc())
