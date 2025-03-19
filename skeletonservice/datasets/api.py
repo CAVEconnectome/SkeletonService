@@ -522,25 +522,38 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
-        from messagingclient import MessagingClient
+        SkeletonService.publish_skeleton_request(
+            datastack_name,
+            rid,
+            "none",
+            current_app.config["SKELETON_CACHE_BUCKET"],
+            [1, 1, 1],
+            True,
+            7500,
+            skvn,
+            True,
+            verbose_level,
+        )
 
-        payload = b""
-        attributes = {
-            "skeleton_params_rid": f"{rid}",
-            "skeleton_params_output_format": "none",
-            "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
-            "skeleton_params_datastack_name": datastack_name,
-            "skeleton_params_root_resolution": "1 1 1",
-            "skeleton_params_collapse_soma": "True",
-            "skeleton_params_collapse_radius": "7500",
-            "skeleton_version": f"{skvn}",
-            "verbose_level": str(verbose_level),
-        }
+        # from messagingclient import MessagingClient
 
-        c = MessagingClient()
+        # payload = b""
+        # attributes = {
+        #     "skeleton_params_rid": f"{rid}",
+        #     "skeleton_params_output_format": "none",
+        #     "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
+        #     "skeleton_params_datastack_name": datastack_name,
+        #     "skeleton_params_root_resolution": "1 1 1",
+        #     "skeleton_params_collapse_soma": "True",
+        #     "skeleton_params_collapse_radius": "7500",
+        #     "skeleton_version": f"{skvn}",
+        #     "verbose_level": str(verbose_level),
+        # }
+
+        # c = MessagingClient()
         exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", "skeleton")
-        # print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
-        c.publish(exchange, payload, attributes)
+        # # print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
+        # c.publish(exchange, payload, attributes)
 
         # print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
         return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
