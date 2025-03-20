@@ -36,6 +36,7 @@ CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_easier_debugging() for explanation.
+DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 DATASTACK_NAME_REMAPPING = {
@@ -1337,7 +1338,7 @@ class SkeletonService:
             )
         
         # DEBUG: To test PubSub dead-lettering, raise an exception for a test rid
-        if rid == 102030405060708090:
+        if rid == DEBUG_DEAD_LETTER_TEST_RID:
             raise Exception("Test exception for PubSub dead-lettering")
         
         # Confirm that the rid isn't in the refusal list
@@ -1926,14 +1927,15 @@ class SkeletonService:
                 collapse_radius,
             ]
 
-            if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
-                continue
-            if not cave_client.chunkedgraph.is_valid_nodes(rid):
-                skeletons[rid] = "invalid_rid"
-                continue
-            if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
-                skeletons[rid] = "invalid_layer_rid"
-                continue
+            if rid != DEBUG_DEAD_LETTER_TEST_RID:
+                if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
+                    continue
+                if not cave_client.chunkedgraph.is_valid_nodes(rid):
+                    skeletons[rid] = "invalid_rid"
+                    continue
+                if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+                    skeletons[rid] = "invalid_layer_rid"
+                    continue
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
             if verbose_level >= 1:
@@ -2108,18 +2110,19 @@ class SkeletonService:
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
 
-        if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
-            raise ValueError(f"Problematic root id: {rid} is in the refusal list")
+        if rid != DEBUG_DEAD_LETTER_TEST_RID:
+            if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
+                raise ValueError(f"Problematic root id: {rid} is in the refusal list")
 
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
-        cv = cave_client.info.segmentation_cloudvolume()
-        if not cave_client.chunkedgraph.is_valid_nodes(rid):
-            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
-        if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
-            raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+            cave_client = caveclient.CAVEclient(
+                datastack_name,
+                server_address=CAVE_CLIENT_SERVER,
+            )
+            cv = cave_client.info.segmentation_cloudvolume()
+            if not cave_client.chunkedgraph.is_valid_nodes(rid):
+                raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
+            if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
+                raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
         
         t0 = default_timer()
 
@@ -2220,9 +2223,11 @@ class SkeletonService:
 
         num_valid_rids = 0
         for rid in rids:
-            if not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid) \
+            if rid == DEBUG_DEAD_LETTER_TEST_RID or (
+                    not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid) \
                     and cave_client.chunkedgraph.is_valid_nodes(rid) \
-                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
+                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers
+                ): 
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
                     rid,
