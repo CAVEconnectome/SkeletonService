@@ -230,7 +230,7 @@ meshparty==1.18.2
     # via
     #   -r requirements.in
     #   pcg-skel
-messagingclient @ git+https://github.com/seung-lab/messaging-client@callback_dev
+messagingclient==0.2.2
     # via -r requirements.in
 microviewer==1.11.0
     # via cloud-volume
