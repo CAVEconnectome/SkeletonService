@@ -1336,6 +1336,10 @@ class SkeletonService:
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
         
+        # DEBUG: To test PubSub dead-lettering, raise an exception for a test rid
+        if rid == 102030405060708090:
+            raise Exception("Test exception for PubSub dead-lettering")
+        
         # Confirm that the rid isn't in the refusal list
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             if verbose_level >= 1:
