@@ -1,7 +1,13 @@
 from os import getenv
 import traceback as tb
+import logging
 from messagingclient import MessagingClient
 from .service import SkeletonService
+
+logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger('messagingclient')
+logger.setLevel(logging.INFO)
 
 def callback(payload):
     verbose_level = int(payload.attributes["verbose_level"])
