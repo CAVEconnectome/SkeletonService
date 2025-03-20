@@ -13,11 +13,12 @@ def callback(payload):
     
     delivery_attempt = -2
     topic = "Unknown topic"
+    subscription = "Unknown subscription"
     high_priority = True
 
     if verbose_level >= 1:
         try:
-            print("Skeleton Cache message-processor retrieving message 'payload.delivery_attempt'...")
+            print("Skeleton Cache message-processor retrieving delivery_attempt 1...")
             print("Skeleton Cache message-processor message attempt 1: ", type(payload.delivery_attempt), payload.delivery_attempt)
             delivery_attempt = payload.delivery_attempt
         except Exception as e:
@@ -26,7 +27,7 @@ def callback(payload):
     
     if verbose_level >= 1:
         try:
-            print("Skeleton Cache message-processor retrieving message 'payload.attributes.get(\"googleclient_deliveryattempt\", 0)'...")
+            print("Skeleton Cache message-processor retrieving delivery_attempt 2...")
             print("Skeleton Cache message-processor message attempt 2: ", payload.attributes.get("googleclient_deliveryattempt", -1))
             delivery_attempt = payload.attributes.get("googleclient_deliveryattempt", -1)
         except Exception as e:
@@ -35,11 +36,29 @@ def callback(payload):
     
     if verbose_level >= 1:
         try:
-            print("Skeleton Cache message-processor retrieving topic ''...")
+            print("Skeleton Cache message-processor retrieving delivery_attempt 3...")
+            print("Skeleton Cache message-processor message attempt 3: ", payload.attributes.get("__delivery_attempt", -1))
+            delivery_attempt = payload.attributes.get("__delivery_attempt", -1)
+        except Exception as e:
+            print("Skeleton Cache message-processor message attempt 3 error: ", repr(e))
+            print(tb.format_exc())
+    
+    if verbose_level >= 1:
+        try:
+            print("Skeleton Cache message-processor retrieving topic...")
             print("Skeleton Cache message-processor topic: ", payload.attributes.get("topic", "Unknown topic"))
             topic = payload.attributes.get("topic", "Unknown topic")
         except Exception as e:
             print("Skeleton Cache message-processor topic error: ", repr(e))
+            print(tb.format_exc())
+    
+    if verbose_level >= 1:
+        try:
+            print("Skeleton Cache message-processor retrieving subscription...")
+            print("Skeleton Cache message-processor subscription: ", payload.attributes.get("__subscription_name", "Unknown subscription"))
+            subscription = payload.attributes.get("subscription", "Unknown subscription")
+        except Exception as e:
+            print("Skeleton Cache message-processor subscription error: ", repr(e))
             print(tb.format_exc())
     
     if verbose_level >= 1:
@@ -51,7 +70,7 @@ def callback(payload):
             print(tb.format_exc())
     
     if verbose_level >= 1:
-        print("Skeleton Cache message-processor message delivery attempt, topic and high priority: ", delivery_attempt, topic, high_priority)
+        print("Skeleton Cache message-processor message delivery attempt, topic, subscription and high priority: ", delivery_attempt, topic, subscription, high_priority)
     if delivery_attempt < 0:
         delivery_attempt = 0
     
