@@ -11,7 +11,8 @@ def callback(payload):
             s += f"\n| {k}: {payload.attributes[k]}"
         print("Skeleton Cache message-processor received message: ", s)
     
-    delivery_attempt = 0
+    delivery_attempt = -2
+    topic = "Unknown topic"
     high_priority = True
 
     if verbose_level >= 1:
@@ -26,10 +27,19 @@ def callback(payload):
     if verbose_level >= 1:
         try:
             print("Skeleton Cache message-processor retrieving message 'payload.attributes.get(\"googleclient_deliveryattempt\", 0)'...")
-            print("Skeleton Cache message-processor message attempt 2: ", payload.attributes.get("googleclient_deliveryattempt", 0))
-            delivery_attempt = payload.attributes.get("googleclient_deliveryattempt", 0)
+            print("Skeleton Cache message-processor message attempt 2: ", payload.attributes.get("googleclient_deliveryattempt", -1))
+            delivery_attempt = payload.attributes.get("googleclient_deliveryattempt", -1)
         except Exception as e:
             print("Skeleton Cache message-processor message attempt 2 error: ", repr(e))
+            print(tb.format_exc())
+    
+    if verbose_level >= 1:
+        try:
+            print("Skeleton Cache message-processor retrieving topic ''...")
+            print("Skeleton Cache message-processor topic: ", payload.attributes.get("topic", "Unknown topic"))
+            topic = payload.attributes.get("topic", "Unknown topic")
+        except Exception as e:
+            print("Skeleton Cache message-processor topic error: ", repr(e))
             print(tb.format_exc())
     
     if verbose_level >= 1:
@@ -37,11 +47,13 @@ def callback(payload):
             print("Skeleton Cache message-processor retrieving priority...")
             print("Skeleton Cache message-processor message high priority: ", payload.attributes["high_priority"])
         except Exception as e:
-            print("Skeleton Cache message-processor message high priority error: ", repr(e))
+            print("Skeleton Cache message-processor message priority error: ", repr(e))
             print(tb.format_exc())
     
     if verbose_level >= 1:
-        print("Skeleton Cache message-processor message delivery attempt and high priority: ", delivery_attempt, high_priority)
+        print("Skeleton Cache message-processor message delivery attempt, topic and high priority: ", delivery_attempt, topic, high_priority)
+    if delivery_attempt < 0:
+        delivery_attempt = 0
     
     try:
         # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.
