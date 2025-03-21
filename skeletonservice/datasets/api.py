@@ -17,7 +17,7 @@ from middle_auth_client import (
 
 from typing import List, Dict
 
-__version__ = "0.17.22"
+__version__ = "0.17.23"
 
 
 authorizations = {
