@@ -439,7 +439,7 @@ class SkeletonService:
             refusal_df = pd.read_csv(BytesIO(skeletonization_refusal_root_ids_csv.encode("utf-8")))
             refusal_df['ROOT_ID'] = refusal_df['ROOT_ID'].astype(np.uint64)
             return refusal_df
-        return None
+        return pd.DataFrame([], columns=["DATASTACK_NAME", "ROOT_ID"])
     
     @staticmethod
     def _check_root_id_against_refusal_list(bucket, datastack_name, rid):
@@ -452,7 +452,7 @@ class SkeletonService:
         
         if not isinstance(rid, int):
             rid = int(rid)
-
+        
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
         return (skeletonization_refusal_root_ids_df == [datastack_name, rid]).all(axis=1).any()
     
@@ -2244,6 +2244,9 @@ class SkeletonService:
         
         meshwork_generation_time_estimate_secs = 60  # seconds
         try:
+            # TODO: SKELETONCACHE_WORKER_MAX_REPLICAS won't be available because it wasn't added to CAVEDevelopment:skeletoncache.yml.
+            # The reason I didn't add it is that it is an int, not a string, and Kubernetes crashes if I try to add it to the environment.
+            # I will have to convert it to a string and then convert it back to an int here, which is a task I will take care of later.
             num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
             num_workers = 15
@@ -2299,6 +2302,9 @@ class SkeletonService:
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
+            # TODO: SKELETONCACHE_WORKER_MAX_REPLICAS won't be available because it wasn't added to CAVEDevelopment:skeletoncache.yml.
+            # The reason I didn't add it is that it is an int, not a string, and Kubernetes crashes if I try to add it to the environment.
+            # I will have to convert it to a string and then convert it back to an int here, which is a task I will take care of later.
             num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
             num_workers = 15
