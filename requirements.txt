@@ -289,7 +289,7 @@ pathos==0.3.2
     # via
     #   cloud-files
     #   cloud-volume
-pcg-skel==1.0.3
+pcg-skel==1.3.0
 pexpect==4.9.0
     # via ipython
 pillow==10.3.0
