@@ -19,7 +19,7 @@ def callback(payload):
     
     subscription = "Unknown"
     try:
-        subscription = payload.attributes.get("subscription", "Unknown")
+        subscription = payload.attributes.get("__subscription_name", "Unknown")
     except Exception as e:
         print("Skeleton Cache message-processor error getting subscription from message: ", repr(e))
         print(tb.format_exc())
@@ -32,7 +32,8 @@ def callback(payload):
         print(tb.format_exc())
     
     if verbose_level >= 1:
-        print("Skeleton Cache message-processor subscription and high priority: ", subscription, high_priority)
+        print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
+        print(f"Does the subscription match the dead letter queue ({l2cache_dead_update_queue})? {subscription} == {l2cache_dead_update_queue}")
     
     if subscription != l2cache_dead_update_queue:
         try:
