@@ -34,9 +34,9 @@ def callback(payload):
     l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if verbose_level >= 1:
         print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
-        print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {subscription == l2cache_dead_update_queue}")
+        print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {l2cache_dead_update_queue in subscription}")
     
-    if subscription != l2cache_dead_update_queue:
+    if l2cache_dead_update_queue not in subscription:
         try:
             # NOTE: Forrest indicates I am shooting for something like the following once fully implemented.
             # SkelClassVsn = current_app.config['SKELETON_VERSION_ENGINES'][int(payload.attributes["skeleton_version"])]
