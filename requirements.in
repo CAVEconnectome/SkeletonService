@@ -6,8 +6,9 @@ flask-restx
 flask-accepts
 responses
 middle-auth-client>=3.16.0
-caveclient>=6.5.0
+caveclient>=7.6.2
 meshparty>=1.18.2
 pcg_skel>=1.0.3
 messagingclient
+cloud-files>=5.0.3
 cloud-volume>=8.29.0
