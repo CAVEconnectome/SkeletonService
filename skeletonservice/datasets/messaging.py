@@ -31,9 +31,10 @@ def callback(payload):
         print("Skeleton Cache message-processor error getting priority from message: ", repr(e))
         print(tb.format_exc())
     
+    l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if verbose_level >= 1:
         print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
-        print(f"Does the subscription match the dead letter queue ({l2cache_dead_update_queue})? {subscription} == {l2cache_dead_update_queue}")
+        print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {subscription == l2cache_dead_update_queue}")
     
     if subscription != l2cache_dead_update_queue:
         try:
@@ -78,9 +79,11 @@ def callback(payload):
             raise e
 
 c = MessagingClient()
-l2cache_low_priority_update_queue = getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", "does-not-exist")
-l2cache_high_priority_update_queue = getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", "does-not-exist")
-l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", "does-not-exist")
+l2cache_low_priority_update_queue = getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", None)
+l2cache_high_priority_update_queue = getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", None)
+l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
+if not l2cache_low_priority_update_queue or not l2cache_high_priority_update_queue or not l2cache_dead_update_queue:
+    raise ValueError(f"Skeleton Cache messaging client: one or more of the messaging queues are not set: LOW:{l2cache_low_priority_update_queue}, HIGH:{l2cache_high_priority_update_queue}, DEAD:{l2cache_dead_update_queue}")
 c.consume_multiple([l2cache_low_priority_update_queue,
                     l2cache_high_priority_update_queue,
                     l2cache_dead_update_queue],
