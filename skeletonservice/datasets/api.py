@@ -449,7 +449,7 @@ class SkeletonResource__get_skeleton_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
-        return SkeletonResource__get_skeleton_C.process(datastack_name, skvn, rid, 'precomputed')
+        return SkeletonResource__get_skeleton_C.process(datastack_name, skvn, rid, 'precomputed', verbose_level)
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
