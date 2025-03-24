@@ -2135,6 +2135,9 @@ class SkeletonService:
         ):
             t1 = default_timer()
 
+            if verbose_level >= 1:
+                print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
+
             SkeletonService.publish_skeleton_request(
                 datastack_name,
                 rid,
@@ -2151,7 +2154,7 @@ class SkeletonService:
             t2 = default_timer()
 
             if verbose_level >= 1:
-                print(f"Polling for skeleton to be available for rid {rid}...")
+                print(f"get_skeleton_by_datastack_and_rid_async() Polling for skeleton to be available for rid {rid}...")
             while not SkeletonService.skeletons_exist(
                 bucket,
                 datastack_name,
@@ -2161,11 +2164,11 @@ class SkeletonService:
             ):
                 time.sleep(5)
             if verbose_level >= 1:
-                print(f"Skeleton is now available for rid {rid}.")
+                print(f"get_skeleton_by_datastack_and_rid_async() Skeleton is now available for rid {rid}.")
         else:
             t2 = t1 = default_timer()
             if verbose_level >= 1:
-                print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
+                print(f"get_skeleton_by_datastack_and_rid_async() No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
         
         t3 = default_timer()
 
