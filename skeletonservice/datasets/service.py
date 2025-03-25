@@ -50,46 +50,46 @@ SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neurog
 SKELETON_VERSION_PARAMS = {
     # V1: Basic skeletons
     1: {'@type': 'neuroglancer_skeletons',
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': []},
+        'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+        'vertex_attributes': []},
     # V2: V1 extended to include radii and compartments, compatible with Neuroglancer
     2: {'@type': 'neuroglancer_skeletons',
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [{
-                    # TODO: Due to a Neuroglancer limitation, the compartment must be encoded as a float.
-                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
-                    'id': 'radius',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },{
-                    'id': 'compartment',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                }]},
+        'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+        'vertex_attributes': [{
+            # TODO: Due to a Neuroglancer limitation, the compartment must be encoded as a float.
+            # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
+            'id': 'radius',
+            'data_type': 'float32',
+            'num_components': 1,
+        },{
+            'id': 'compartment',
+            'data_type': 'float32',
+            'num_components': 1,
+        }]},
     # V3: V2 storing compartments more efficiently as uint8 instead of float32, which is not compatible with Neuroglancer
     3: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [{
-                    'id': 'radius',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },{
-                    'id': 'compartment',
-                    'data_type': 'uint8',
-                    'num_components': 1,
-                }]},
+        'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+        'vertex_attributes': [{
+            'id': 'radius',
+            'data_type': 'float32',
+            'num_components': 1,
+        },{
+            'id': 'compartment',
+            'data_type': 'uint8',
+            'num_components': 1,
+        }]},
     # V4: V3 extended to include level-2 ids (not included when requesting an SWC skeleton and therefore identical to V3 in the SWC case)
     4: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
-            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
-            'vertex_attributes': [{
-                    'id': 'radius',
-                    'data_type': 'float32',
-                    'num_components': 1,
-                },{
-                    'id': 'compartment',
-                    'data_type': 'uint8',
-                    'num_components': 1,
-                }]},
+        'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+        'vertex_attributes': [{
+            'id': 'radius',
+            'data_type': 'float32',
+            'num_components': 1,
+        },{
+            'id': 'compartment',
+            'data_type': 'uint8',
+            'num_components': 1,
+        }]},
 }
 
 logging.basicConfig(level=logging.WARNING)
@@ -336,7 +336,7 @@ class SkeletonService:
             print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+            print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if cf.exists(file_name):
             if format == "flatdict":
