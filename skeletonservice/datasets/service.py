@@ -1855,9 +1855,11 @@ class SkeletonService:
                 vertices=skeleton.vertices,
                 edges=skeleton.edges,
                 space="voxel",
+                radius=skeleton.vertex_properties.get("radius", None),
                 # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
                 # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
-                extra_attributes=[],  # Prevent the defaults from being used
+                # extra_attributes=[],  # Prevent the defaults from being used
+                extra_attributes=SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'],
             )
             for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
                 cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
