@@ -99,8 +99,6 @@ verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
 # Enable verbose debugging for one root id, e.g., a problematic id that has been encountered by a user
 debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
-if debugging_root_id != 0 and verbose_level < 1:
-    verbose_level = 1
 
 class SkeletonService:
     @staticmethod
@@ -470,6 +468,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if rid == debugging_root_id and verbose_level < 1:
+            verbose_level = 1
         
         if verbose_level >= 1:
             print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
@@ -1137,6 +1137,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if debugging_root_id in rid_prefixes and verbose_level < 1:
+            verbose_level = 1
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -1194,6 +1196,9 @@ class SkeletonService:
         if not isinstance(rids, list):
             return_single_value = True
             rids = [rids]
+        
+        if debugging_root_id in rids and verbose_level < 1:
+            verbose_level = 1
 
         cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
         if True:  # include_compression:
@@ -1241,6 +1246,9 @@ class SkeletonService:
         if not isinstance(rids, list):
             return_single_value = True
             rids = [rids]
+        
+        if debugging_root_id in rids and verbose_level < 1:
+            verbose_level = 1
 
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         
@@ -1331,6 +1339,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if rid == debugging_root_id and verbose_level < 1:
+            verbose_level = 1
 
         cache_meshwork = CACHE_MESHWORK or output_format == "meshwork" or output_format == "meshwork_none"
 
@@ -1893,6 +1903,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if debugging_root_id in rids and verbose_level < 1:
+            verbose_level = 1
 
         if bucket[-1] != "/":
             bucket += "/"
@@ -2017,6 +2029,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if rid == debugging_root_id and verbose_level < 1:
+            verbose_level = 1
 
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             raise ValueError(f"Problematic root id: {rid} is in the refusal list")
@@ -2115,6 +2129,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if rid == debugging_root_id and verbose_level < 1:
+            verbose_level = 1
 
         if rid != DEBUG_DEAD_LETTER_TEST_RID:
             if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
@@ -2220,6 +2236,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if debugging_root_id in rids and verbose_level < 1:
+            verbose_level = 1
         
         if verbose_level_ >= 1:
             print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
@@ -2283,6 +2301,8 @@ class SkeletonService:
         global verbose_level
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
+        if debugging_root_id in rids and verbose_level < 1:
+            verbose_level = 1
         
         cave_client = caveclient.CAVEclient(
             datastack_name,
