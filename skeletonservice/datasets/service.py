@@ -34,7 +34,7 @@ CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-api
 CACHE_NON_H5_SKELETONS = True  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
-DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
+# DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_easier_debugging() for explanation.
 DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
@@ -92,9 +92,15 @@ SKELETON_VERSION_PARAMS = {
                 }]},
 }
 
-verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 logging.basicConfig(level=logging.WARNING)
 
+# Default verbose level
+verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
+
+# Enable verbose debugging for one root id, e.g., a problematic id that has been encountered by a user
+debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
+if debugging_root_id != 0 and verbose_level < 1:
+    verbose_level = 1
 
 class SkeletonService:
     @staticmethod
@@ -295,7 +301,7 @@ class SkeletonService:
             print("File name being sought in cache:", file_name)
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+            print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         return cf.exists(file_name)
 
