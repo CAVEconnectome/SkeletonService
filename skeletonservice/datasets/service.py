@@ -301,6 +301,8 @@ class SkeletonService:
         if verbose_level >= 1:
             print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
+        if verbose_level >= 1:
+            print(f"_confirm_skeleton_in_cache() Result for {file_name}: {cf.exists(file_name)}")
         return cf.exists(file_name)
 
     @staticmethod
@@ -318,6 +320,9 @@ class SkeletonService:
         cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
         if cf.exists(file_name):
             return cf.get(file_name)
+        else:
+            if verbose_level >= 1:
+                print(f"_retrieve_meshwork_from_cache() Not found in cache: {file_name}")
         
         return None
 
@@ -360,6 +365,9 @@ class SkeletonService:
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
                 return skeleton_bytes  # Don't even bother building a skeleton object
+        else:
+            if verbose_level >= 1:
+                print(f"_retrieve_skeleton_from_cache() Not found in cache: {file_name}")
                 
         return None if format != "h5_mpsk" else (None, None)
 
@@ -1851,18 +1859,28 @@ class SkeletonService:
         if output_format == "precomputed":
             # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
             # Convert the MeshParty skeleton to a CloudVolume skeleton
-            cv_skeleton = cloudvolume.Skeleton(
-                vertices=skeleton.vertices,
-                edges=skeleton.edges,
-                space="voxel",
-                radius=skeleton.vertex_properties.get("radius", None),
-                # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
-                # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
-                # extra_attributes=[],  # Prevent the defaults from being used
-                extra_attributes=SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'],
-            )
-            for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
-                cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
+            try:
+                cv_skeleton = cloudvolume.Skeleton(
+                    vertices=skeleton.vertices,
+                    edges=skeleton.edges,
+                    space="voxel",
+                    radii=skeleton.vertex_properties.get("radius", None),
+                    # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
+                    # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
+                    # extra_attributes=[],  # Prevent the defaults from being used
+                    extra_attributes=SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'],
+                )
+            except Exception as e:
+                print(f"Exception while creating CloudVolume skeleton for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
+                raise e
+            
+            try:
+                for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
+                    cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
+            except Exception as e:
+                print(f"Exception while creating CloudVolume skeletn for {rid}: {str(e)}. Traceback:")
+                traceback.print_exc()
             
             # Convert the CloudVolume skeleton to precomputed format
             skeleton_precomputed = cv_skeleton.to_precomputed()
