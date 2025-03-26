@@ -1,3 +1,4 @@
+import copy
 import logging
 import os
 # Import flask dependencies
@@ -229,7 +230,7 @@ class SkeletonResource__skeleton_version_info_B(Resource):
     def process(skvn):
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {list(SKELETON_VERSION_PARAMS.keys())}")
-        return SKELETON_VERSION_PARAMS[skvn]
+        return copy.deepcopy(SKELETON_VERSION_PARAMS[skvn])
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
