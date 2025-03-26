@@ -510,18 +510,19 @@ class SkeletonService:
             resolution (np.array): x,y z resolution of the soma position in nm
         """
 
-        if soma_tables is None:
-            soma_tables = client.info.get_datastack_info()["soma_table"]
-
-            if soma_tables is None:
-                return None, None, None
-            else:
-                soma_tables = [soma_tables]
         now = datetime.datetime.now(datetime.timezone.utc)
         root_ts = client.chunkedgraph.get_root_timestamps(
             rid, latest=True, timestamp=now
         )[0]
 
+        if soma_tables is None:
+            soma_tables = client.info.get_datastack_info()["soma_table"]
+
+            if soma_tables is None:
+                return root_ts, None, None
+            else:
+                soma_tables = [soma_tables]
+        
         for soma_table in soma_tables:
             soma_df = client.materialize.tables[soma_table](pt_root_id=rid).live_query(
                 timestamp=root_ts
@@ -530,7 +531,7 @@ class SkeletonService:
                 break
 
         if len(soma_df) != 1:
-            return None, None, None
+            return root_ts, None, None
 
         return root_ts, soma_df.iloc[0]["pt_position"], soma_df.attrs["dataframe_resolution"]
 
