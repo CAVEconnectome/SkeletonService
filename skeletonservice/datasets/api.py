@@ -230,6 +230,20 @@ class SkeletonResource__skeleton_version_info_B(Resource):
     def process(skvn):
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {list(SKELETON_VERSION_PARAMS.keys())}")
+        if skvn == 2:
+            return {'@type': 'neuroglancer_skeletons',
+                'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+                'vertex_attributes': [{
+                    # TODO: Due to a Neuroglancer limitation, the compartment must be encoded as a float.
+                    # Note that this limitation is also encoded in service.py where skel.vertex_properties['compartment'] is assigned.
+                    'id': 'radius',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                },{
+                    'id': 'compartment',
+                    'data_type': 'float32',
+                    'num_components': 1,
+                }]}
         return copy.deepcopy(SKELETON_VERSION_PARAMS[skvn])
 
     @auth_required
