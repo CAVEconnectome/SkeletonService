@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, url_for, redirect, Blueprint
+import datetime
+from flask import Flask, jsonify, request, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
 
 # from skeletonservice.database import Base
@@ -104,5 +105,9 @@ def create_app(test_config=None):
                 links.append((url, rule.endpoint))
         # links is now a list of url, endpoint tuples
         return jsonify(links)
+    
+    @app.before_request
+    def before_request():
+        request.start_time = datetime.datetime.now(datetime.timezone.utc)
 
     return app

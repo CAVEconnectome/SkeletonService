@@ -231,6 +231,9 @@ class SkeletonResource__skeleton_version_info_B(Resource):
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {list(SKELETON_VERSION_PARAMS.keys())}")
         if skvn == 2:
+            # TODO: This hard-coded duplicated code has solved a problem in which the vertex_attributes dictionary received
+            # by the client would mysteriously accumulate repetitions of the compartment attribute. copy.deepcopy() didn't
+            # work, and I don't know why, so I resorted to this hard-coded solution. The underlying cause needs to be found and solved.
             return {'@type': 'neuroglancer_skeletons',
                 'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
                 'vertex_attributes': [{
@@ -704,7 +707,6 @@ class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
 
     @staticmethod
     def process(datastack_name: str, rids: List, verbose_level: int=0):
-        
         skvn = -1
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 

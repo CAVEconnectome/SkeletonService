@@ -102,6 +102,21 @@ debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
 
 class SkeletonService:
     @staticmethod
+    def print(*args, sep=' ', end='\n', file=None, flush=False):
+        try:
+            session_timestamp = request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
+            print(f"[{session_timestamp}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
+        except Exception as e:
+            try:
+                print(f"[{session_timestamp}] Error printing message: {str(e)}")
+                print(f"[{session_timestamp}]", *args, sep=sep, end=end, file=file, flush=flush)
+                traceback.print_exc()
+            except Exception as e2:
+                print(f"Error printing message: {str(e)} {str(e2)}")
+                print(*args, sep=sep, end=end, file=file, flush=flush)
+                traceback.print_exc()
+
+    @staticmethod
     def get_version_specific_handler(skvn: int):
         if skvn == -1:
             skvn = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
@@ -229,26 +244,26 @@ class SkeletonService:
         """
         try:
             if verbose_level >= 1:
-                print("_retrieve_skeleton_from_local()")
+                SkeletonService.print("_retrieve_skeleton_from_local()")
 
             debug_skeleton_cache_loc = os.environ.get("DEBUG_SKELETON_CACHE_LOC", None)
             if debug_skeleton_cache_loc is None:
                 if verbose_level >= 1:
-                    print("DEBUG_SKELETON_CACHE_LOC is not set.")
+                    SkeletonService.print("DEBUG_SKELETON_CACHE_LOC is not set.")
                 return None
             
             file_name = SkeletonService._get_skeleton_filename(
                 *params, "h5", include_compression=False
             )
             if verbose_level >= 1:
-                print(f"_retrieve_skeleton_from_local() Looking at {debug_skeleton_cache_loc + file_name}")
+                SkeletonService.print(f"_retrieve_skeleton_from_local() Looking at {debug_skeleton_cache_loc + file_name}")
             if not os.path.exists(debug_skeleton_cache_loc + file_name):
                 if verbose_level >= 1:
-                    print(f"_retrieve_skeleton_from_local() No local skeleton file found at {debug_skeleton_cache_loc + file_name}")
+                    SkeletonService.print(f"_retrieve_skeleton_from_local() No local skeleton file found at {debug_skeleton_cache_loc + file_name}")
                 return None
 
             if verbose_level >= 1:
-                print(
+                SkeletonService.print(
                     "_retrieve_skeleton_from_local() Local debug skeleton file found. Reading it..."
                 )
 
@@ -282,7 +297,7 @@ class SkeletonService:
 
             return skeleton
         except Exception as e:
-            print(f"Exception in _retrieve_skeleton_from_local(): {str(e)}. Traceback:")
+            SkeletonService.print(f"Exception in _retrieve_skeleton_from_local(): {str(e)}. Traceback:")
             traceback.print_exc()
             return None
 
@@ -296,13 +311,13 @@ class SkeletonService:
         
         file_name = SkeletonService._get_skeleton_filename(*params, format)
         if verbose_level >= 1:
-            print("File name being sought in cache:", file_name)
+            SkeletonService.print("File name being sought in cache:", file_name)
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
+            SkeletonService.print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if verbose_level >= 1:
-            print(f"_confirm_skeleton_in_cache() Result for {file_name}: {cf.exists(file_name)}")
+            SkeletonService.print(f"_confirm_skeleton_in_cache() Result for {file_name}: {cf.exists(file_name)}")
         return cf.exists(file_name)
 
     @staticmethod
@@ -313,16 +328,16 @@ class SkeletonService:
             *params, include_compression=include_compression
         )
         if verbose_level >= 1:
-            print("_retrieve_meshwork_from_cache() File name being sought in cache:", file_name)
+            SkeletonService.print("_retrieve_meshwork_from_cache() File name being sought in cache:", file_name)
         bucket = params[1]
         if verbose_level >= 1:
-            print(f"_retrieve_meshwork_from_cache() Querying meshwork at {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
+            SkeletonService.print(f"_retrieve_meshwork_from_cache() Querying meshwork at {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
         cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
         if cf.exists(file_name):
             return cf.get(file_name)
         else:
             if verbose_level >= 1:
-                print(f"_retrieve_meshwork_from_cache() Not found in cache: {file_name}")
+                SkeletonService.print(f"_retrieve_meshwork_from_cache() Not found in cache: {file_name}")
         
         return None
 
@@ -338,10 +353,10 @@ class SkeletonService:
         cached_format = format if format != "h5_mpsk" else "h5"
         file_name = SkeletonService._get_skeleton_filename(*params, cached_format)
         if verbose_level >= 1:
-            print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
+            SkeletonService.print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
+            SkeletonService.print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if cf.exists(file_name):
             if format == "flatdict":
@@ -367,7 +382,7 @@ class SkeletonService:
                 return skeleton_bytes  # Don't even bother building a skeleton object
         else:
             if verbose_level >= 1:
-                print(f"_retrieve_skeleton_from_cache() Not found in cache: {file_name}")
+                SkeletonService.print(f"_retrieve_skeleton_from_cache() Not found in cache: {file_name}")
                 
         return None if format != "h5_mpsk" else (None, None)
 
@@ -381,7 +396,7 @@ class SkeletonService:
         )
         bucket = params[1]
         if verbose_level >= 1:
-            print(f"Caching meshwork to {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
+            SkeletonService.print(f"Caching meshwork to {bucket}meshworks/{MESHWORK_VERSION}/{file_name}")
         cf = CloudFiles(f"{bucket}meshworks/{MESHWORK_VERSION}/")
         cf.put(
             file_name,
@@ -402,7 +417,7 @@ class SkeletonService:
         )
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
-            print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+            SkeletonService.print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if format == "json" or format == "arrays":
             cf.put_json(
@@ -423,7 +438,7 @@ class SkeletonService:
             Multiple skeleton workers could collide here (get1, get2, put1, put2) such that only the last overlapping worker's data is saved.
         """
         if verbose_level >= 1:
-            print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
+            SkeletonService.print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
         
         file_name = "skeletonization_times.csv"
         cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
@@ -443,7 +458,7 @@ class SkeletonService:
         Read the root id refusal list and return it.
         """
         if verbose_level >= 1:
-            print(f"Reading list of root ids for which to refuse skeletonization from {bucket}")
+            SkeletonService.print(f"Reading list of root ids for which to refuse skeletonization from {bucket}")
         
         cf = CloudFiles(f"{bucket}")
         if cf.exists(SKELETONIZATION_REFUSAL_LIST_FILENAME):
@@ -460,7 +475,7 @@ class SkeletonService:
         Return True if the root id is in the list of root ids to refuse skeletonization.
         """
         if verbose_level >= 1:
-            print(f"Checking the list of root ids for which to refuse skeletonization from {bucket}, for datastack {datastack_name} and root id {rid}")
+            SkeletonService.print(f"Checking the list of root ids for which to refuse skeletonization from {bucket}, for datastack {datastack_name} and root id {rid}")
         
         if not isinstance(rid, int):
             rid = int(rid)
@@ -480,7 +495,7 @@ class SkeletonService:
             verbose_level = 1
         
         if verbose_level >= 1:
-            print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
+            SkeletonService.print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
         
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
         skeletonization_refusal_root_ids_df = pd.concat([skeletonization_refusal_root_ids_df, pd.DataFrame({'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
@@ -492,7 +507,7 @@ class SkeletonService:
         result = cf.put(SKELETONIZATION_REFUSAL_LIST_FILENAME, csv_content_bytes, compress=True)
         
         if verbose_level >= 1:
-            print(f"Result of adding rid {rid} to the refusal list for datastack {datastack_name}: {result}")
+            SkeletonService.print(f"Result of adding rid {rid} to the refusal list for datastack {datastack_name}: {result}")
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -560,14 +575,14 @@ class SkeletonService:
             rid, cave_client, soma_tables
         )
         if verbose_level >= 1:
-            print(f"soma_resolution: {soma_resolution}")
+            SkeletonService.print(f"soma_resolution: {soma_resolution}")
 
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
-            print(
+            SkeletonService.print(
                 f"_generate_v1_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
-            print(f"CAVEClient version: {caveclient.__version__}")
+            SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
 
         # Use the above parameters in the skeletonization:
         skel = pcg_skel.pcg_skeleton(
@@ -597,9 +612,9 @@ class SkeletonService:
         Templated and modified from _generate_v1_skeleton().
         """
         if verbose_level >= 1:
-            print("_generate_v2_skeleton()", rid)
+            SkeletonService.print("_generate_v2_skeleton()", rid)
         if verbose_level >= 1:
-            print(f"CAVEClient version: {caveclient.__version__}")
+            SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
             datastack_name == "minnie65_phase3_v1"
         ):
@@ -611,14 +626,14 @@ class SkeletonService:
             rid, cave_client, soma_tables
         )
         if verbose_level >= 1:
-            print(f"soma_resolution: {soma_resolution}")
+            SkeletonService.print(f"soma_resolution: {soma_resolution}")
 
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
-            print(
+            SkeletonService.print(
                 f"_generate_v2_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
-            print(f"CAVEClient version: {caveclient.__version__}")
+            SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
         
         use_default_radii = False
         use_default_compartments = False
@@ -695,7 +710,7 @@ class SkeletonService:
                 cave_client,
             )
         except Exception as e:
-            print(f"Exception in _generate_v2_skeleton(): {str(e)}. Traceback:")
+            SkeletonService.print(f"Exception in _generate_v2_skeleton(): {str(e)}. Traceback:")
             traceback.print_exc()
             raise e
 
@@ -743,7 +758,7 @@ class SkeletonService:
         cave_client,
     ):
         if verbose_level >= 1:
-            print("_generate_v3_skeleton() (which will pass through to v2)", rid)
+            SkeletonService.print("_generate_v3_skeleton() (which will pass through to v2)", rid)
         return SkeletonService._generate_v2_skeleton(
             rid,
             bucket,
@@ -768,7 +783,7 @@ class SkeletonService:
         cave_client,
     ):
         if verbose_level >= 1:
-            print("_generate_v4_skeleton() (which will pass through to v3)", rid)
+            SkeletonService.print("_generate_v4_skeleton() (which will pass through to v3)", rid)
         nrn, sk = SkeletonService._generate_v3_skeleton(
             rid,
             bucket,
@@ -784,7 +799,7 @@ class SkeletonService:
         lvl2_df.sort_values(by='mesh_ind', inplace=True)
         lvl2_ids = list(lvl2_df['lvl2_id'])
         if verbose_level >= 1:
-            print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
+            SkeletonService.print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
         
         return nrn, sk, lvl2_ids
     
@@ -1101,7 +1116,7 @@ class SkeletonService:
         try:
             accept_encoding = request.headers.get("Accept-Encoding", "")
             if verbose_level >= 1:
-                print(f"_after_request() accept_encoding: {accept_encoding}")
+                SkeletonService.print(f"_after_request() accept_encoding: {accept_encoding}")
             
             if "gzip" not in accept_encoding.lower():
                 return response
@@ -1118,7 +1133,7 @@ class SkeletonService:
             pre_compressed_size = len(response.data)
             response.data = compression.gzip_compress(response.data)
             if verbose_level >= 1:
-                print(f"_after_request() Compressed data size from {pre_compressed_size} to {len(response.data)}")
+                SkeletonService.print(f"_after_request() Compressed data size from {pre_compressed_size} to {len(response.data)}")
 
             response.headers["Content-Encoding"] = "gzip"
             response.headers["Vary"] = "Accept-Encoding"
@@ -1126,7 +1141,7 @@ class SkeletonService:
 
             return response
         except Exception as e:
-            print(f"Exception in _after_request(): {str(e)}. Traceback:")
+            SkeletonService.print(f"Exception in _after_request(): {str(e)}. Traceback:")
             traceback.print_exc()
             return None
     
@@ -1153,21 +1168,21 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"get_cache_contents() bucket: {bucket}, datastack_name: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
+            SkeletonService.print(f"get_cache_contents() bucket: {bucket}, datastack_name: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
 
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         all_h5_files = []
         for rid_prefix in rid_prefixes:
             prefix = f"skeleton__v{skeleton_version}__rid-{rid_prefix}"
             if verbose_level >= 1:
-                print(f"get_cache_contents() prefix: {prefix}")
+                SkeletonService.print(f"get_cache_contents() prefix: {prefix}")
             one_prefix_files = list(cf.list(prefix=prefix))
             one_prefix_h5_files = [f for f in one_prefix_files if f.endswith(".h5.gz")]
             
             if verbose_level >= 1:
-                print(f"get_cache_contents() num_found: {len(one_prefix_h5_files)}")
+                SkeletonService.print(f"get_cache_contents() num_found: {len(one_prefix_h5_files)}")
                 if len(one_prefix_h5_files) > 0:
-                    print(f"get_cache_contents() first result: {one_prefix_h5_files[0]}")
+                    SkeletonService.print(f"get_cache_contents() first result: {one_prefix_h5_files[0]}")
             
             all_h5_files.extend(one_prefix_h5_files)
         
@@ -1199,7 +1214,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"meshworks_exist() bucket: {bucket}, rids: {rids}")
+            SkeletonService.print(f"meshworks_exist() bucket: {bucket}, rids: {rids}")
         
         return_single_value = False
         if not isinstance(rids, list):
@@ -1249,7 +1264,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(f"skeletons_exist() bucket: {bucket}, datastack_name: {datastack_name}, skeleton_version: {skeleton_version}, rids: {rids}")
+            SkeletonService.print(f"skeletons_exist() bucket: {bucket}, datastack_name: {datastack_name}, skeleton_version: {skeleton_version}, rids: {rids}")
         
         return_single_value = False
         if not isinstance(rids, list):
@@ -1318,11 +1333,11 @@ class SkeletonService:
             "SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE" if high_priority else "SKELETON_CACHE_LOW_PRIORITY_EXCHANGE",
             None)
         if verbose_level >= 1:
-            print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
+            SkeletonService.print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
         c.publish(exchange, payload, attributes)
 
         if verbose_level_ >= 1:
-            print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} output_format: {output_format} skvn:{skeleton_version} {bucket}")
+            SkeletonService.print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} output_format: {output_format} skvn:{skeleton_version} {bucket}")
 
     @staticmethod
     def get_skeleton_by_datastack_and_rid(
@@ -1357,7 +1372,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(
+            SkeletonService.print(
                 f"get_skeleton_by_datastack_and_rid() datastack_name: {datastack_name}, rid: {rid}, bucket: {bucket}, skeleton_version: {skeleton_version},",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}",
             )
@@ -1369,7 +1384,7 @@ class SkeletonService:
         # Confirm that the rid isn't in the refusal list
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid() rid {rid} is in the refusal list and therefore won't be skeletonized.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is in the refusal list and therefore won't be skeletonized.")
             return
         
         # Confirm the rid validity in a few ways
@@ -1381,14 +1396,14 @@ class SkeletonService:
         # Confirm that the rid exists
         if not cave_client.chunkedgraph.is_valid_nodes(rid):
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
             return
         
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid() rid {rid} isn't a root id (perhaps it is a supervoxel id) and therefore won't be skeletonized.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} isn't a root id (perhaps it is a supervoxel id) and therefore won't be skeletonized.")
             return
         
         if not output_format:
@@ -1429,7 +1444,7 @@ class SkeletonService:
             if skel_confirmation:
                 # Nothing else to do, so return
                 if verbose_level >= 1:
-                    print(f"Skeleton is already in cache: {rid}")
+                    SkeletonService.print(f"Skeleton is already in cache: {rid}")
                 return
             # At this point, fall through with cached_skeleton set to None to trigger generating a new skeleton.
         elif output_format == "meshwork_none":
@@ -1439,7 +1454,7 @@ class SkeletonService:
             if meshwork_confirmation:
                 # Nothing else to do, so return
                 if verbose_level >= 1:
-                    print(f"Meshwork is already in cache: {rid}")
+                    SkeletonService.print(f"Meshwork is already in cache: {rid}")
                 return
             # At this point, fall through with cached_meshwork set to None to trigger generating a new skeleton.
         elif output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed",
@@ -1448,17 +1463,17 @@ class SkeletonService:
                 params, output_format
             )
             if verbose_level >= 1:
-                print(f"Cached skeleton query result: {cached_skeleton is not None}")
+                SkeletonService.print(f"Cached skeleton query result: {cached_skeleton is not None}")
             if verbose_level >= 2:
-                print(f"Cache skeleton query result: {cached_skeleton}")
+                SkeletonService.print(f"Cache skeleton query result: {cached_skeleton}")
         elif output_format == "meshwork":
             cached_meshwork = SkeletonService._retrieve_meshwork_from_cache(
                 params, True
             )
             if verbose_level >= 1:
-                print(f"Cached meshwork query result: {cached_meshwork is not None}")
+                SkeletonService.print(f"Cached meshwork query result: {cached_meshwork is not None}")
             if verbose_level >= 2:
-                print(f"Cached meshwork query result: {cached_meshwork}")
+                SkeletonService.print(f"Cached meshwork query result: {cached_meshwork}")
         else:
             raise ValueError(f"Unknown output format: {output_format}")
 
@@ -1498,7 +1513,7 @@ class SkeletonService:
                         )
                     )
                 if verbose_level >= 1:
-                    print(f"Length of cached skeleton: {len(cached_skeleton)} and corresponding json: {len(json.dumps(cached_skeleton))}")
+                    SkeletonService.print(f"Length of cached skeleton: {len(cached_skeleton)} and corresponding json: {len(json.dumps(cached_skeleton))}")
                 
                 if via_requests and has_request_context():
                     t0 = default_timer()
@@ -1506,7 +1521,7 @@ class SkeletonService:
                     if verbose_level >= 1:
                         t1 = default_timer()
                         et = t1 - t0
-                        print(f"Time to jsonify json dict: {et}s")
+                        SkeletonService.print(f"Time to jsonify json dict: {et}s")
                     response.headers.update(SkeletonService._response_headers())
                     response = SkeletonService._after_request(response)
                     return response
@@ -1584,7 +1599,7 @@ class SkeletonService:
             if output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "swc", "swccompressed", "precomputed"]:
                 skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
             if verbose_level >= 1:
-                print(f"H5 cache query result: {skeleton}")
+                SkeletonService.print(f"H5 cache query result: {skeleton}")
 
         # If no H5 skeleton was found, generate a new skeleton.
         # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
@@ -1598,13 +1613,13 @@ class SkeletonService:
                     params, "h5"
                 )
             except Exception as e:
-                print(f"Exception while retrieving local debugging skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while retrieving local debugging skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
             
             try:
                 if not skeleton:
                     if verbose_level >= 1:
-                        print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
+                        SkeletonService.print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
                     skeletonization_start_time = default_timer()
                     if skeleton_version == 1:
                         skeleton = SkeletonService._generate_v1_skeleton(*params, cave_client)
@@ -1617,18 +1632,18 @@ class SkeletonService:
                     skeletonization_end_time = default_timer()
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
-                        print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
+                        SkeletonService.print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
                     try:
                         SkeletonService._archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time)
                     except Exception as e:
                         # This is a non-critical operation, so don't let it stop the process.
-                        print(f"Exception while archiving skeletonization time: {str(e)}. Traceback:")
+                        SkeletonService.print(f"Exception while archiving skeletonization time: {str(e)}. Traceback:")
                         traceback.print_exc()
                 else:
                     if verbose_level >= 1:
-                        print("Local (debugging) skeleton was found.")
+                        SkeletonService.print("Local (debugging) skeleton was found.")
             except Exception as e:
-                print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while generating skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
                 return f"Exception while generating skeleton for {rid}: {str(e)}"
 
@@ -1658,7 +1673,7 @@ class SkeletonService:
                             skeleton, lvl2_ids, debug_skeleton_cache_loc + file_name
                         )
             except Exception as e:
-                print(f"Exception while saving local debugging skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while saving local debugging skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
             try:
@@ -1704,7 +1719,7 @@ class SkeletonService:
                 elif output_format == "none" or output_format == "meshwork_none":
                     return None
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "swc" or output_format == "swccompressed":
@@ -1744,7 +1759,7 @@ class SkeletonService:
                     return response
                 return file_content
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
             return
 
@@ -1753,13 +1768,13 @@ class SkeletonService:
                 if not skeleton_bytes:
                     assert skeleton is not None
                     if verbose_level >= 1:
-                        print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
+                        SkeletonService.print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
                     skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
                     if verbose_level >= 1:
-                        print(f"Compressed FLAT DICT size: {len(skeleton_bytes)}")
+                        SkeletonService.print(f"Compressed FLAT DICT size: {len(skeleton_bytes)}")
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
@@ -1770,7 +1785,7 @@ class SkeletonService:
                         return response
                 return skeleton_bytes
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "json":
@@ -1790,7 +1805,7 @@ class SkeletonService:
                     return response
                 return skeleton_json
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "jsoncompressed":
@@ -1802,7 +1817,7 @@ class SkeletonService:
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
                     if verbose_level >= 1:
-                        print(f"Compressed JSON size: {len(skeleton_bytes)}")
+                        SkeletonService.print(f"Compressed JSON size: {len(skeleton_bytes)}")
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
                     )
@@ -1813,7 +1828,7 @@ class SkeletonService:
                         return response
                 return skeleton_bytes
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "arrays":
@@ -1830,7 +1845,7 @@ class SkeletonService:
                     return response
                 return skeleton_arrays
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "arrayscompressed":
@@ -1854,7 +1869,7 @@ class SkeletonService:
                         return response
                 return skeleton_bytes
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
         if output_format == "precomputed":
@@ -1872,7 +1887,7 @@ class SkeletonService:
                     extra_attributes=SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'],
                 )
             except Exception as e:
-                print(f"Exception while creating CloudVolume skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while creating CloudVolume skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
                 raise e
             
@@ -1880,7 +1895,7 @@ class SkeletonService:
                 for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
                     cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
             except Exception as e:
-                print(f"Exception while creating CloudVolume skeletn for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while creating CloudVolume skeletn for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
             
             # Convert the CloudVolume skeleton to precomputed format
@@ -1892,7 +1907,7 @@ class SkeletonService:
                     params, skeleton_precomputed, output_format
                 )
             except Exception as e:
-                print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
+                SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
 
             if via_requests and has_request_context():
@@ -1931,7 +1946,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            print(
+            SkeletonService.print(
                 f"get_skeletons_bulk_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
                 f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
             )
@@ -1946,7 +1961,7 @@ class SkeletonService:
         if len(rids) > MAX_BULK_SYNCHRONOUS_SKELETONS:
             rids = rids[:MAX_BULK_SYNCHRONOUS_SKELETONS]
             if verbose_level >= 1:
-                print(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
+                SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
 
         cave_client = caveclient.CAVEclient(
             datastack_name,
@@ -1978,12 +1993,12 @@ class SkeletonService:
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
             if verbose_level >= 1:
-                print(f"get_skeletons_bulk_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
+                SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
             if skeleton is None:  # No JSON or SWC skeleton was found (but the H5 status is unknown at this point)
                 h5_available = SkeletonService._confirm_skeleton_in_cache(params, "h5")
                 if verbose_level >= 1:
-                    print(f"H5 availability for rid {rid}: {h5_available}")
+                    SkeletonService.print(f"H5 availability for rid {rid}: {h5_available}")
                 if h5_available:
                     skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
                         datastack_name,
@@ -2014,7 +2029,7 @@ class SkeletonService:
                     skeleton = "async"
             
             if verbose_level >= 1:
-                print(f"get_skeletons_bulk_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None if skeleton != 'async' else skeleton}")
+                SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Final skeleton for rid {rid}: {skeleton is not None if skeleton != 'async' else skeleton}")
             
             # The BytesIO skeletons aren't JSON serializable and so won't fly back over the wire. Gotta convert 'em.
             # It's debatable whether an ascii encoding of this sort is necessarily smaller than the CSV representation, but presumably it is.
@@ -2091,7 +2106,7 @@ class SkeletonService:
             t2 = default_timer()
 
             if verbose_level >= 1:
-                print(f"Polling for meshwork to be available for rid {rid}...")
+                SkeletonService.print(f"Polling for meshwork to be available for rid {rid}...")
             while not SkeletonService.meshworks_exist(
                 bucket,
                 rid,
@@ -2099,11 +2114,11 @@ class SkeletonService:
             ):
                 time.sleep(5)
             if verbose_level >= 1:
-                print(f"Meshwork is now available for rid {rid}.")
+                SkeletonService.print(f"Meshwork is now available for rid {rid}.")
         else:
             t2 = t1 = default_timer()
             if verbose_level >= 1:
-                print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
+                SkeletonService.print(f"No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
         
         t3 = default_timer()
 
@@ -2127,8 +2142,8 @@ class SkeletonService:
             et2 = t2 - t1
             et3 = t3 - t2
             et4 = t4 - t3
-            print(f"get_meshwork_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
-            print(f"get_meshwork_by_datastack_and_rid_async() Final skeleton for rid {rid}: {meshwork is not None}")
+            SkeletonService.print(f"get_meshwork_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
+            SkeletonService.print(f"get_meshwork_by_datastack_and_rid_async() Final skeleton for rid {rid}: {meshwork is not None}")
         
         return meshwork
     
@@ -2179,7 +2194,7 @@ class SkeletonService:
             t1 = default_timer()
 
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
 
             SkeletonService.publish_skeleton_request(
                 datastack_name,
@@ -2197,7 +2212,7 @@ class SkeletonService:
             t2 = default_timer()
 
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid_async() Polling for skeleton to be available for rid {rid}...")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Polling for skeleton to be available for rid {rid}...")
             while not SkeletonService.skeletons_exist(
                 bucket,
                 datastack_name,
@@ -2207,11 +2222,11 @@ class SkeletonService:
             ):
                 time.sleep(5)
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid_async() Skeleton is now available for rid {rid}.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Skeleton is now available for rid {rid}.")
         else:
             t2 = t1 = default_timer()
             if verbose_level >= 1:
-                print(f"get_skeleton_by_datastack_and_rid_async() No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() No need to initiate asynchronous skeleton generation for rid {rid}. It already exists.")
         
         t3 = default_timer()
 
@@ -2235,8 +2250,8 @@ class SkeletonService:
             et2 = t2 - t1
             et3 = t3 - t2
             et4 = t4 - t3
-            print(f"get_skeleton_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
-            print(f"get_skeleton_by_datastack_and_rid_async() Final skeleton for rid {rid}: {skeleton is not None}")
+            SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Elapsed times: {et1:.3f}s {et2:.3f}s {et3:.3f}s {et4:.3f}s")
+            SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Final skeleton for rid {rid}: {skeleton is not None}")
         
         return skeleton
 
@@ -2261,7 +2276,7 @@ class SkeletonService:
             verbose_level = 1
         
         if verbose_level_ >= 1:
-            print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
+            SkeletonService.print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
 
         cave_client = caveclient.CAVEclient(
             datastack_name,
@@ -2298,10 +2313,10 @@ class SkeletonService:
             num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
             num_workers = 15
-            print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
+            SkeletonService.print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
         estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * meshwork_generation_time_estimate_secs
         if verbose_level >= 1:
-            print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {meshwork_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
+            SkeletonService.print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {meshwork_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
         return estimated_async_time_secs_upper_bound
 
     
@@ -2358,8 +2373,8 @@ class SkeletonService:
             num_workers = current_app.config["SKELETONCACHE_WORKER_MAX_REPLICAS"]  # Number of skeleton worker (Kubernetes pods) available (# This should be read from the server somehow)
         except KeyError:
             num_workers = 15
-            print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
+            SkeletonService.print(f"Flask config variable SKELETONCACHE_WORKER_MAX_REPLICAS not found. Using default value of {num_workers}.")
         estimated_async_time_secs_upper_bound =  math.ceil(num_valid_rids / num_workers) * skeleton_generation_time_estimate_secs
         if verbose_level >= 1:
-            print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
+            SkeletonService.print(f"Estimated async time: ceiling({num_valid_rids} / {num_workers}) * {skeleton_generation_time_estimate_secs} = {estimated_async_time_secs_upper_bound}")
         return estimated_async_time_secs_upper_bound
