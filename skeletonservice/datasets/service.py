@@ -107,7 +107,7 @@ class SkeletonService:
             session_timestamp = request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
             print(f"[{session_timestamp}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
         except Exception as e:
-            if session_timestamp not in locals():
+            if 'session_timestamp' not in locals():
                 session_timestamp = "unknown_session"
             print(f"Error printing message for session {session_timestamp}: {str(e)}")
             traceback.print_exc()

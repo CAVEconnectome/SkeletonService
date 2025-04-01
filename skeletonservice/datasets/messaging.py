@@ -15,26 +15,26 @@ def callback(payload):
         s = ""
         for k in payload.attributes:
             s += f"\n| {k}: {payload.attributes[k]}"
-        print("Skeleton Cache message-processor received message: ", s)
+        SkeletonService.print("Skeleton Cache message-processor received message: ", s)
     
     subscription = "Unknown"
     try:
         subscription = payload.attributes.get("__subscription_name", "Unknown")
     except Exception as e:
-        print("Skeleton Cache message-processor error getting subscription from message: ", repr(e))
-        print(tb.format_exc())
+        SkeletonService.print("Skeleton Cache message-processor error getting subscription from message: ", repr(e))
+        SkeletonService.print(tb.format_exc())
 
     high_priority = None
     try:
         high_priority = payload.attributes["high_priority"]
     except Exception as e:
-        print("Skeleton Cache message-processor error getting priority from message: ", repr(e))
-        print(tb.format_exc())
+        SkeletonService.print("Skeleton Cache message-processor error getting priority from message: ", repr(e))
+        SkeletonService.print(tb.format_exc())
     
     l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if verbose_level >= 1:
-        print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
-        print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {l2cache_dead_update_queue in subscription}")
+        SkeletonService.print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
+        SkeletonService.print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {l2cache_dead_update_queue in subscription}")
     
     if l2cache_dead_update_queue not in subscription:
         try:
@@ -54,15 +54,15 @@ def callback(payload):
                 int(payload.attributes["verbose_level"]),
             )
             if verbose_level >= 1:
-                print("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result)
+                SkeletonService.print("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result)
         except Exception as e:
-            print("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e))
-            print(tb.format_exc())
+            SkeletonService.print("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e))
+            SkeletonService.print(tb.format_exc())
             raise e
     else:
         try:
             if verbose_level >= 1:
-                print("Skeleton Cache message-processor received dead-letter message for datastack and rid: ",
+                SkeletonService.print("Skeleton Cache message-processor received dead-letter message for datastack and rid: ",
                     payload.attributes["skeleton_params_datastack_name"], payload.attributes["skeleton_params_rid"])
                 
             result = SkeletonService.add_rid_to_refusal_list(
@@ -72,10 +72,10 @@ def callback(payload):
                 int(payload.attributes["verbose_level"]),
             )
             if verbose_level >= 1:
-                print("Skeleton Cache message-processor returned from SkeletonService.add_rid_to_refusal_list() with result: ", result)
+                SkeletonService.print("Skeleton Cache message-processor returned from SkeletonService.add_rid_to_refusal_list() with result: ", result)
         except Exception as e:
-            print("Skeleton Cache message-processor received error from SkeletonService.add_rid_to_refusal_list(): ", repr(e))
-            print(tb.format_exc())
+            SkeletonService.print("Skeleton Cache message-processor received error from SkeletonService.add_rid_to_refusal_list(): ", repr(e))
+            SkeletonService.print(tb.format_exc())
             raise e
 
 c = MessagingClient()
