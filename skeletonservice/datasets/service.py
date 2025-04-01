@@ -107,14 +107,11 @@ class SkeletonService:
             session_timestamp = request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
             print(f"[{session_timestamp}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
         except Exception as e:
-            try:
-                print(f"[{session_timestamp}] Error printing message: {str(e)}")
-                print(f"[{session_timestamp}]", *args, sep=sep, end=end, file=file, flush=flush)
-                traceback.print_exc()
-            except Exception as e2:
-                print(f"Error printing message: {str(e)} {str(e2)}")
-                print(*args, sep=sep, end=end, file=file, flush=flush)
-                traceback.print_exc()
+            if session_timestamp not in locals():
+                session_timestamp = "unknown_session"
+            print(f"Error printing message for session {session_timestamp}: {str(e)}")
+            traceback.print_exc()
+            print(*args, sep=sep, end=end, file=file, flush=flush)
 
     @staticmethod
     def get_version_specific_handler(skvn: int):
