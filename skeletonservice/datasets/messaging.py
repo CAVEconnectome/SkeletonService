@@ -10,31 +10,33 @@ logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 
 def callback(payload):
+    session_timestamp = payload.attributes["session_timestamp"]
+
     verbose_level = int(payload.attributes["verbose_level"])
     if verbose_level >= 1:
         s = ""
         for k in payload.attributes:
             s += f"\n| {k}: {payload.attributes[k]}"
-        SkeletonService.print("Skeleton Cache message-processor received message: ", s)
+        SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received message: ", s, session_timestamp=session_timestamp)
     
     subscription = "Unknown"
     try:
         subscription = payload.attributes.get("__subscription_name", "Unknown")
     except Exception as e:
-        SkeletonService.print("Skeleton Cache message-processor error getting subscription from message: ", repr(e))
-        SkeletonService.print(tb.format_exc())
+        SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor error getting subscription from message: ", repr(e), session_timestamp=session_timestamp)
+        SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp=session_timestamp)
 
     high_priority = None
     try:
         high_priority = payload.attributes["high_priority"]
     except Exception as e:
-        SkeletonService.print("Skeleton Cache message-processor error getting priority from message: ", repr(e))
-        SkeletonService.print(tb.format_exc())
+        SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor error getting priority from message: ", repr(e), session_timestamp=session_timestamp)
+        SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp=session_timestamp)
     
     l2cache_dead_update_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if verbose_level >= 1:
-        SkeletonService.print(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}")
-        SkeletonService.print(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {l2cache_dead_update_queue in subscription}")
+        SkeletonService.print_with_session_timestamp(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}", session_timestamp=session_timestamp)
+        SkeletonService.print_with_session_timestamp(f"Does the subscription ({subscription}) match the dead letter queue ({l2cache_dead_update_queue})? {l2cache_dead_update_queue in subscription}", session_timestamp=session_timestamp)
     
     if l2cache_dead_update_queue not in subscription:
         try:
@@ -51,19 +53,20 @@ def callback(payload):
                 int(payload.attributes["skeleton_params_collapse_radius"]),
                 int(payload.attributes["skeleton_version"]),
                 False,  # via_requests
+                session_timestamp,
                 int(payload.attributes["verbose_level"]),
             )
             if verbose_level >= 1:
-                SkeletonService.print("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result)
+                SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result, session_timestamp=session_timestamp)
         except Exception as e:
-            SkeletonService.print("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e))
-            SkeletonService.print(tb.format_exc())
+            SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e), session_timestamp=session_timestamp)
+            SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp=session_timestamp)
             raise e
     else:
         try:
             if verbose_level >= 1:
-                SkeletonService.print("Skeleton Cache message-processor received dead-letter message for datastack and rid: ",
-                    payload.attributes["skeleton_params_datastack_name"], payload.attributes["skeleton_params_rid"])
+                SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received dead-letter message for datastack and rid: ",
+                    payload.attributes["skeleton_params_datastack_name"], payload.attributes["skeleton_params_rid"], session_timestamp=session_timestamp)
                 
             result = SkeletonService.add_rid_to_refusal_list(
                 payload.attributes["skeleton_params_bucket"],
@@ -72,10 +75,10 @@ def callback(payload):
                 int(payload.attributes["verbose_level"]),
             )
             if verbose_level >= 1:
-                SkeletonService.print("Skeleton Cache message-processor returned from SkeletonService.add_rid_to_refusal_list() with result: ", result)
+                SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor returned from SkeletonService.add_rid_to_refusal_list() with result: ", result, session_timestamp=session_timestamp)
         except Exception as e:
-            SkeletonService.print("Skeleton Cache message-processor received error from SkeletonService.add_rid_to_refusal_list(): ", repr(e))
-            SkeletonService.print(tb.format_exc())
+            SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received error from SkeletonService.add_rid_to_refusal_list(): ", repr(e), session_timestamp=session_timestamp)
+            SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp=session_timestamp)
             raise e
 
 c = MessagingClient()

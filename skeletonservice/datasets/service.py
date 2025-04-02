@@ -94,6 +94,11 @@ SKELETON_VERSION_PARAMS = {
 
 logging.basicConfig(level=logging.WARNING)
 
+# Since processes are threaded and not forked, I'm concerned this global might get shared across threads processing different requests.
+# Consequently, I'm not sure this approach is safe. But there is no class object created anywhere in the request handling.
+# SkeletonService is used entirely statically.
+session_timestamp = "not_set"
+
 # Default verbose level
 verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
@@ -102,14 +107,35 @@ debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
 
 class SkeletonService:
     @staticmethod
+    def get_session_timestamp():
+        """
+        Get the session timestamp from the request context.
+        """
+        if has_request_context():
+            try:
+                return request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
+            except Exception as e:
+                print(f"Error getting session timestamp from request: {str(e)}")
+                traceback.print_exc()
+                return "unknown_session"
+        else:
+            return "no_request_context"
+    
+    @staticmethod
+    def print_with_session_timestamp(*args, session_timestamp_='unknown', sep=' ', end='\n', file=None, flush=False):
+        try:
+            print(f"[{session_timestamp_}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
+        except Exception as e:
+            print(f"Error printing message for session [{session_timestamp_}]: {str(e)}")
+            traceback.print_exc()
+            print(*args, sep=sep, end=end, file=file, flush=flush)
+    
+    @staticmethod
     def print(*args, sep=' ', end='\n', file=None, flush=False):
         try:
-            session_timestamp = request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
-            print(f"[{session_timestamp}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
+            SkeletonService.print_with_session_timestamp(*args, session_timestamp_=session_timestamp, sep=sep, end=end, file=file, flush=flush)
         except Exception as e:
-            if 'session_timestamp' not in locals():
-                session_timestamp = "unknown_session"
-            print(f"Error printing message for session {session_timestamp}: {str(e)}")
+            print(f"Error printing message for session [{session_timestamp}]: {str(e)}")
             traceback.print_exc()
             print(*args, sep=sep, end=end, file=file, flush=flush)
 
@@ -495,7 +521,9 @@ class SkeletonService:
             SkeletonService.print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
         
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        skeletonization_refusal_root_ids_df = pd.concat([skeletonization_refusal_root_ids_df, pd.DataFrame({'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+        skeletonization_refusal_root_ids_df = pd.concat([
+            skeletonization_refusal_root_ids_df, pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
 
         csv_content = skeletonization_refusal_root_ids_df.to_csv(index=False)
         csv_content_bytes = BytesIO(csv_content.encode("utf-8")).getvalue()
@@ -1322,6 +1350,7 @@ class SkeletonService:
             "skeleton_params_collapse_radius": f"{collapse_radius}",
             "skeleton_version": f"{skeleton_version}",
             "high_priority": f"{high_priority}",
+            "session_timestamp": f"{SkeletonService.get_session_timestamp()}",
             "verbose_level": f"{verbose_level_}",
         }
 
@@ -1349,6 +1378,7 @@ class SkeletonService:
         collapse_radius: int,
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         via_requests: bool = True,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
@@ -1357,7 +1387,10 @@ class SkeletonService:
         If not, then generate the skeleton from its cached H5 format and return it.
         If the H5 format also doesn't exist yet, then generate and cache the H5 version before generating and returning the requested format.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if rid == debugging_root_id and verbose_level < 1:
@@ -2007,6 +2040,7 @@ class SkeletonService:
                         collapse_radius,
                         skeleton_version,
                         False,
+                        SkeletonService.get_session_timestamp(),
                         verbose_level_,
                     )
                 if not h5_available:
@@ -2129,6 +2163,7 @@ class SkeletonService:
             collapse_radius,
             -1,
             True,
+            SkeletonService.get_session_timestamp(),
             verbose_level_,
         )
         
@@ -2237,6 +2272,7 @@ class SkeletonService:
             collapse_radius,
             skeleton_version,
             True,
+            SkeletonService.get_session_timestamp(),
             verbose_level_,
         )
         

@@ -55,29 +55,6 @@ class SkeletonResource__get_skeletons(Resource):
         return ["Placeholder for /skeletons endpoint, of an as-yet undetermined usefulness."]
 
 
-# I can't override default parameters! AUGH!
-# I can create optional parameters that don't have to be supplied, and I can create default values to populate them,
-# but when I then supply overriding values in the web UI, those values never arrive by the time get() is called.
-# Only the defaults defined in route() are ever received. This is driving me crazy.
-# @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/", defaults={'bar': 123})  # Only this default value is ever received in get(), below.
-# @api_bp.route("/default_parameter_overriding_error_investigation/<int:foo>/<int:bar>")
-# @api_bp.param("foo", "foo")
-# @api_bp.param("bar", "bar")
-# class SkeletonResource2(Resource):
-#     """ParameterBugInvestigation"""
-
-#     @auth_required
-#     @api_bp.doc("foobar", security="apikey")
-#     def get(self, foo: int, bar: int):
-#         """Get foobar"""
-#         # bar will always be received as 123 (the default defined above). Providing an overrided value in the web UI makes no difference.
-#         # The URL encodes optional parameters as named args (kwargs) instead of enumerated args (args).
-#         # For example, if I enter 888 for foo and 999 for bar in the web UI, the URL will be as follows:
-#         # http://localhost:5000/properties/api/v1/skeleton2/888/?bar=999
-#         print(f"Foo: {foo}, Bar: {bar}")
-#         return {'foo': foo, 'bar': bar}
-
-
 @api_bp.route("/<string:datastack_name>/precomputed")
 class SkeletonResource__datastack(Resource):
     """PrecomputedResource"""
@@ -487,7 +464,6 @@ class SkeletonResource__get_skeleton_C(Resource):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         try:
-            # return SkelClassVsn.get_skeleton_by_datastack_and_rid(
             return SkelClassVsn.get_skeleton_by_datastack_and_rid_async(
                 datastack_name=datastack_name,
                 rid=rid,
