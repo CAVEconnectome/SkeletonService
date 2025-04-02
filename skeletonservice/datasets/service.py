@@ -487,9 +487,10 @@ class SkeletonService:
         if cf.exists(SKELETONIZATION_REFUSAL_LIST_FILENAME):
             skeletonization_refusal_root_ids_csv = cf.get(SKELETONIZATION_REFUSAL_LIST_FILENAME).decode("utf-8")
             refusal_df = pd.read_csv(BytesIO(skeletonization_refusal_root_ids_csv.encode("utf-8")))
-            refusal_df['ROOT_ID'] = refusal_df['ROOT_ID'].astype(np.uint64)
+            # refusal_df['ROOT_ID'] = refusal_df['ROOT_ID'].astype(np.int64)
             return refusal_df
-        return pd.DataFrame([], columns=["DATASTACK_NAME", "ROOT_ID"])
+        SkeletonService.print(f"Refusal list ({SKELETONIZATION_REFUSAL_LIST_FILENAME}) not found in bucket {bucket}. Returning empty DataFrame.")
+        return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID"])
     
     @staticmethod
     def _check_root_id_against_refusal_list(bucket, datastack_name, rid):
