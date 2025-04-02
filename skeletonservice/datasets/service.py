@@ -505,7 +505,8 @@ class SkeletonService:
             rid = int(rid)
         
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        return (skeletonization_refusal_root_ids_df == [datastack_name, rid]).all(axis=1).any()
+        skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
+        return (skeletonization_refusal_root_ids_df_without_timestamps == [datastack_name, rid]).all(axis=1).any()
     
     @staticmethod
     def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0):
