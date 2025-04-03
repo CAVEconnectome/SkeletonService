@@ -124,7 +124,10 @@ class SkeletonService:
     @staticmethod
     def print_with_session_timestamp(*args, session_timestamp_='unknown', sep=' ', end='\n', file=None, flush=False):
         try:
-            print(f"[{session_timestamp_}] {sep.join([str(v) for v in args])}", end=end, file=file, flush=flush)
+            s = sep.join([str(v) for v in args])
+            s = s.replace('\n', f"\n[{session_timestamp_}] ")
+            s = f"[{session_timestamp_}] " + s
+            print(s, end=end, file=file, flush=flush)
         except Exception as e:
             print(f"Error printing message for session [{session_timestamp_}]: {str(e)}")
             traceback.print_exc()
