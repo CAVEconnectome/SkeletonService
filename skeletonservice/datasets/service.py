@@ -110,16 +110,18 @@ class SkeletonService:
     def get_session_timestamp():
         """
         Get the session timestamp from the request context.
+        If we are outside a request context, return the current time.
         """
         if has_request_context():
             try:
-                return request.start_time.strftime('%Y%m%d_%H%M%S.%f')[:-3]
+                return request.start_time.strftime('@_%Y%m%d_%H%M%S.%f')[:-3]
             except Exception as e:
                 print(f"Error getting session timestamp from request: {str(e)}")
                 traceback.print_exc()
                 return "unknown_session"
         else:
-            return "no_request_context"
+            # return "no_request_context"
+            return datetime.datetime.now().strftime('&_%Y%m%d_%H%M%S.%f')[:-3]
     
     @staticmethod
     def print_with_session_timestamp(*args, session_timestamp_='unknown', sep=' ', end='\n', file=None, flush=False):
@@ -509,7 +511,10 @@ class SkeletonService:
         
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
         skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
-        return (skeletonization_refusal_root_ids_df_without_timestamps == [datastack_name, rid]).all(axis=1).any()
+        result = (skeletonization_refusal_root_ids_df_without_timestamps == [datastack_name, rid]).all(axis=1).any()
+        if verbose_level >= 1:
+            SkeletonService.print(f"Result of refusal list check for datastack {datastack_name} and root id {rid}: {result}")
+        return result
     
     @staticmethod
     def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0):
@@ -1199,13 +1204,16 @@ class SkeletonService:
         skeleton_version: int,
         rid_prefixes: List,
         limit: int = None,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0
     ):
         """
         Get the contents of the cache for a specific bucket and skeleton version.
         """
+        global session_timestamp, verbose_level
 
-        global verbose_level
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if debugging_root_id in rid_prefixes and verbose_level < 1:
@@ -1297,13 +1305,16 @@ class SkeletonService:
         datastack_name: str,
         skeleton_version: int,
         rids: Union[List, int],
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0
     ):
         """
         Confirm or deny that a set of root ids have H5 skeletons in the cache.
         """
+        global session_timestamp, verbose_level
 
-        global verbose_level
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
 
@@ -1983,12 +1994,16 @@ class SkeletonService:
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         output_format: str = "flatdict",
         generate_missing_skeletons: bool = False,  # Deprecated, unused
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
         Provide bulk retrieval (and optional generation) of skeletons by a list of root ids.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if debugging_root_id in rids and verbose_level < 1:
@@ -2064,7 +2079,7 @@ class SkeletonService:
                         collapse_radius,
                         skeleton_version,
                         False,
-                        SkeletonService.get_session_timestamp(),
+                        session_timestamp,
                         verbose_level_,
                     )
                 if not h5_available:
@@ -2112,12 +2127,16 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
         Generate a meshwork aynschronously. Then poll for the result to be ready and return it.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if rid == debugging_root_id and verbose_level < 1:
@@ -2187,7 +2206,7 @@ class SkeletonService:
             collapse_radius,
             -1,
             True,
-            SkeletonService.get_session_timestamp(),
+            session_timestamp,
             verbose_level_,
         )
         
@@ -2213,12 +2232,16 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
         Generate a skeleton aynschronously. Then poll for the result to be ready and return it.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if rid == debugging_root_id and verbose_level < 1:
@@ -2298,7 +2321,7 @@ class SkeletonService:
             collapse_radius,
             skeleton_version,
             True,
-            SkeletonService.get_session_timestamp(),
+            session_timestamp,
             verbose_level_,
         )
         
@@ -2323,12 +2346,16 @@ class SkeletonService:
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
         Generate multiple skeletons aynschronously without returning anything.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if debugging_root_id in rids and verbose_level < 1:
@@ -2390,12 +2417,16 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         """
         Generate multiple skeletons aynschronously without returning anything.
         """
-        global verbose_level
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
         if verbose_level_ > verbose_level:
             verbose_level = verbose_level_
         if debugging_root_id in rids and verbose_level < 1:
