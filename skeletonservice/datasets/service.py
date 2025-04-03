@@ -2270,6 +2270,7 @@ class SkeletonService:
             datastack_name,
             skeleton_version,
             rid,
+            session_timestamp,
             verbose_level_
         ):
             t1 = default_timer()
@@ -2287,6 +2288,7 @@ class SkeletonService:
                 collapse_radius,
                 skeleton_version,
                 True,
+                session_timestamp,
                 verbose_level_,
             )
 
@@ -2299,6 +2301,7 @@ class SkeletonService:
                 datastack_name,
                 skeleton_version,
                 rid,
+                session_timestamp,
                 verbose_level_
             ):
                 time.sleep(5)
