@@ -13,6 +13,6 @@ import flask
 import os
 import numpy as np
 
-__version__ = "0.17.46"
+__version__ = "0.17.47"
 
 views_bp = Blueprint("skeletons", __name__, url_prefix="/skeletons")
