@@ -287,7 +287,7 @@ class SkeletonResource__query_cache_B(Resource):
             skeleton_version=skvn,
             rid_prefixes=[int(v) for v in root_id_prefixes.split(',')],
             limit=limit,
-            session_timestamp=SkeletonService.get_session_timestamp(),
+            session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
 
@@ -364,7 +364,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
             datastack_name=datastack_name,
             skeleton_version=skvn,
             rids=root_ids,
-            session_timestamp=SkeletonService.get_session_timestamp(),
+            session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
 
@@ -407,7 +407,7 @@ class SkeletonResource__get_meshwork_A(Resource):
                 root_resolution=[1, 1, 1],
                 collapse_soma=True,
                 collapse_radius=7500,
-                session_timestamp=SkeletonService.get_session_timestamp(),
+                session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
             )
         except ValueError as e:
@@ -476,7 +476,7 @@ class SkeletonResource__get_skeleton_C(Resource):
                 collapse_soma=True,
                 collapse_radius=7500,
                 skeleton_version=skvn,
-                session_timestamp=SkeletonService.get_session_timestamp(),
+                session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
             )
         except ValueError as e:
@@ -596,7 +596,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
             skeleton_version=skvn,
             output_format=output_format,
             generate_missing_skeletons=gms,
-            session_timestamp=SkeletonService.get_session_timestamp(),
+            session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
 
@@ -661,7 +661,7 @@ class SkeletonResource__get_skeleton_async_C(Resource):
                 collapse_soma=True,
                 collapse_radius=7500,
                 skeleton_version=skvn,
-                session_timestamp=SkeletonService.get_session_timestamp(),
+                session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
             )
         except ValueError as e:
@@ -699,7 +699,7 @@ class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
-            session_timestamp=SkeletonService.get_session_timestamp(),
+            session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,  # DEBUG
         )
     
@@ -773,7 +773,7 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
-            session_timestamp=SkeletonService.get_session_timestamp(),
+            session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
 
