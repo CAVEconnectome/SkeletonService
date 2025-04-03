@@ -1,4 +1,4 @@
-from os import getenv
+import os
 import traceback as tb
 import logging
 from messagingclient import MessagingClient
@@ -9,10 +9,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 
+env_verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
+
 def callback(payload):
     session_timestamp = payload.attributes["session_timestamp"]
 
     verbose_level = int(payload.attributes["verbose_level"])
+    if env_verbose_level > verbose_level:
+        verbose_level = env_verbose_level
+        
     if verbose_level >= 1:
         s = ""
         for k in payload.attributes:
@@ -33,7 +38,7 @@ def callback(payload):
         SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor error getting priority from message: ", repr(e), session_timestamp=session_timestamp)
         SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp=session_timestamp)
     
-    skeletoncache_dead_letter_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
+    skeletoncache_dead_letter_queue = os.getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if verbose_level >= 1:
         SkeletonService.print_with_session_timestamp(f"Skeleton Cache message-processor subscription and high priority: {subscription}, {high_priority}", session_timestamp=session_timestamp)
         SkeletonService.print_with_session_timestamp(f"Does the subscription ({subscription}) match the dead letter queue ({skeletoncache_dead_letter_queue})? {skeletoncache_dead_letter_queue in subscription}", session_timestamp=session_timestamp)
@@ -82,9 +87,9 @@ def callback(payload):
             raise e
 
 c = MessagingClient()
-skeletoncache_low_priority_queue = getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", None)
-skeletoncache_high_priority_queue = getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", None)
-skeletoncache_dead_letter_queue = getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
+skeletoncache_low_priority_queue = os.getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", None)
+skeletoncache_high_priority_queue = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", None)
+skeletoncache_dead_letter_queue = os.getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
 if not skeletoncache_low_priority_queue or not skeletoncache_high_priority_queue or not skeletoncache_dead_letter_queue:
     raise ValueError(f"Skeleton Cache messaging client: one or more of the messaging queues are not set: LOW:{skeletoncache_low_priority_queue}, HIGH:{skeletoncache_high_priority_queue}, DEAD:{skeletoncache_dead_letter_queue}")
 c.consume_multiple([skeletoncache_low_priority_queue,
