@@ -36,7 +36,7 @@ CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
 # DEBUG_SKELETON_CACHE_BUCKET = "gs://keith-dev/"
 DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_easier_debugging() for explanation.
-DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090
+DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immediately trigger an exception when skeletonizing, which will send it to the dead letter queue
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 DATASTACK_NAME_REMAPPING = {
@@ -518,6 +518,14 @@ class SkeletonService:
             verbose_level = verbose_level_
         if rid == debugging_root_id and verbose_level < 1:
             verbose_level = 1
+        
+        # We don't want to add the test rid to the refusal list.
+        # Doing so might prevent us from testing it again in the future because it would be found in the dead letter queue at the beginning of the process.
+        # Admittedly, the code skips the refusal check for this id anyway, so it shoudl be safe to add it to the refusal listm buy let's not do it anyway.
+        if rid == DEBUG_DEAD_LETTER_TEST_RID:
+            if verbose_level >= 1:
+                SkeletonService.print(f"Not adding rid {rid} to the refusal list because we are only testing that it reaches this point in the code.")
+            return
         
         if verbose_level >= 1:
             SkeletonService.print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
@@ -2013,6 +2021,8 @@ class SkeletonService:
                 collapse_radius,
             ]
 
+            # Don't perform the normal validation on the debugging root id.
+            # We want it to look like a valid root id so it reaches the skeleton generation code and triggers the dead lettering test.
             if rid != DEBUG_DEAD_LETTER_TEST_RID:
                 if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                     continue
@@ -2202,6 +2212,8 @@ class SkeletonService:
         if rid == debugging_root_id and verbose_level < 1:
             verbose_level = 1
 
+        # Don't perform the normal validation on the debugging root id.
+        # We want it to look like a valid root id so it reaches the skeleton generation code and triggers the dead lettering test.
         if rid != DEBUG_DEAD_LETTER_TEST_RID:
             if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                 raise ValueError(f"Problematic root id: {rid} is in the refusal list")
@@ -2321,6 +2333,8 @@ class SkeletonService:
 
         num_valid_rids = 0
         for rid in rids:
+            # Don't perform the normal validation on the debugging root id.
+            # We want it to look like a valid root id so it reaches the skeleton generation code and triggers the dead lettering test.
             if rid == DEBUG_DEAD_LETTER_TEST_RID or (
                     not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid) \
                     and cave_client.chunkedgraph.is_valid_nodes(rid) \
