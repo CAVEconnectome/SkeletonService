@@ -14,6 +14,7 @@ class SkeletonService_skvn4(SkeletonService):
         skeleton_version: int = -1,
         rid_prefixes: List = None,
         limit: int = None,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -24,6 +25,7 @@ class SkeletonService_skvn4(SkeletonService):
             skeleton_version,
             rid_prefixes,
             limit,
+            session_timestamp_,
             verbose_level_,
         )
     
@@ -33,6 +35,7 @@ class SkeletonService_skvn4(SkeletonService):
         datastack_name: str,
         skeleton_version: int = -1,
         rids: Union[List, int] = None,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -42,6 +45,7 @@ class SkeletonService_skvn4(SkeletonService):
             datastack_name,
             skeleton_version,
             rids,
+            session_timestamp_,
             verbose_level_,
         )
 
@@ -56,6 +60,7 @@ class SkeletonService_skvn4(SkeletonService):
         collapse_radius: int,
         skeleton_version: int = -1,
         via_requests: bool = True,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -70,6 +75,7 @@ class SkeletonService_skvn4(SkeletonService):
             collapse_radius,
             skeleton_version,
             via_requests,
+            session_timestamp_,
             verbose_level_,
         )
 
@@ -83,6 +89,7 @@ class SkeletonService_skvn4(SkeletonService):
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = -1,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -96,6 +103,7 @@ class SkeletonService_skvn4(SkeletonService):
             collapse_soma,
             collapse_radius,
             skeleton_version,
+            session_timestamp_,
             verbose_level_,
         )
 
@@ -110,6 +118,7 @@ class SkeletonService_skvn4(SkeletonService):
         skeleton_version: int = -1,
         output_format: str = "json",
         generate_missing_skeletons: bool = False,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -124,6 +133,7 @@ class SkeletonService_skvn4(SkeletonService):
             skeleton_version,
             output_format,
             generate_missing_skeletons,
+            session_timestamp_,
             verbose_level_,
         )
 
@@ -136,6 +146,7 @@ class SkeletonService_skvn4(SkeletonService):
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = -1,
+        session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
         if verbose_level_ >= 1:
@@ -148,5 +159,6 @@ class SkeletonService_skvn4(SkeletonService):
             collapse_soma,
             collapse_radius,
             skeleton_version,
+            session_timestamp_,
             verbose_level_,
         )
