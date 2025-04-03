@@ -534,18 +534,27 @@ class SkeletonService:
             SkeletonService.print(f"Adding rid {rid} to the refusal list for datastack {datastack_name}")
         
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
-        skeletonization_refusal_root_ids_df = pd.concat([
-            skeletonization_refusal_root_ids_df, pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
 
-        csv_content = skeletonization_refusal_root_ids_df.to_csv(index=False)
-        csv_content_bytes = BytesIO(csv_content.encode("utf-8")).getvalue()
+        # We wouldn't expect the rid to already exist in the refusal list by the time we reach this point in the code,
+        # but it's possible the concurrent requests or some other erroneous or transient or problematic situation could cause this,
+        # so let's go ahead and make sure we don't add any duplicate entries. There's no harm in doing this.
+        mask = (skeletonization_refusal_root_ids_df['DATASTACK_NAME'] == datastack_name) & (skeletonization_refusal_root_ids_df['ROOT_ID'] == rid)
+        if mask.sum() == 0:
+            timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+            skeletonization_refusal_root_ids_df = pd.concat([
+                skeletonization_refusal_root_ids_df, pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
 
-        cf = CloudFiles(f"{bucket}")
-        result = cf.put(SKELETONIZATION_REFUSAL_LIST_FILENAME, csv_content_bytes, compress=True)
+            csv_content = skeletonization_refusal_root_ids_df.to_csv(index=False)
+            csv_content_bytes = BytesIO(csv_content.encode("utf-8")).getvalue()
+
+            cf = CloudFiles(f"{bucket}")
+            result = cf.put(SKELETONIZATION_REFUSAL_LIST_FILENAME, csv_content_bytes, compress=True)
         
-        if verbose_level >= 1:
-            SkeletonService.print(f"Result of adding rid {rid} to the refusal list for datastack {datastack_name}: {result}")
+            if verbose_level >= 1:
+                SkeletonService.print(f"Result of adding rid {rid} to the refusal list for datastack {datastack_name}: {result}")
+        else:
+            if verbose_level >= 1:
+                SkeletonService.print(f"Rid {rid} already exists in the refusal list for datastack {datastack_name}. A duplicate entry wasn't added.")
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
