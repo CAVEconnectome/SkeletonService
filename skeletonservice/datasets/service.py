@@ -112,16 +112,19 @@ class SkeletonService:
         Get the session timestamp from the request context.
         If we are outside a request context, return the current time.
         """
+        global session_timestamp
+
         if has_request_context():
             try:
-                return request.start_time.strftime('@_%Y%m%d_%H%M%S.%f')[:-3]
+                session_timestamp = request.start_time.strftime('@_%Y%m%d_%H%M%S.%f')[:-3]
             except Exception as e:
                 print(f"Error getting session timestamp from request: {str(e)}")
                 traceback.print_exc()
-                return "unknown_session"
+                session_timestamp = datetime.datetime.now().strftime('!_%Y%m%d_%H%M%S.%f')[:-3]
         else:
             # return "no_request_context"
-            return datetime.datetime.now().strftime('&_%Y%m%d_%H%M%S.%f')[:-3]
+            session_timestamp = datetime.datetime.now().strftime('&_%Y%m%d_%H%M%S.%f')[:-3]
+        return session_timestamp
     
     @staticmethod
     def print_with_session_timestamp(*args, session_timestamp_='unknown', sep=' ', end='\n', file=None, flush=False):
@@ -1383,7 +1386,7 @@ class SkeletonService:
             "skeleton_params_collapse_radius": f"{collapse_radius}",
             "skeleton_version": f"{skeleton_version}",
             "high_priority": f"{high_priority}",
-            "session_timestamp": f"{SkeletonService.get_session_timestamp()}",
+            "session_timestamp": session_timestamp,  # f"{SkeletonService.get_session_timestamp()}",
             "verbose_level": f"{verbose_level_}",
         }
 
