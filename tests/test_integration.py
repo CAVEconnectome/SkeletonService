@@ -9,6 +9,7 @@ But, you can run the notebook version of these tests manually and they should wo
 
 # SkeletonService integration tests
 
+import packaging
 import urllib3
 import logging
 import importlib.metadata
@@ -64,6 +65,9 @@ class TestSkeletonsServiceIntegration:
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
         print(f"SkeletonService server and version: {server_address} , v{self.skclient._server_version}")
 
+        # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
+        self.expected_skeleton_service_version = "0.18.1"
+        self.expected_available_skeleton_versions = [-1, 0, 1, 2, 3, 4]
         self.bulk_rids = [864691135463611454, 864691135687456480]
         self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
         self.single_rid = self.bulk_rids[0]
@@ -98,6 +102,8 @@ class TestSkeletonsServiceIntegration:
                 print(cf.exists(filename))
         
         self.run_test_metadata_1()
+        self.run_test_metadata_2()
+        self.run_test_metadata_3()
         self.run_test_cache_status_1_1()
         self.run_test_cache_status_1_2()
         self.run_test_cache_status_1_3()
@@ -124,6 +130,16 @@ class TestSkeletonsServiceIntegration:
     # Metadata tests
 
     def run_test_metadata_1(self):
+        skeleton_service_version = self.skclient.get_version()
+        # print(skeleton_service_version)
+        self.run_one_test(skeleton_service_version == packaging.version.Version(self.expected_skeleton_service_version))
+
+    def run_test_metadata_2(self):
+        skeleton_versions = self.skclient.get_versions()
+        # print(skeleton_versions)
+        self.run_one_test(skeleton_versions == self.expected_available_skeleton_versions)
+
+    def run_test_metadata_3(self):
         precomputed_skeleton_info = self.skclient.get_precomputed_skeleton_info(skvn=self.skvn)
         # print(precomputed_skeleton_info)
         self.run_one_test(precomputed_skeleton_info == {

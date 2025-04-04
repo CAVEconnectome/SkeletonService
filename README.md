@@ -4,7 +4,9 @@ SkeletonService returns skeletons in a variety of formats. It also caches any re
 
 SkeletonService is not generally accessed directly, say via Python, but rather through a RESTful interface consisting of specific URLs where the service is hosted, likely in the cloud (presented later in this document). However, it can be accessed from Python if desired (presented first).
 
-## Python Interface
+## Direct Python Interface
+
+Jump to the client section below to see how to more realistically access SkeletonService from CAVEclient.
 
 Here's how to use SkeletonService in a direct Python fashion. To reemphasize the point, this is not a common end-user use case. That would generally involve CAVEclient, as shown farther below. For a direct Python usage, we start by creating a service object and initializing a few basic parameters:
 ```
@@ -21,11 +23,12 @@ bucket = 'gs://minnie65_skeletons/'
 
 We can now use the service object to generate and retrieve skeletons. For the most part, only the `output_format` parameter needs to be adjusted to obtain skeletons of different formats. The `output_format` options are:
 * `none`: This output directs the SkeletonService to generate a skeleton file and store it in the cache if one has not yet been generated, but to otherwise dispense with returning the skeleton to the user. This approach can be useful when pregenerating a large number of skeletons batch-style.
-* `json`: A Python dictionary containing a JSON description of a skeleton.
+* `flatdict`: A Python dictionary containing a JSON description of a skeleton (with no nested dictionary structures; all data resides at the top-level of the dictionary).
+* `json`|`jsoncompressed`: A Python dictionary containing a JSON description of a skeleton.
 * `arrays`: A literal subset of the `json` format offering a minimal set of skeleton attributes.
 * `precomputed`: Amongst other possible uses, this format is relied upon by NeuroGlancer for 3D rendering and analysis.
 * `h5`: A skeleton conforming to the H5 file spec: https://docs.fileformat.com/misc/h5/ . See note below about H5 skeletons.
-* `swc`: A skeleton conforming to the SWC file spec: https://swc-specification.readthedocs.io/en/latest/ . See note below about SWC skeletons.
+* `swc`|`swccompressed`: A skeleton conforming to the SWC file spec: https://swc-specification.readthedocs.io/en/latest/ . See note below about SWC skeletons.
 
 Here's an example of obtaining a JSON skeleton:
 ```
@@ -76,7 +79,9 @@ Note that SWC skeletons are not returned as a file, but rather as a byte-stream 
     names=["id", "type", "x", "y", "z", "radius", "parent"])  # This is the standard SWC column header
   ```
 
-While the examples above show how to access SkeletonService directly as an imported module, this is not the most likely use case in a deployed scenario. The service would conventionally reside in the cloud and be accessed in a RESTful way via http requests and parameterized URLs. Assuming one uses CAVEclient for such applications, here is how it would look in a more realistic scenario:
+## Python CAVEclient Interface
+
+While the examples above show how to access SkeletonService directly as an imported module, this is not the most likely use case in a deployed scenario. The service would conventionally reside in the cloud and be accessed in a RESTful way via http requests and parameterized URLs. Assuming one uses CAVEclient for such applications, the output format options are more limited. Please refer to the [CAVEclient documentation](https://caveconnectome.github.io/CAVEclient/tutorials/skeletonization/) for the most up-to-date list of supported formated and comprehensive directions on its use. Briefly, here is what a client scenario would consist of (note that at the time of this writing, the client only supports 'dict'&mdash;which returns the 'flatdict' format&mdash;and 'swc'):
 ```
 import os
 import caveclient as cc
@@ -88,6 +93,6 @@ client = cc.CAVEclient(
 sk = client.skeleton.get_skeleton(
     864691135617152361,
     'minnie65_phase3_v1',
-    output_format='arrays',
+    output_format='dict',
 )
 ```
