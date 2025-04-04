@@ -9,6 +9,7 @@ But, you can run the notebook version of these tests manually and they should wo
 
 # SkeletonService integration tests
 
+from timeit import default_timer
 import packaging
 import urllib3
 import logging
@@ -240,19 +241,28 @@ class TestSkeletonsServiceIntegration:
     # Skeleton request tests
 
     def run_test_retrieval_1(self):
+        start_time = default_timer()
         sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+        elapsed_time = default_timer() - start_time
         # display(sk)
         self.run_one_test(sk is not None and isinstance(sk, dict))
+        self.run_one_test(elapsed_time > 5 and elapsed_time < 90)
 
     def run_test_retrieval_2(self):
+        start_time = default_timer()
         sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+        elapsed_time = default_timer() - start_time
         # display(sk)
         self.run_one_test(sk is not None and isinstance(sk, dict))
+        self.run_one_test(elapsed_time < 5)
 
     def run_test_retrieval_3(self):
+        start_time = default_timer()
         sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='swc', verbose_level=1)
+        elapsed_time = default_timer() - start_time
         # display(sk)
         self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
+        self.run_one_test(elapsed_time < 5)
 
     ## Inspect the cache after generating new skeletons
 
