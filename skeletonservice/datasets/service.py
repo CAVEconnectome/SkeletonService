@@ -2291,7 +2291,6 @@ class SkeletonService:
                 collapse_radius,
                 skeleton_version,
                 True,
-                session_timestamp,
                 verbose_level_,
             )
 
