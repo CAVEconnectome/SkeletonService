@@ -520,6 +520,13 @@ class SkeletonService:
         return result
     
     @staticmethod
+    def exceeds_int64_range(value):
+        """Checks if a value exceeds the range of a 64-bit signed integer."""
+        min_int64 = np.iinfo(np.int64).min
+        max_int64 = np.iinfo(np.int64).max
+        return value < min_int64 or value > max_int64
+    
+    @staticmethod
     def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0):
         """
         Add the root id to the list of root ids for which skeletonization should be refused.
@@ -536,6 +543,10 @@ class SkeletonService:
         if rid == DEBUG_DEAD_LETTER_TEST_RID:
             if verbose_level >= 1:
                 SkeletonService.print(f"Not adding rid {rid} to the refusal list because we are only testing that it reaches this point in the code.")
+            return
+
+        if SkeletonService.exceeds_int64_range(rid):
+            SkeletonService.print(f"Root ID somehow exceeds INT64 range: {rid}. Adding it to the refusal list would corrupt the Pandas DataFrame. It will not be added.")
             return
         
         if verbose_level >= 1:
