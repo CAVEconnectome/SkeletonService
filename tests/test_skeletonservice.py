@@ -77,6 +77,23 @@ class TestSkeletonsService:
             "num_found": 1,
             "files": [filename]
         }
+    
+    def test_refusal_list_range_error_detection(self, test_app, capsys):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        rid = 11223344556677889900
+
+        try:
+            SkelClassVsn.add_rid_to_refusal_list(
+                bucket="gs://test_bucket/",
+                datastack_name=datastack_dict["datastack_name"],
+                rid=rid
+            )
+        except Exception as e:
+            assert False
+        
+        captured = capsys.readouterr()
+        assert captured.out == f"[not_set] Root ID somehow exceeds INT64 range: {rid}. Adding it to the refusal list would corrupt the Pandas DataFrame. It will not be added.\n"
 
     def test_meshworks_exist(self, test_app, cloudfiles_mock):
         rids = [1]
