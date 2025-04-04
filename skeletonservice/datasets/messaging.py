@@ -22,7 +22,7 @@ def callback(payload):
         if verbose_level >= 1:
             s = ""
             for k in payload.attributes:
-                s += f"\n * {k}: {payload.attributes[k]}"
+                s += f"\n |-- {k}: {payload.attributes[k]}"
             SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received message: ", s, session_timestamp_=session_timestamp)
         
         subscription = "Unknown"
