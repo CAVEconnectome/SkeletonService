@@ -1,4 +1,3 @@
-import traceback
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import g
@@ -15,14 +14,9 @@ def limit_by_category(category):
 
 def get_rate_limit_from_config(category=None):
     if category:
-        limiter_categories = os.environ.get("LIMITER_CATEGORIES", "{}")
-        print(f"limiter_categories: {limiter_categories}")
-        try:
-            categories = json.loads(os.environ.get("LIMITER_CATEGORIES", "{}"))
-        except Exception as e:
-            print(f"Error loading limiter categories: {e}")
-            traceback.print_exc()
-            categories = {}
+        categories = json.loads(os.environ.get("LIMITER_CATEGORIES", "{}"))
+        if not categories:  # None, "", {} : The environment variable was probably populated with an empty string during deployment such that it isn't literally "None", but JSON won't read an empty string, so it's just as bad as None
+            return None
         if category not in categories:
             return None  # Default rate limit if not found
         return categories[category]

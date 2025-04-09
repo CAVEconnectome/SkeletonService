@@ -40,6 +40,9 @@ class BaseConfig(object):
     SKELETON_CACHE_LOW_PRIORITY_EXCHANGE = "CONFIGURE_ME"  # "ltv5_SKELETON_CACHE"
     SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE = "CONFIGURE_ME"  # "ltv5_SKELETON_CACHE"
 
+    LIMITER_CATEGORIES = "CONFIGURE_ME"
+    LIMITER_URI = "CONFIGURE_ME"
+
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
     if os.environ.get("DAF_CREDENTIALS", None) is not None:
         with open(os.environ.get("DAF_CREDENTIALS"), "r") as f:
