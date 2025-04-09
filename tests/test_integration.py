@@ -10,6 +10,7 @@ But, you can run the notebook version of these tests manually and they should wo
 # SkeletonService integration tests
 
 import inspect
+import os
 import sys
 from timeit import default_timer
 import numpy as np
@@ -497,14 +498,26 @@ class TestSkeletonsServiceIntegration:
         for key, value in server_results.items():
             num_passed, num_failed = value
             if verbose_level >= 1:
-                print(f"{key}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
+                print(f"Testing on server {key}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
             if num_failed > 0:
                 return False
         return True
 
 if __name__ == "__main__":
     test = TestSkeletonsServiceIntegration()
-    result = test.run()
+    result = False  # test.run(1)
     if not result:
-        sys.exit(0)
-    sys.exit(1)
+        err_msg = "ALERT! SkeletonService integration test has failed."
+
+        slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
+        if slack_webhook_id:
+            url = f"https://hooks.slack.com/services/{slack_webhook_id}"
+            json_content = {
+                "text": err_msg
+            }
+            result = requests.post(url, json=json_content)
+            print(result.status_code, result.text)
+
+        sys.exit(err_msg)
+    
+    sys.exit(0)
