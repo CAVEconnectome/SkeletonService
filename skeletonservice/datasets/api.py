@@ -8,6 +8,7 @@ from flask_restx import Namespace, Resource, reqparse
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
+from skeletonservice.datasets.limiter import limit_by_category
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
@@ -256,6 +257,10 @@ class SkeletonResource__bulk_skeleton_info(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource__query_cache_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -276,6 +281,10 @@ class SkeletonResource__query_cache_A(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<int(signed=True):skvn>/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource__query_cache_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_id_prefixes: str, limit: int, verbose_level: int=0):
@@ -308,6 +317,10 @@ class SkeletonResource__query_cache_B(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<string:root_ids>")
 class SkeletonResource__skeleton_exists_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -329,6 +342,10 @@ class SkeletonResource__skeleton_exists_A(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists/<int(signed=True):skvn>/<string:root_ids>")
 class SkeletonResource__skeleton_exists_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_ids: str, verbose_level=0):
@@ -350,6 +367,10 @@ class SkeletonResource__skeleton_exists_B(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/exists")
 class SkeletonResource__skeleton_exists_C(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_ids: List, verbose_level: int=0):
@@ -427,6 +448,10 @@ class SkeletonResource__get_meshwork_A(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int:rid>")
 class SkeletonResource__get_skeleton_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -444,6 +469,10 @@ class SkeletonResource__get_skeleton_A(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource__get_skeleton_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
@@ -461,6 +490,10 @@ class SkeletonResource__get_skeleton_B(Resource):
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/<int(signed=True):skvn>/<int:rid>/<string:output_format>")
 class SkeletonResource__get_skeleton_C(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
@@ -569,6 +602,10 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 @api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<string:output_format>/<bool:gms>/<string:rids>")
 class SkeletonResource__get_skeletons_bulk_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -581,6 +618,10 @@ class SkeletonResource__get_skeletons_bulk_A(Resource):
 @api_bp.route("/<string:datastack_name>/bulk/get_skeletons/<int(signed=True):skvn>/<string:output_format>/<bool:gms>/<string:rids>")
 class SkeletonResource__get_skeletons_bulk_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str, verbose_level: int=0):
@@ -612,6 +653,10 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
 @api_bp.route("/<string:datastack_name>/async/get_skeleton/<int:rid>")
 class SkeletonResource__get_skeleton_async_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -629,6 +674,10 @@ class SkeletonResource__get_skeleton_async_A(Resource):
 @api_bp.route("/<string:datastack_name>/async/get_skeleton/<int(signed=True):skvn>/<int:rid>")
 class SkeletonResource__get_skeleton_async_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
@@ -646,6 +695,10 @@ class SkeletonResource__get_skeleton_async_B(Resource):
 @api_bp.route("/<string:datastack_name>/async/get_skeleton/<int(signed=True):skvn>/<int:rid>/<string:output_format>")
 class SkeletonResource__get_skeleton_async_C(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
@@ -730,6 +783,10 @@ class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<string:rids>")
 class SkeletonResource__gen_skeletons_bulk_async_A(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -744,6 +801,10 @@ class SkeletonResource__gen_skeletons_bulk_async_A(Resource):
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons/<int(signed=True):skvn>/<string:rids>")
 class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rids: str, verbose_level: int=0):
@@ -760,6 +821,10 @@ class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
 @api_bp.route("/<string:datastack_name>/bulk/gen_skeletons")
 class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
     """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rids: List, verbose_level: int=0):

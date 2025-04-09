@@ -68,7 +68,6 @@ config = {
     "default": "skeletonservice.config.BaseConfig",
 }
 
-
 def configure_app(app):
     config_name = os.getenv("FLASK_CONFIGURATION", "default")
     # object-based default configuration

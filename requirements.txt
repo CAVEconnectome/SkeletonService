@@ -4,6 +4,8 @@ aniso8601==9.0.1
     # via flask-restx
 asttokens==2.4.1
     # via stack-data
+async-timeout==5.0.1
+    # via redis
 attrs==23.2.0
     # via
     #   caveclient
@@ -68,6 +70,8 @@ decorator==5.1.1
     # via ipython
 deflate==0.6.0
     # via cloud-files
+deprecated==1.2.18
+    # via limits
 dill==0.3.8
     # via
     #   multiprocess
@@ -91,10 +95,12 @@ fastremap==1.14.1
 flask==2.3.3
     # via
     #   flask-cors
+    #   flask-limiter
     #   flask-restx
     #   middle-auth-client
 flask-accepts==0.18.4
 flask-cors==4.0.1
+flask-limiter==3.11.0
 flask-restx==1.3.0
     # via flask-accepts
 fonttools==4.51.0
@@ -200,8 +206,12 @@ jsonschema-specifications==2023.12.1
     # via jsonschema
 kiwisolver==1.4.5
     # via matplotlib
+limits==4.2
+    # via flask-limiter
 markdown==3.6
     # via python-jsonschema-objects
+markdown-it-py==3.0.0
+    # via rich
 markupsafe==2.1.5
     # via
     #   jinja2
@@ -214,6 +224,8 @@ matplotlib==3.8.4
     #   vtk
 matplotlib-inline==0.1.6
     # via ipython
+mdurl==0.1.2
+    # via markdown-it-py
 meshparty==1.18.2
     # via pcg-skel
 messagingclient==0.2.2
@@ -263,6 +275,8 @@ numpy==1.26.4
     #   simplejpeg
     #   tables
     #   trimesh
+ordered-set==4.1.0
+    # via flask-limiter
 orderedmultidict==1.0.1
     # via furl
 orjson==3.10.1
@@ -273,6 +287,7 @@ orjson==3.10.1
 packaging==24.2
     # via
     #   caveclient
+    #   limits
     #   marshmallow
     #   matplotlib
     #   pooch
@@ -346,7 +361,9 @@ pyasn1==0.6.0
 pyasn1-modules==0.4.0
     # via google-auth
 pygments==2.17.2
-    # via ipython
+    # via
+    #   ipython
+    #   rich
 pymeshfix==0.16.3
     # via meshparty
 pyparsing==3.1.2
@@ -371,6 +388,8 @@ pyvista==0.43.6
     # via pymeshfix
 pyyaml==6.0.2
     # via responses
+redis==5.2.1
+    # via limits
 referencing==0.33.0
     # via
     #   jsonschema
@@ -386,6 +405,8 @@ requests==2.31.0
     #   pooch
     #   responses
 responses==0.25.6
+rich==13.9.4
+    # via flask-limiter
 rpds-py==0.18.0
     # via
     #   jsonschema
@@ -451,7 +472,11 @@ trimesh==4.3.1
     #   meshparty
     #   pcg-skel
 typing-extensions==4.9.0
-    # via ipython
+    # via
+    #   flask-limiter
+    #   ipython
+    #   limits
+    #   rich
 tzdata==2024.1
     # via pandas
 urllib3==2.2.1
@@ -472,6 +497,8 @@ werkzeug==3.0.1
     #   flask
     #   flask-accepts
     #   flask-restx
+wrapt==1.17.2
+    # via deprecated
 zipp==3.17.0
     # via
     #   importlib-metadata

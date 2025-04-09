@@ -6,6 +6,7 @@ from skeletonservice.config import configure_app
 from skeletonservice.utils import get_instance_folder_path
 from skeletonservice.datasets.api import api_bp
 from skeletonservice.datasets.views import views_bp
+from skeletonservice.datasets.limiter import limiter
 from skeletonservice.datasets.service import SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS
 from flask_restx import Api
 from flask_cors import CORS
@@ -88,6 +89,8 @@ def create_app(test_config=None):
         api.add_namespace(api_bp, path="/v1")
 
         app.register_blueprint(baseapi_bp)
+
+        limiter.init_app(app)
 
     @app.route("/skeletoncache/health")
     def health():
