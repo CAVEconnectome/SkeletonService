@@ -389,7 +389,7 @@ class TestSkeletonsServiceIntegration:
         # if verbose_level >= 2:
             # display(sk)
         test_result = np.array([0, 0])
-        test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
+        test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
         test_result += (1, 0) if test_result1 else (0, 1)
         test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90)
         test_result += (1, 0) if test_result2 else (0, 1)
