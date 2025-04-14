@@ -39,14 +39,25 @@ PYTEST_INTEGRATION_TESTS_ENABLED = False
 
 verbose_level = 0
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 class TestSkeletonsServiceIntegration:
     def test_passed(self):
         if verbose_level >= 1:
-            print("TEST PASSED")
+            print(f"{bcolors.BOLD}{bcolors.OKGREEN}TEST PASSED{bcolors.ENDC}")
 
     def test_failed(self):
         if verbose_level >= 1:
-            print("TEST FAILED")
+            print(f"{bcolors.BOLD}{bcolors.FAIL}TEST FAILED{bcolors.ENDC}")
 
     def print_test_result(self, result):
         if result:
@@ -65,7 +76,7 @@ class TestSkeletonsServiceIntegration:
         # Set things up
         self.fast_run = fast_run
 
-        if verbose_level >= 2:
+        if verbose_level >= 1:
             print(f"CAVEclient version: v{cc.__version__} , v{importlib.metadata.version('CAVEclient')}")
 
         self.datastack_name = "minnie65_phase3_v1"
@@ -74,11 +85,11 @@ class TestSkeletonsServiceIntegration:
         self.client.materialize.version = 1078
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
-        if verbose_level >= 2:
+        if verbose_level >= 1:
             print(f"SkeletonService server and version: {server_address} , v{self.skclient._server_version}")
 
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
-        self.expected_skeleton_service_version = "0.18.1"
+        self.expected_skeleton_service_version = "0.18.5"
         self.expected_available_skeleton_versions = [-1, 0, 1, 2, 3, 4]
         self.bulk_rids = [864691135463611454, 864691135687456480]
         self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
@@ -95,7 +106,7 @@ class TestSkeletonsServiceIntegration:
             bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_name}/{self.skvn}"
         elif "minnie" in server_address:
             bucket = f"gs://minnie65_skeletons/{self.datastack_name}/{self.skvn}"
-        if verbose_level >= 2:
+        if verbose_level >= 1:
             print(f"Testing bucket: {bucket}")
 
         cf = CloudFiles(bucket)
@@ -278,10 +289,10 @@ class TestSkeletonsServiceIntegration:
         try:
             sk = self.skclient.get_skeleton(self.sample_refusal_list_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
-        except requests.HTTPError as e:
+        except ValueError as e:
             if verbose_level >= 2:
-                print(e)
-            test_result = self.run_one_test(e.response.text == '{\n    "Error": "Problematic root id: ' + str(self.sample_refusal_list_rid) + ' is in the refusal list"\n}\n')
+                print(e.args[0])
+            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_refusal_list_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
 
@@ -291,10 +302,9 @@ class TestSkeletonsServiceIntegration:
         try:
             sk = self.skclient.get_skeleton(self.sample_invalid_node_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
-        except requests.HTTPError as e:
-            if verbose_level >= 2:
-                print(e)
-            test_result = self.run_one_test(e.response.text == '{\n    "Error": "Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)"\n}\n')
+        except ValueError as e:
+            print(e.args[0])
+            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
 
@@ -304,10 +314,9 @@ class TestSkeletonsServiceIntegration:
         try:
             sk = self.skclient.get_skeleton(self.sample_supervoxel_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
-        except requests.HTTPError as e:
-            if verbose_level >= 2:
-                print(e)
-            test_result = self.run_one_test(e.response.text == '{\n    "Error": "Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)"\n}\n')
+        except ValueError as e:
+            print(e.args[0])
+            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
 
@@ -371,6 +380,10 @@ class TestSkeletonsServiceIntegration:
                 self.bulk_rids[0]: True,
                 self.bulk_rids[1]: False
             })
+            if not test_result:
+                print( \
+f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
+might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC}")
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
@@ -387,6 +400,10 @@ class TestSkeletonsServiceIntegration:
                     f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz"
                 ]
             })
+            if not test_result:
+                print( \
+f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
+might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC}")
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
@@ -422,7 +439,7 @@ class TestSkeletonsServiceIntegration:
 
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
-    ### The estimated job time depends on the number of parallel workers available on the serverm with each skeleton allocated 60s for estimation purposes.
+    ### The estimated job time depends on the number of parallel workers available on the server with each skeleton allocated 60s for estimation purposes.
     ### For example, with 10 workers, 1–10 skeletons would take 60s, 11–20 skeletons would take 120s, etc.
     ### At the time of this writing, all servers are configured to use 30 workers.
 
@@ -498,16 +515,16 @@ class TestSkeletonsServiceIntegration:
         for key, value in server_results.items():
             num_passed, num_failed = value
             if verbose_level >= 1:
-                print(f"Testing on server {key}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
+                print(f"Test results on server {key}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
             if num_failed > 0:
                 return False
         return True
 
 if __name__ == "__main__":
     test = TestSkeletonsServiceIntegration()
-    result = False  # test.run(1)
+    result = test.run(1)
     if not result:
-        err_msg = "ALERT! SkeletonService integration test has failed."
+        err_msg = "ALERT! Some SkeletonService integration tests have failed."
 
         slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
         if slack_webhook_id:
@@ -518,6 +535,6 @@ if __name__ == "__main__":
             result = requests.post(url, json=json_content)
             print(result.status_code, result.text)
 
-        sys.exit(err_msg)
+        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}{err_msg}{bcolors.ENDC}")
     
     sys.exit(0)
