@@ -780,18 +780,6 @@ class SkeletonService:
             traceback.print_exc()
             raise e
 
-        # Detect if the skeleton is miniscule
-        if len(skel.vertices) <= 1:
-            if verbose_level >= 1:
-                SkeletonService.print(f"Skeleton for root id {rid} contains only {len(skel.vertices)} {'vertex' if len(skel.vertices) == 1 else 'vertices'}. Adding to refusal list.")
-            SkeletonService.add_rid_to_refusal_list(
-                bucket,
-                datastack_name,
-                rid,
-                verbose_level_=verbose_level,
-            )
-            raise ValueError(f"Skeleton for root id {rid} contains only {len(skel.vertices)} {'vertex' if len(skel.vertices) == 1 else 'vertices'}.")
-
         # Assign the radii information to the skeleton
         if not use_default_radii:
             radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
