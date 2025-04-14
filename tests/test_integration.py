@@ -90,7 +90,7 @@ class TestSkeletonsServiceIntegration:
             print(f"SkeletonService server and version: {server_address} , v{self.skclient._server_version}")
 
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
-        self.expected_skeleton_service_version = "0.18.5"
+        self.expected_skeleton_service_version = "0.18.6"
         self.expected_available_skeleton_versions = [-1, 0, 1, 2, 3, 4]
 
         self.skvn = 4
@@ -384,14 +384,14 @@ class TestSkeletonsServiceIntegration:
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
         start_time = default_timer()
-        sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='swc', verbose_level=1)
+        sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
         test_result = np.array([0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
         test_result += (1, 0) if test_result1 else (0, 1)
-        test_result2 = self.run_one_test(elapsed_time < 5)
+        test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90)
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -407,7 +407,7 @@ class TestSkeletonsServiceIntegration:
             test_result = self.run_one_test(rids_exist == {
                 self.bulk_rids[0]: True,
                 self.bulk_rids[1]: False,
-                self.single_vertex_rid: False,
+                self.single_vertex_rid: True,
             })
             if not test_result:
                 print( \
@@ -424,9 +424,10 @@ might complete between the time when the cache is cleared at the beginning of th
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(cache_contents == {
-                "num_found": 1,
+                "num_found": 2,
                 "files": [
-                    f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz"
+                    f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                    f"skeleton__v4__rid-{self.single_vertex_rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
                 ]
             })
             if not test_result:
@@ -531,7 +532,7 @@ might complete between the time when the cache is cleared at the beginning of th
             except Exception as e:
                 if verbose_level >= 2:
                     print(f"Error running test on {server_address}: {e}")
-                result = self.self.run_one_test(False)
+                result = self.run_one_test(False)
                 server_results[server_address] = (0, 1)
         
         return server_results
