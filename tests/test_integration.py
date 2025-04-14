@@ -92,13 +92,17 @@ class TestSkeletonsServiceIntegration:
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
         self.expected_skeleton_service_version = "0.18.5"
         self.expected_available_skeleton_versions = [-1, 0, 1, 2, 3, 4]
+
+        self.skvn = 4
+
         self.bulk_rids = [864691135463611454, 864691135687456480]
-        self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
         self.single_rid = self.bulk_rids[0]
+        self.single_vertex_rid = 864691131576191498
+        self.valid_rids = self.bulk_rids + [self.single_vertex_rid]
+        self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
         self.sample_refusal_list_rid = 112233445566778899
         self.sample_invalid_node_rid = 864691135687000000
         self.sample_supervoxel_rid =    88891049011371731
-        self.skvn = 4
 
         # Delete the test rid files from the bucket so we can test regenerating them from scratch
 
@@ -111,14 +115,14 @@ class TestSkeletonsServiceIntegration:
             print(f"Testing bucket: {bucket}")
 
         cf = CloudFiles(bucket)
-        for rid in self.bulk_rids:
+        for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
                 filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
                 if verbose_level >= 2:
                     print(filename)
                     print(cf.exists(filename))
 
-        for rid in self.bulk_rids:
+        for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
                 filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
                 if verbose_level >= 2:
@@ -145,6 +149,7 @@ class TestSkeletonsServiceIntegration:
         results += self.run_test_retrieval_1()
         results += self.run_test_retrieval_2()
         results += self.run_test_retrieval_3()
+        results += self.run_test_retrieval_4()
         results += self.run_test_cache_status_2_1()
         results += self.run_test_cache_status_2_2()
         results += self.run_test_bulk_retrieval_1()
@@ -199,13 +204,14 @@ class TestSkeletonsServiceIntegration:
     def run_test_cache_status_1_1(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.bulk_rids)
+        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.valid_rids)
         # if verbose_level >= 2:
             # print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
                 self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False
+                self.bulk_rids[1]: False,
+                self.single_vertex_rid: False,
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -213,13 +219,14 @@ class TestSkeletonsServiceIntegration:
     def run_test_cache_status_1_2(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.bulk_rids, log_warning=False)
+        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.valid_rids, log_warning=False)
         # if verbose_level >= 2:
             # print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
                 self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False
+                self.bulk_rids[1]: False,
+                self.single_vertex_rid: False,
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -228,13 +235,14 @@ class TestSkeletonsServiceIntegration:
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
         # Requires CAVEclient version >= v7.6.1
-        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.bulk_rids, verbose_level=1)
+        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.valid_rids, verbose_level=1)
         if verbose_level >= 2:
             print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
                 self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False
+                self.bulk_rids[1]: False,
+                self.single_vertex_rid: False,
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -244,7 +252,7 @@ class TestSkeletonsServiceIntegration:
     def run_test_cache_contents_1(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.bulk_rids)
+        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.valid_rids)
         if verbose_level >= 2:
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
@@ -258,7 +266,7 @@ class TestSkeletonsServiceIntegration:
     def run_test_cache_contents_2(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.bulk_rids, log_warning=False)
+        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.valid_rids, log_warning=False)
         if verbose_level >= 2:
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
@@ -273,7 +281,7 @@ class TestSkeletonsServiceIntegration:
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
         # Requires CAVEclient version >= v7.6.1
-        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.bulk_rids, verbose_level=1)
+        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.valid_rids, verbose_level=1)
         if verbose_level >= 2:
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
@@ -372,18 +380,34 @@ class TestSkeletonsServiceIntegration:
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
+    def run_test_retrieval_4(self):
+        if verbose_level >= 1:
+            print(inspect.stack()[0][3])
+        start_time = default_timer()
+        sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='swc', verbose_level=1)
+        elapsed_time = default_timer() - start_time
+        # if verbose_level >= 2:
+            # display(sk)
+        test_result = np.array([0, 0])
+        test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
+        test_result += (1, 0) if test_result1 else (0, 1)
+        test_result2 = self.run_one_test(elapsed_time < 5)
+        test_result += (1, 0) if test_result2 else (0, 1)
+        return test_result
+
     ## Inspect the cache after generating new skeletons
 
     def run_test_cache_status_2_1(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.bulk_rids)
+        rids_exist = self.skclient.skeletons_exist(skeleton_version=self.skvn, root_ids=self.valid_rids)
         if verbose_level >= 2:
             print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
                 self.bulk_rids[0]: True,
-                self.bulk_rids[1]: False
+                self.bulk_rids[1]: False,
+                self.single_vertex_rid: False,
             })
             if not test_result:
                 print( \
@@ -395,7 +419,7 @@ might complete between the time when the cache is cleared at the beginning of th
     def run_test_cache_status_2_2(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.bulk_rids)
+        cache_contents = self.skclient.get_cache_contents(skeleton_version=self.skvn, root_id_prefixes=self.valid_rids)
         if verbose_level >= 2:
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
