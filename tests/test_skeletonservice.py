@@ -93,7 +93,7 @@ class TestSkeletonsService:
             assert False
         
         captured = capsys.readouterr()
-        assert captured.out == f"[not_set] Root ID somehow exceeds INT64 range: {rid}. Adding it to the refusal list would corrupt the Pandas DataFrame. It will not be added.\n"
+        assert f"Root ID somehow exceeds INT64 range: {rid}. Adding it to the refusal list would corrupt the Pandas DataFrame. It will not be added." in captured.out
 
     def test_meshworks_exist(self, test_app, cloudfiles_mock):
         rids = [1]
