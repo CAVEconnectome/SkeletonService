@@ -5,6 +5,7 @@ However, these tests will fail when automatically run on Github because the CAVE
 I need to add a token or a secret or something, but I don't want to simply add such a file to the repo.
 I haven't solved this problem yet. As such, these tests don't currectly work.
 But, you can run the notebook version of these tests manually and they should work since you will have the necessary token and secret files on your local machine.
+Ultimately, the script needs to be automatically called in a container on a pod whenever a new tag is deployed to the server.
 '''
 
 # SkeletonService integration tests
@@ -164,6 +165,8 @@ class TestSkeletonsServiceIntegration:
         # if verbose_level >= 2:
             # print(skeleton_service_version)
         test_result = self.run_one_test(skeleton_service_version == packaging.version.Version(self.expected_skeleton_service_version))
+        if not test_result:
+            print("Make sure you have assigned the expected version near the top of this test suite. Search for 'expected_skeleton_service_version'.")
         return (1, 0) if test_result else (0, 1)
 
     def run_test_metadata_2(self):
@@ -303,7 +306,8 @@ class TestSkeletonsServiceIntegration:
             sk = self.skclient.get_skeleton(self.sample_invalid_node_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except ValueError as e:
-            print(e.args[0])
+            if verbose_level >= 2:
+                print(e.args[0])
             test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
@@ -315,7 +319,8 @@ class TestSkeletonsServiceIntegration:
             sk = self.skclient.get_skeleton(self.sample_supervoxel_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except ValueError as e:
-            print(e.args[0])
+            if verbose_level >= 2:
+                print(e.args[0])
             test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
