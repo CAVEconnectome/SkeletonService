@@ -18,7 +18,7 @@ from werkzeug.routing import BaseConverter
 from werkzeug.middleware.proxy_fix import ProxyFix
 from middle_auth_client import auth_required
 
-__version__ = "0.18.4"
+__version__ = "0.18.5"
 
 # migrate = Migrate()
 
@@ -90,7 +90,8 @@ def create_app(test_config=None):
 
         app.register_blueprint(baseapi_bp)
 
-        limiter.init_app(app)
+        # This line prevents the app from running on the local machine in the VS Debugger
+        # limiter.init_app(app)
 
     @app.route("/skeletoncache/health")
     def health():
