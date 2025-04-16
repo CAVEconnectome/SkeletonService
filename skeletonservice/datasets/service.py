@@ -501,6 +501,12 @@ class SkeletonService:
         return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID"])
     
     @staticmethod
+    def _read_refusal_list_without_timestamps(bucket):
+        skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
+        skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
+        return skeletonization_refusal_root_ids_df_without_timestamps
+    
+    @staticmethod
     def _check_root_id_against_refusal_list(bucket, datastack_name, rid):
         """
         Some root ids cannot be meaningfully skeletonized. For example, some correspond to gigantic objects. Such root ids should not be processed.
@@ -512,8 +518,7 @@ class SkeletonService:
         if not isinstance(rid, int):
             rid = int(rid)
         
-        skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
+        skeletonization_refusal_root_ids_df_without_timestamps = SkeletonService._read_refusal_list_without_timestamps(bucket)
         result = (skeletonization_refusal_root_ids_df_without_timestamps == [datastack_name, rid]).all(axis=1).any()
         if verbose_level >= 1:
             SkeletonService.print(f"Result of refusal list check for datastack {datastack_name} and root id {rid}: {result}")
@@ -2448,30 +2453,82 @@ class SkeletonService:
         if debugging_root_id in rids and verbose_level < 1:
             verbose_level = 1
         
+        if verbose_level_ >= 1:
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
+
+        num_rids_submitted = len(rids)
+
+        t0 = default_timer()
         cave_client = caveclient.CAVEclient(
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
         )
         cv = cave_client.info.segmentation_cloudvolume()
+        t1 = default_timer()
+        cv_et = t1 - t0
+
+        exists_results = SkeletonService.skeletons_exist(
+            bucket,
+            datastack_name,
+            skeleton_version,
+            rids,
+            session_timestamp,
+            verbose_level,
+        )
+        if isinstance(exists_results, dict):
+            rids = [rid for rid, exists in exists_results.items() if not exists]
+        elif not exists_results:  # The user called this bulk function with a list containing a single root id so the exists() result is a single boolean
+            rids = []
         
+        t2 = default_timer()
+        ex_et = t2 - t1
+
+        skeletonization_refusal_root_ids_df_without_timestamps = SkeletonService._read_refusal_list_without_timestamps(bucket)
+        refusal_rids = set(skeletonization_refusal_root_ids_df_without_timestamps['ROOT_ID'].tolist())
+        t3 = default_timer()
+        rf_et = t3 - t2
+
+        t2a_ets = 0
+        t2b_ets = 0
+        t2c_ets = 0
+        t2d_ets = 0
+
         num_valid_rids = 0
         for rid in rids:
-            if not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid) \
-                    and cave_client.chunkedgraph.is_valid_nodes(rid) \
-                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers: 
-                SkeletonService.publish_skeleton_request(
-                    datastack_name,
-                    rid,
-                    "none",
-                    bucket,
-                    root_resolution,
-                    collapse_soma,
-                    collapse_radius,
-                    skeleton_version,
-                    False,
-                    verbose_level_,
-                )
-                num_valid_rids += 1
+            t2a = default_timer()
+            if rid not in refusal_rids:  # not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
+                t2b = default_timer()
+                t2a_ets += t2b - t2a
+                if cave_client.chunkedgraph.is_valid_nodes(rid):
+                    t2c = default_timer()
+                    t2b_ets += t2c - t2b
+                    if cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
+                        t2d = default_timer()
+                        t2c_ets += t2d - t2c
+                        SkeletonService.publish_skeleton_request(
+                            datastack_name,
+                            rid,
+                            "none",
+                            bucket,
+                            root_resolution,
+                            collapse_soma,
+                            collapse_radius,
+                            skeleton_version,
+                            False,
+                            verbose_level_,  # Don't pass the assigned global in, just the received parameter
+                        )
+                        num_valid_rids += 1
+                        t2d_ets += default_timer() - t2d
+                    else:
+                        t2c_ets += default_timer() - t2c
+                else:
+                    t2b_ets += default_timer() - t2b
+            else:
+                t2a_ets += default_timer() - t2a
+        
+        if verbose_level >= 1:
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Called with {num_rids_submitted} root ids, of which {num_valid_rids} were dispatched for skeletonization.")
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f} -- RF2:{t2a_ets:.3f}s VD:{t2b_ets:.3f}s LR:{t2c_ets:.3f}s PB:{t2d_ets:.3f}s")
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
