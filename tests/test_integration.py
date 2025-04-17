@@ -13,6 +13,7 @@ Ultimately, the script needs to be automatically called in a container on a pod 
 import inspect
 import os
 import sys
+import argparse
 from timeit import default_timer
 import numpy as np
 import packaging
@@ -24,6 +25,15 @@ import requests
 import pandas as pd
 import caveclient as cc
 from cloudfiles import CloudFiles
+try:
+    from skeletonservice.datasets.service import DATASTACK_NAME_REMAPPING
+except ImportError:
+    # If the import fails, we are probably running in a Jupyter notebook context.
+    # In this case, we will simply redefine the remapping dictionary here.
+    DATASTACK_NAME_REMAPPING = {
+        'minnie65_public': 'minnie65_phase3_v1',
+        'flywire_fafb_public': 'flywire_fafb_production',
+    }
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -37,6 +47,27 @@ logger.setLevel(logging.WARNING)
 # I'm leaving this code here as a place holder (and it goes along with the associated notebook),
 # but it can't be enabled because it will fail on Github.
 PYTEST_INTEGRATION_TESTS_ENABLED = False
+
+DATASTACKS = [
+    "minnie65_phase3_v1",
+    "minnie65_public",
+    "zheng_ca3",
+    "flywire_fafb_public"
+]
+SERVERS = [
+    # This server won't work on Github, only on a local machine where VSCode is running skeleton service in the debugger.
+    # It can be used when running the tests locally but needs to be disabled before pushing the code to Github.
+    "https://localhost:5000",
+
+    # Run integration tests against the test cluster.
+    # This should be a pretty safe test to run.
+    "https://ltv5.microns-daf.com",
+    
+    # Run integration tests against a production cluster.
+    # This should be pretty safe, but I like to run it manually, on my local machine.
+    # Therefore, I would recommend commenting it out before pushing to Github.
+    "https://minniev6.microns-daf.com",
+]
 
 verbose_level = 0
 
@@ -56,31 +87,41 @@ class TestSkeletonsServiceIntegration:
         if verbose_level >= 1:
             print(f"{bcolors.BOLD}{bcolors.OKGREEN}TEST PASSED{bcolors.ENDC}")
 
+    def test_failed_with_warning(self):
+        if verbose_level >= 1:
+            print(f"{bcolors.BOLD}{bcolors.WARNING}TEST SUSPICIOUS{bcolors.ENDC}")
+
     def test_failed(self):
         if verbose_level >= 1:
             print(f"{bcolors.BOLD}{bcolors.FAIL}TEST FAILED{bcolors.ENDC}")
 
-    def print_test_result(self, result):
+    def print_test_result(self, result, warning_only):
         if result:
             self.test_passed()
+        elif warning_only:
+            self.test_failed_with_warning()
         else:
             self.test_failed()
             
-    def run_one_test(self, result):
-        self.print_test_result(result)
+    def run_one_test(self, result, warning_only=False):
+        self.print_test_result(result, warning_only)
         # Asserting the result prevents the notebook from automatically running all tests.
         # I'm unsure if I want to assert the result and stop or gather all test results at the end.
         # assert result
         return result
 
-    def run_one_server_test(self, server_address, fast_run=False):
+    def run_one_server_test(self, datastack_name, server_address, fast_run=False):
         # Set things up
         self.fast_run = fast_run
 
         if verbose_level >= 1:
             print(f"CAVEclient version: v{cc.__version__} , v{importlib.metadata.version('CAVEclient')}")
 
-        self.datastack_name = "minnie65_phase3_v1"
+        self.datastack_name = datastack_name
+
+        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
+        if verbose_level >= 1:
+            print(f"Remapped datastack_name: {self.datastack_name} -> {self.remapped_datastack_name}")
 
         self.client = cc.CAVEclient(self.datastack_name)
         self.client.materialize.version = 1078
@@ -90,12 +131,27 @@ class TestSkeletonsServiceIntegration:
             print(f"SkeletonService server and version: {server_address} , v{self.skclient._server_version}")
 
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
-        self.expected_skeleton_service_version = "0.18.6"
+        self.expected_skeleton_service_version = "0.18.10"
         self.expected_available_skeleton_versions = [-1, 0, 1, 2, 3, 4]
 
         self.skvn = 4
 
-        self.bulk_rids = [864691135463611454, 864691135687456480]
+        if self.datastack_name == "minnie65_phase3_v1":
+            self.bulk_rids = [864691135463611454, 864691135687456480]
+            self.single_vertex_rid = 864691131576191498
+        elif self.datastack_name == "minnie65_public":
+            self.bulk_rids = [864691135463611454, 864691135687456480]
+            self.single_vertex_rid = 864691131576191498
+        elif self.datastack_name == "zheng_ca3":
+            self.bulk_rids = [6485183464483296940, 6485183464552828300]
+            self.single_vertex_rid = None  # TBD
+        elif self.datastack_name == "flywire_fafb_public":
+            self.bulk_rids = None  # TBD
+            self.single_vertex_rid = None  # TBD
+        
+        if not self.bulk_rids:
+            return np.array([0, 0])
+
         self.single_rid = self.bulk_rids[0]
         self.single_vertex_rid = 864691131576191498
         self.valid_rids = self.bulk_rids + [self.single_vertex_rid]
@@ -117,21 +173,21 @@ class TestSkeletonsServiceIntegration:
         cf = CloudFiles(bucket)
         for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
-                filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
+                filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.remapped_datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
                 if verbose_level >= 2:
                     print(filename)
                     print(cf.exists(filename))
 
         for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
-                filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
+                filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.remapped_datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
                 if verbose_level >= 2:
                     print(filename)
-                    print(cf.exists(filename))
+                    predeletion_exists = cf.exists(filename)
                 if not self.fast_run:
                     cf.delete(filename)
                 if verbose_level >= 2:
-                    print(cf.exists(filename))
+                    print(predeletion_exists, cf.exists(filename))
         
         results = np.array([0, 0])
         results += self.run_test_metadata_1()
@@ -209,9 +265,7 @@ class TestSkeletonsServiceIntegration:
             # print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
-                self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False,
-                self.single_vertex_rid: False,
+                valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -224,9 +278,7 @@ class TestSkeletonsServiceIntegration:
             # print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
-                self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False,
-                self.single_vertex_rid: False,
+                valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -240,9 +292,7 @@ class TestSkeletonsServiceIntegration:
             print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
             test_result = self.run_one_test(rids_exist == {
-                self.bulk_rids[0]: False,
-                self.bulk_rids[1]: False,
-                self.single_vertex_rid: False,
+                valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
@@ -346,7 +396,9 @@ class TestSkeletonsServiceIntegration:
         test_result = np.array([0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
         test_result += (1, 0) if test_result1 else (0, 1)
-        test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90)
+        test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
+        if not test_result2:
+            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -361,7 +413,9 @@ class TestSkeletonsServiceIntegration:
         test_result = np.array([0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
         test_result += (1, 0) if test_result1 else (0, 1)
-        test_result2 = self.run_one_test(elapsed_time < 5)
+        test_result2 = self.run_one_test(elapsed_time < 5, True)
+        if not test_result2:
+            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -376,24 +430,30 @@ class TestSkeletonsServiceIntegration:
         test_result = np.array([0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
         test_result += (1, 0) if test_result1 else (0, 1)
-        test_result2 = self.run_one_test(elapsed_time < 5)
+        test_result2 = self.run_one_test(elapsed_time < 5, True)
+        if not test_result2:
+            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
     def run_test_retrieval_4(self):
         if verbose_level >= 1:
             print(inspect.stack()[0][3])
-        start_time = default_timer()
-        sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
-        elapsed_time = default_timer() - start_time
-        # if verbose_level >= 2:
-            # display(sk)
-        test_result = np.array([0, 0])
-        test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
-        test_result += (1, 0) if test_result1 else (0, 1)
-        test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90)
-        test_result += (1, 0) if test_result2 else (0, 1)
-        return test_result
+        if self.single_vertex_rid:
+            start_time = default_timer()
+            sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            elapsed_time = default_timer() - start_time
+            # if verbose_level >= 2:
+                # display(sk)
+            test_result = np.array([0, 0])
+            test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
+            test_result += (1, 0) if test_result1 else (0, 1)
+            test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
+            if not test_result2:
+                print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
+            test_result += (1, 0) if test_result2 else (0, 1)
+            return test_result
+        return np.array([0, 0])
 
     ## Inspect the cache after generating new skeletons
 
@@ -404,11 +464,17 @@ class TestSkeletonsServiceIntegration:
         if verbose_level >= 2:
             print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(rids_exist == {
-                self.bulk_rids[0]: True,
-                self.bulk_rids[1]: False,
-                self.single_vertex_rid: True,
-            })
+            if self.single_vertex_rid:
+                test_result = self.run_one_test(rids_exist == {
+                    self.bulk_rids[0]: True,
+                    self.bulk_rids[1]: False,
+                    self.single_vertex_rid: True,
+                })
+            else:
+                test_result = self.run_one_test(rids_exist == {
+                    self.bulk_rids[0]: True,
+                    self.bulk_rids[1]: False,
+                })
             if not test_result:
                 print( \
 f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
@@ -423,13 +489,21 @@ might complete between the time when the cache is cleared at the beginning of th
         if verbose_level >= 2:
             print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(cache_contents == {
-                "num_found": 2,
-                "files": [
-                    f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
-                    f"skeleton__v4__rid-{self.single_vertex_rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
-                ]
-            })
+            if self.single_vertex_rid:
+                test_result = self.run_one_test(cache_contents == {
+                    "num_found": 2,
+                    "files": [
+                        f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                        f"skeleton__v4__rid-{self.single_vertex_rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                    ]
+                })
+            else:
+                test_result = self.run_one_test(cache_contents == {
+                    "num_found": 1,
+                    "files": [
+                        f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                    ]
+                })
             if not test_result:
                 print( \
 f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
@@ -500,59 +574,47 @@ might complete between the time when the cache is cleared at the beginning of th
         test_result = self.run_one_test(result == 60.0)
         return (1, 0) if test_result else (0, 1)
 
-    def test_integration(self, test_app, force_run=False):
+    def test_integration(self, datastack_name, server_address, force_run=False):
         # Pick a test server:
         ## * localhost:5000 — Test SkeletonService on the local machine, say via the VS Code Debugger
         ## * ltv5 — The SkeletonService on the test cluster
         ## * minniev6 — Test SkeletonService "in the wild"
 
         if not force_run and not PYTEST_INTEGRATION_TESTS_ENABLED:
-            return {}
+            return
 
-        server_addresses = [
-            # This server won't work on Github, only on a local machine where VSCode is running skeleton service in the debugger.
-            # It can be used when running the tests locally but needs to be disabled before pushing the code to Github.
-            # "https://localhost:5000",
-
-            # Run integration tests against the test cluster.
-            # This should be a pretty safe test to run.
-            "https://ltv5.microns-daf.com",
-            
-            # Run integration tests against a production cluster.
-            # This should be pretty safe, but I like to run it manually, on my local machine.
-            # Therefore, I would recommend commenting it out before pushing to Github.
-            # "https://minniev6.microns-daf.com",
-        ]
-        
-        server_results = {}
-        for server_address in server_addresses:
-            try:
-                results = self.run_one_server_test(server_address)#, fast_run=True)
-                server_results[server_address] = results
-            except Exception as e:
-                if verbose_level >= 2:
-                    print(f"Error running test on {server_address}: {e}")
-                result = self.run_one_test(False)
-                server_results[server_address] = (0, 1)
-        
-        return server_results
+        try:
+            results = self.run_one_server_test(datastack_name, server_address)#, fast_run=True)
+            return results
+        except Exception as e:
+            if verbose_level >= 2:
+                print(f"Error running test on {server_address}: {e}")
+            # Run an artificial failed test to generate a failure message
+            self.run_one_test(False)
+            return (0, 1)
     
-    def run(self, verbose_level_=0):
+    def run(self, datastack, server, verbose_level_=0):
         global verbose_level
         verbose_level = verbose_level_
 
-        server_results = self.test_integration(None, True)
-        for key, value in server_results.items():
-            num_passed, num_failed = value
-            if verbose_level >= 1:
-                print(f"Test results on server {key}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
-            if num_failed > 0:
-                return False
-        return True
+        num_passed, num_failed = self.test_integration(datastack, server, True)
+        if verbose_level >= 1:
+            print(f"Test results on datastack and server {datastack}, {server}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
+        return num_failed == 0
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--datastack")
+    parser.add_argument("-s", "--server")
+    args = parser.parse_args()
+    
+    if args.datastack not in DATASTACKS:
+        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC}")
+    if args.server not in SERVERS:
+        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}ERROR: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.{bcolors.ENDC}")
+
     test = TestSkeletonsServiceIntegration()
-    result = test.run(1)
+    result = test.run(args.datastack, args.server, 1)
     if not result:
         err_msg = "ALERT! Some SkeletonService integration tests have failed."
 
