@@ -45,6 +45,7 @@ DATASTACK_NAME_REMAPPING = {
 }
 MESHWORK_VERSION = 1
 NEUROGLANCER_SKELETON_VERSION = 2
+SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
 SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neuroglancer version
 SKELETON_VERSION_PARAMS = {
@@ -462,7 +463,7 @@ class SkeletonService:
             )
     
     @staticmethod
-    def _archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time):
+    def _archive_skeletonization_time(bucket, datastack_name, rid, skeleton_version, n_vertices, n_end_points, n_branch_points, skeletonization_elapsed_time):
         """
         Archive the skeletonization time for a given root id.
         TODO: This function does not lock or mutex the file while it alters it (which GCP buckets do not support).
@@ -471,17 +472,16 @@ class SkeletonService:
         if verbose_level >= 1:
             SkeletonService.print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
         
-        file_name = "skeletonization_times.csv"
         cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
-        if cf.exists(file_name):
-            skeleton_times = cf.get(file_name).decode("utf-8")
+        if cf.exists(SKELETONIZATION_TIMES_FILENAME):
+            skeleton_times = cf.get(SKELETONIZATION_TIMES_FILENAME).decode("utf-8")
         else:
             # Initialize a new empty CSV file with a header line
-            skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Root_ID,Skeletonization_Time_Secs\n"
+            skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Datastack_Name,Root_ID,N_Vertices,N_Endpoints,N_Branchpoints,Skeletonization_Time_Secs\n"
         
-        skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{skeleton_version},{rid},{skeletonization_elapsed_time}\n"
+        skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{datastack_name},{skeleton_version},{rid},{n_vertices},{n_end_points},{n_branch_points},{skeletonization_elapsed_time}\n"
         skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()
-        cf.put(file_name, skeleton_times_bytes, compress=True)
+        cf.put(SKELETONIZATION_TIMES_FILENAME, skeleton_times_bytes, compress=True)
     
     @staticmethod
     def _read_refusal_list(bucket):
@@ -1474,18 +1474,18 @@ class SkeletonService:
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
         )
-
-        # Confirm that the rid exists
-        if not cave_client.chunkedgraph.is_valid_nodes(rid):
-            if verbose_level >= 1:
-                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
-            return
         
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} isn't a root id (perhaps it is a supervoxel id) and therefore won't be skeletonized.")
+            return
+
+        # Confirm that the rid exists
+        if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            if verbose_level >= 1:
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
             return
         
         if not output_format:
@@ -1716,7 +1716,7 @@ class SkeletonService:
                     if verbose_level >= 1:
                         SkeletonService.print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
                     try:
-                        SkeletonService._archive_skeletonization_time(bucket, rid, skeleton_version, skeletonization_elapsed_time)
+                        SkeletonService._archive_skeletonization_time(bucket, datastack_name, rid, skeleton_version, skeleton.n_vertices, skeleton.n_end_points, skeleton.n_branch_points, skeletonization_elapsed_time)
                     except Exception as e:
                         # This is a non-critical operation, so don't let it stop the process.
                         SkeletonService.print(f"Exception while archiving skeletonization time: {str(e)}. Traceback:")
@@ -2072,11 +2072,11 @@ class SkeletonService:
             if rid != DEBUG_DEAD_LETTER_TEST_RID:
                 if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                     continue
-                if not cave_client.chunkedgraph.is_valid_nodes(rid):
-                    skeletons[rid] = "invalid_rid"
-                    continue
                 if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
                     skeletons[rid] = "invalid_layer_rid"
+                    continue
+                if not cave_client.chunkedgraph.is_valid_nodes(rid):
+                    skeletons[rid] = "invalid_rid"
                     continue
             
             skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
@@ -2169,10 +2169,10 @@ class SkeletonService:
             server_address=CAVE_CLIENT_SERVER,
         )
         cv = cave_client.info.segmentation_cloudvolume()
-        if not cave_client.chunkedgraph.is_valid_nodes(rid):
-            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+        if not cave_client.chunkedgraph.is_valid_nodes(rid):
+            raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
         
         t0 = default_timer()
 
@@ -2277,10 +2277,10 @@ class SkeletonService:
                 server_address=CAVE_CLIENT_SERVER,
             )
             cv = cave_client.info.segmentation_cloudvolume()
-            if not cave_client.chunkedgraph.is_valid_nodes(rid):
-                raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
             if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
                 raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+            if not cave_client.chunkedgraph.is_valid_nodes(rid):
+                raise ValueError(f"Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
         
         t0 = default_timer()
 
@@ -2397,8 +2397,8 @@ class SkeletonService:
             # We want it to look like a valid root id so it reaches the skeleton generation code and triggers the dead lettering test.
             if rid == DEBUG_DEAD_LETTER_TEST_RID or (
                     not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid) \
-                    and cave_client.chunkedgraph.is_valid_nodes(rid) \
-                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers
+                    and cv.meta.decode_layer_id(rid) == cv.meta.n_layers \
+                    and cave_client.chunkedgraph.is_valid_nodes(rid)
                 ): 
                 SkeletonService.publish_skeleton_request(
                     datastack_name,
@@ -2499,10 +2499,12 @@ class SkeletonService:
             if rid not in refusal_rids:  # not SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                 t2b = default_timer()
                 t2a_ets += t2b - t2a
-                if cave_client.chunkedgraph.is_valid_nodes(rid):
+                if cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
                     t2c = default_timer()
                     t2b_ets += t2c - t2b
-                    if cv.meta.decode_layer_id(rid) == cv.meta.n_layers:
+                    # The following test has been removed, due to its serialized and time-intensive cost.
+                    # The same test will be performed by the parallelized skeletonization worker later anyway.
+                    if True:  # cave_client.chunkedgraph.is_valid_nodes(rid):
                         t2d = default_timer()
                         t2c_ets += t2d - t2c
                         SkeletonService.publish_skeleton_request(
@@ -2528,7 +2530,7 @@ class SkeletonService:
         
         if verbose_level >= 1:
             SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Called with {num_rids_submitted} root ids, of which {num_valid_rids} were dispatched for skeletonization.")
-            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f} -- RF2:{t2a_ets:.3f}s VD:{t2b_ets:.3f}s LR:{t2c_ets:.3f}s PB:{t2d_ets:.3f}s")
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f}s -- RF2:{t2a_ets:.3f}s LR:{t2b_ets:.3f}s VD:{t2c_ets:.3f}s PB:{t2d_ets:.3f}s")
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
