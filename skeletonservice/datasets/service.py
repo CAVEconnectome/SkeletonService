@@ -1242,7 +1242,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            SkeletonService.print(f"get_cache_contents() bucket: {bucket}, datastack_name: {bucket}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
+            SkeletonService.print(f"get_cache_contents() bucket: {bucket}, datastack_name: {datastack_name}, skeleton_version: {skeleton_version}, rid_prefixes: {rid_prefixes}, limit: {limit}")
 
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         all_h5_files = []
