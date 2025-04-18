@@ -179,7 +179,7 @@ class TestSkeletonsServiceIntegration:
         self.single_vertex_rid = 864691131576191498
         self.valid_rids = self.bulk_rids + [self.single_vertex_rid]
         self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
-        self.sample_refusal_list_rid = 112233445566778899
+        self.sample_refusal_list_rid = 864691135943184500  # We can't use our test id (112233445566778899) because we need the id to pass the initial validity/layer filters
         self.sample_invalid_node_rid = 864691135687000000
         self.sample_supervoxel_rid =    88891049011371731
 
@@ -240,6 +240,7 @@ class TestSkeletonsServiceIntegration:
 
         return results
 
+    #====================================================================================================
     # Metadata tests
 
     def run_test_metadata_1(self):
@@ -278,6 +279,7 @@ class TestSkeletonsServiceIntegration:
         })
         return (1, 0) if test_result else (0, 1)
 
+    #====================================================================================================
     # Cache status tests
 
     def run_test_cache_status_1_1(self):
@@ -320,6 +322,7 @@ class TestSkeletonsServiceIntegration:
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
+    #====================================================================================================
     # Cache contents tests
 
     def run_test_cache_contents_1(self):
@@ -365,6 +368,7 @@ class TestSkeletonsServiceIntegration:
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
+    #====================================================================================================
     # Invalid skeleton request tests
 
     def run_test_invalid_request_1(self):
@@ -373,10 +377,10 @@ class TestSkeletonsServiceIntegration:
         try:
             sk = self.skclient.get_skeleton(self.sample_refusal_list_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
-        except ValueError as e:
+        except requests.HTTPError as e:
             if verbose_level >= 2:
                 print(e.args[0])
-            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_refusal_list_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
+            test_result = self.run_one_test('"Error": "Problematic root id: ' + str(self.sample_refusal_list_rid) + ' is in the refusal list"' in e.args[0])
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
 
@@ -406,6 +410,7 @@ class TestSkeletonsServiceIntegration:
             return (1, 0) if test_result else (0, 1)
         return (0, 1)
 
+    #====================================================================================================
     # Skeleton request tests
 
     def run_test_retrieval_1(self):
@@ -478,6 +483,7 @@ class TestSkeletonsServiceIntegration:
             return test_result
         return np.array([0, 0])
 
+    #====================================================================================================
     ## Inspect the cache after generating new skeletons
 
     def run_test_cache_status_2_1(self):
@@ -630,10 +636,13 @@ if __name__ == "__main__":
     parser.add_argument("--kube", default=False, action="store_true", help="Inform the tests that they are running in a Kubernetes pod")
     parser.add_argument("-d", "--datastack")
     parser.add_argument("-s", "--server")
+    parser.add_argument("-v", "--verbose_level", type=int, default=0, help="Set the verbosity level of the tests (0: no output, 1: basic output, 2: detailed output)")
     args = parser.parse_args()
 
     kube = args.kube
-    print("fRunning SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
+    verbose_level = args.verbose_level
+
+    print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
     
     if args.datastack not in DATASTACKS:
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
@@ -645,7 +654,7 @@ if __name__ == "__main__":
             sys.exit(1)
 
     test = TestSkeletonsServiceIntegration()
-    num_failed = test.run(args.datastack, args.server, 1)
+    num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
         err_msg = f"ALERT! {num_failed} SkeletonService integration tests have failed."
 
