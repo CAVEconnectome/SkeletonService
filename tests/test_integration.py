@@ -662,7 +662,7 @@ if __name__ == "__main__":
         if not kube:
             sys.exit(1)
 
-    test = TestSkeletonsServiceIntegration()
+    test = SkeletonsServiceIntegrationTest()
     sksv_version, num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
         err_msg = f"ALERT! SkeletonService v{sksv_version}: {num_failed} integration tests have failed."
