@@ -63,6 +63,7 @@ class BaseConfig(object):
     # INFOSERVICE_ENDPOINT = f"{GLOBAL_SERVER_URL}/info"
     # AUTH_URI = f"{GLOBAL_SERVER_URL}/auth"
 
+    # Slack webhook to Keith Wiley's Slack direct messages
     SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"
 
 config = {

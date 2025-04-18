@@ -27,6 +27,7 @@ import caveclient as cc
 from cloudfiles import CloudFiles
 try:
     from skeletonservice.datasets.service import DATASTACK_NAME_REMAPPING
+    from skeletonservice.datasets.service import __version__ as this_skeletonservice_version
 except ImportError:
     # If the import fails, we are probably running in a Jupyter notebook context.
     # In this case, we will simply redefine the remapping dictionary here.
@@ -34,6 +35,7 @@ except ImportError:
         'minnie65_public': 'minnie65_phase3_v1',
         'flywire_fafb_public': 'flywire_fafb_production',
     }
+    this_skeletonservice_version = None
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -663,6 +665,16 @@ if __name__ == "__main__":
 
     print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
     
+    # Confirm that the various skeleton service components have fully deployed
+    client = cc.CAVEclient(args.datastack)
+    client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
+    skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+    sksv_version = skclient.get_version()
+    if sksv_version != this_skeletonservice_version:
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}SkeletonService version mismatch (v{sksv_version} != v{this_skeletonservice_version}). Various components are not all fully deployed yet.{bcolors.ENDC if not kube else ''}")
+        # Exit with a nonzero status so Kubernetes will rerun this pods again until the components are all ready to go
+        sys.exit(1)
+
     if args.datastack not in DATASTACKS:
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
         if not kube:
@@ -685,4 +697,6 @@ if __name__ == "__main__":
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
 
-    sys.exit(0)
+    # Explicitly exiting with a zero status to indicate success is actually interpreted by Kubernetes as an error and the container will be restarted.
+    # So we can't do this. We just have to quietly fall out the bottom of the script.
+    # sys.exit(0)
