@@ -142,12 +142,11 @@ class TestSkeletonsServiceIntegration:
 
         self.datastack_name = datastack_name
 
-        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
-        if verbose_level >= 1:
-            print(f"Remapped datastack_name: {self.datastack_name} -> {self.remapped_datastack_name}")
-
         self.client = cc.CAVEclient(self.datastack_name)
-        self.client.materialize.version = 1078
+
+        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
+        
+        self.client.materialize.version = DATASTACKS[self.datastack_name]["materialization_version"]
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
         if verbose_level >= 1:
@@ -173,7 +172,7 @@ class TestSkeletonsServiceIntegration:
             self.single_vertex_rid = None  # TBD
         
         if not self.bulk_rids:
-            return np.array([0, 0])
+            return self.skclient._server_version, np.array([0, 0])
 
         self.single_rid = self.bulk_rids[0]
         self.single_vertex_rid = 864691131576191498
@@ -238,7 +237,7 @@ class TestSkeletonsServiceIntegration:
         results += self.run_test_bulk_async_request_2()
         results += self.run_test_bulk_async_request_3()
 
-        return results
+        return self.skclient._server_version, results
 
     #====================================================================================================
     # Metadata tests
@@ -613,23 +612,29 @@ might complete between the time when the cache is cleared at the beginning of th
             return
 
         try:
-            results = self.run_one_server_test(datastack_name, server_address)#, fast_run=True)
-            return results
+            sksv_version, results = self.run_one_server_test(datastack_name, server_address)#, fast_run=True)
+            return sksv_version, results
         except Exception as e:
             if verbose_level >= 2:
                 print(f"Error running test on {server_address}: {e}")
             # Run an artificial failed test to generate a failure message
             self.run_one_test(False)
-            return (0, 1)
+
+            client = cc.CAVEclient(datastack_name)
+            client.materialize.version = DATASTACKS[datastack_name]["materialization_version"]
+            skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
+            sksv_version = skclient.get_version()
+            
+            return sksv_version, (0, 1)
     
     def run(self, datastack, server, verbose_level_=0):
         global verbose_level
         verbose_level = verbose_level_
 
-        num_passed, num_failed = self.test_integration(datastack, server, True)
+        sksv_version, (num_passed, num_failed) = self.test_integration(datastack, server, True)
         if verbose_level >= 1:
             print(f"Test results on datastack and server {datastack}, {server}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
-        return num_failed
+        return sksv_version, num_failed
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -654,9 +659,9 @@ if __name__ == "__main__":
             sys.exit(1)
 
     test = TestSkeletonsServiceIntegration()
-    num_failed = test.run(args.datastack, args.server, verbose_level)
+    sksv_version, num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
-        err_msg = f"ALERT! {num_failed} SkeletonService integration tests have failed."
+        err_msg = f"ALERT! SkeletonService v{sksv_version}: {num_failed} integration tests have failed."
 
         slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
         if slack_webhook_id:
