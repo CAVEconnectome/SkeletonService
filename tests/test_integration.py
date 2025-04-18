@@ -633,6 +633,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     kube = args.kube
+    print("fRunning SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
     
     if args.datastack not in DATASTACKS:
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
@@ -655,7 +656,7 @@ if __name__ == "__main__":
                 "text": err_msg
             }
             result = requests.post(url, json=json_content)
-            print(result.status_code, result.text)
+            print(f"Slack post result status and result test: {result.status_code} {result.text}")
 
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{err_msg}{bcolors.ENDC if not kube else ''}")
         if not kube:
