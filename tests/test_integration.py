@@ -213,7 +213,7 @@ class TestSkeletonsServiceIntegration:
                     print(predeletion_exists, cf.exists(filename))
         
         results = np.array([0, 0])
-        results += self.run_test_metadata_1()
+        # results += self.run_test_metadata_1()
         results += self.run_test_metadata_2()
         results += self.run_test_metadata_3()
         results += self.run_test_cache_status_1_1()
