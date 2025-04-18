@@ -1479,13 +1479,13 @@ class SkeletonService:
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             if verbose_level >= 1:
-                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} isn't a root id (perhaps it is a supervoxel id) and therefore won't be skeletonized.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
             return
 
         # Confirm that the rid exists
         if not cave_client.chunkedgraph.is_valid_nodes(rid):
             if verbose_level >= 1:
-                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is not a valid node and therefore won't be skeletonized.")
+                SkeletonService.print(f"get_skeleton_by_datastack_and_rid() Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
             return
         
         if not output_format:

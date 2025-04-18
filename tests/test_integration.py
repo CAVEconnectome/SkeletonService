@@ -40,6 +40,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger()
 logger.setLevel(logging.WARNING)
 
+# Behave differently when running on a Kubernetes pod
+kube = False
+
 # These tests don't quite make sense.
 # They can't be run from a technical perspective because in a Github context, the CAVEclient constructor will fail at the authentication step.
 # Furthermore, they don't make conceptual sense at the time of a Git commit or push
@@ -48,12 +51,32 @@ logger.setLevel(logging.WARNING)
 # but it can't be enabled because it will fail on Github.
 PYTEST_INTEGRATION_TESTS_ENABLED = False
 
-DATASTACKS = [
-    "minnie65_phase3_v1",
-    "minnie65_public",
-    "zheng_ca3",
-    "flywire_fafb_public"
-]
+DATASTACKS = {
+    "minnie65_public": {
+        "remapped": "minnie65_phase3_v1",
+        "materialization_version": 1078,
+        "bulk_rids": [864691135463611454, 864691135687456480],
+        "single_vertex_rid": 864691131576191498,
+    },
+    "minnie65_phase3_v1": {
+        "remapped": "minnie65_phase3_v1",
+        "materialization_version": 1078,
+        "bulk_rids": [864691135463611454, 864691135687456480],
+        "single_vertex_rid": 864691131576191498,
+    },
+    "zheng_ca3": {
+        "remapped": "zheng_ca3",
+        "materialization_version": 245,
+        "bulk_rids": [6485183464483296940, 6485183464552828300],
+        "single_vertex_rid": None,  # TBD
+    },
+    "flywire_fafb_public": {
+        "remapped": "flywire_fafb_production",
+        "materialization_version": None,
+        "bulk_rids": None,  # TBD
+        "single_vertex_rid": None,  # TBD
+    },
+}
 SERVERS = [
     # This server won't work on Github, only on a local machine where VSCode is running skeleton service in the debugger.
     # It can be used when running the tests locally but needs to be disabled before pushing the code to Github.
@@ -85,15 +108,15 @@ class bcolors:
 class TestSkeletonsServiceIntegration:
     def test_passed(self):
         if verbose_level >= 1:
-            print(f"{bcolors.BOLD}{bcolors.OKGREEN}TEST PASSED{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}TEST PASSED{bcolors.ENDC if not kube else ''}")
 
     def test_failed_with_warning(self):
         if verbose_level >= 1:
-            print(f"{bcolors.BOLD}{bcolors.WARNING}TEST SUSPICIOUS{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}TEST SUSPICIOUS{bcolors.ENDC if not kube else ''}")
 
     def test_failed(self):
         if verbose_level >= 1:
-            print(f"{bcolors.BOLD}{bcolors.FAIL}TEST FAILED{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}TEST FAILED{bcolors.ENDC if not kube else ''}")
 
     def print_test_result(self, result, warning_only):
         if result:
@@ -398,7 +421,7 @@ class TestSkeletonsServiceIntegration:
         test_result += (1, 0) if test_result1 else (0, 1)
         test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
         if not test_result2:
-            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -415,7 +438,7 @@ class TestSkeletonsServiceIntegration:
         test_result += (1, 0) if test_result1 else (0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
-            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -432,7 +455,7 @@ class TestSkeletonsServiceIntegration:
         test_result += (1, 0) if test_result1 else (0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
-            print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0) if test_result2 else (0, 1)
         return test_result
 
@@ -450,7 +473,7 @@ class TestSkeletonsServiceIntegration:
             test_result += (1, 0) if test_result1 else (0, 1)
             test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
             if not test_result2:
-                print(f"{bcolors.BOLD}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC}")
+                print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
             test_result += (1, 0) if test_result2 else (0, 1)
             return test_result
         return np.array([0, 0])
@@ -477,8 +500,8 @@ class TestSkeletonsServiceIntegration:
                 })
             if not test_result:
                 print( \
-f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
-might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC}")
+f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
+might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC if not kube else ''}")
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
@@ -506,8 +529,8 @@ might complete between the time when the cache is cleared at the beginning of th
                 })
             if not test_result:
                 print( \
-f"{bcolors.BOLD}{bcolors.WARNING}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
-might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC}")
+f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
+might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC if not kube else ''}")
             return (1, 0) if test_result else (0, 1)
         return (1, 0)
 
@@ -600,23 +623,30 @@ might complete between the time when the cache is cleared at the beginning of th
         num_passed, num_failed = self.test_integration(datastack, server, True)
         if verbose_level >= 1:
             print(f"Test results on datastack and server {datastack}, {server}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
-        return num_failed == 0
+        return num_failed
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--kube", default=False, action="store_true", help="Inform the tests that they are running in a Kubernetes pod")
     parser.add_argument("-d", "--datastack")
     parser.add_argument("-s", "--server")
     args = parser.parse_args()
+
+    kube = args.kube
     
     if args.datastack not in DATASTACKS:
-        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC}")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
+        if not kube:
+            sys.exit(1)
     if args.server not in SERVERS:
-        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}ERROR: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.{bcolors.ENDC}")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.{bcolors.ENDC if not kube else ''}")
+        if not kube:
+            sys.exit(1)
 
     test = TestSkeletonsServiceIntegration()
-    result = test.run(args.datastack, args.server, 1)
-    if not result:
-        err_msg = "ALERT! Some SkeletonService integration tests have failed."
+    num_failed = test.run(args.datastack, args.server, 1)
+    if num_failed > 0:
+        err_msg = f"ALERT! {num_failed} SkeletonService integration tests have failed."
 
         slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
         if slack_webhook_id:
@@ -627,6 +657,8 @@ if __name__ == "__main__":
             result = requests.post(url, json=json_content)
             print(result.status_code, result.text)
 
-        sys.exit(f"{bcolors.BOLD}{bcolors.FAIL}{err_msg}{bcolors.ENDC}")
-    
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{err_msg}{bcolors.ENDC if not kube else ''}")
+        if not kube:
+            sys.exit(1)
+
     sys.exit(0)
