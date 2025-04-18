@@ -640,6 +640,16 @@ might complete between the time when the cache is cleared at the beginning of th
             print(f"Test results on datastack and server {datastack}, {server}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
         return sksv_version, num_failed
 
+def dispatch_slack_msg(msg):
+    slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
+    if slack_webhook_id:
+        url = f"https://hooks.slack.com/services/{slack_webhook_id}"
+        json_content = {
+            "text": msg
+        }
+        result = requests.post(url, json=json_content)
+        print(f"Slack requests.post status and text: {result.status_code} {result.text}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--kube", default=False, action="store_true", help="Inform the tests that they are running in a Kubernetes pod")
@@ -665,19 +675,14 @@ if __name__ == "__main__":
     test = SkeletonsServiceIntegrationTest()
     sksv_version, num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
-        err_msg = f"ALERT! SkeletonService v{sksv_version}: {num_failed} integration tests have failed."
-
-        slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
-        if slack_webhook_id:
-            url = f"https://hooks.slack.com/services/{slack_webhook_id}"
-            json_content = {
-                "text": err_msg
-            }
-            result = requests.post(url, json=json_content)
-            print(f"Slack post result status and result test: {result.status_code} {result.text}")
-
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{err_msg}{bcolors.ENDC if not kube else ''}")
+        msg = f"ALERT! SkeletonService v{sksv_version}: {num_failed} integration tests have failed."
+        dispatch_slack_msg(msg)
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
+    else:
+        msg = f"SkeletonService v{sksv_version}: All integration tests passed successfully."
+        dispatch_slack_msg(msg)
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
 
     sys.exit(0)
