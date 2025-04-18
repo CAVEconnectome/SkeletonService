@@ -1,7 +1,7 @@
 import io
 from unittest.mock import patch
 import responses
-
+import pandas as pd
 from skeletonservice.datasets.service import SkeletonService
 from cloudfiles import CloudFiles
 from messagingclient import MessagingClient
@@ -309,12 +309,12 @@ class TestSkeletonsService:
         patch.object(caveclient_mock.info, 'segmentation_cloudvolume', return_value=cloudvolume_mock).start()
 
         def exists_side_effect(*args, **kwargs):
-            # Customize the return value based on the function's parameters
-            if args[0] == ['skeleton__v4__rid-1__ds-minnie65_phase3_v1__res-1x1x1__cs-True__cr-7500.h5.gz']:
-                return {"rid-1__ds": True}
-            elif args[0] == "skeletonization_refusal_root_ids.txt":
-                return False
+            return {"rid-1__ds": False}
         patch.object(CloudFiles, "exists", side_effect=exists_side_effect).start()
+
+        def refusal_list_side_effect(*args, **kwargs):
+            return pd.DataFrame([], columns=['ROOT_ID'])
+        patch.object(SkeletonService, "_read_refusal_list_without_timestamps", side_effect=refusal_list_side_effect).start()
 
         patch.object(SkeletonService, "publish_skeleton_request", return_value=None).start()
 

@@ -105,7 +105,7 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-class TestSkeletonsServiceIntegration:
+class SkeletonsServiceIntegrationTest:
     def test_passed(self):
         if verbose_level >= 1:
             print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}TEST PASSED{bcolors.ENDC if not kube else ''}")
@@ -113,6 +113,10 @@ class TestSkeletonsServiceIntegration:
     def test_failed_with_warning(self):
         if verbose_level >= 1:
             print(f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}TEST SUSPICIOUS{bcolors.ENDC if not kube else ''}")
+            # if not kube:
+            #     print(f"{bcolors.BOLD}{bcolors.WARNING}TEST SUSPICIOUS{bcolors.ENDC}")
+            # else:
+            #     logging.warning(f"TEST SUSPICIOUS")
 
     def test_failed(self):
         if verbose_level >= 1:
