@@ -218,7 +218,7 @@ class SkeletonsServiceIntegrationTest:
                 if verbose_level >= 2:
                     print(predeletion_exists, cf.exists(filename))
         
-        results = np.array([0, 0])
+        results = np.array([0, 0, 0])
         # results += self.run_test_metadata_1()
         results += self.run_test_metadata_2()
         results += self.run_test_metadata_3()
@@ -258,7 +258,7 @@ class SkeletonsServiceIntegrationTest:
         test_result = self.run_one_test(skeleton_service_version == packaging.version.Version(self.expected_skeleton_service_version))
         if not test_result:
             print("Make sure you have assigned the expected version near the top of this test suite. Search for 'expected_skeleton_service_version'.")
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_metadata_2(self):
         if verbose_level >= 1:
@@ -267,7 +267,7 @@ class SkeletonsServiceIntegrationTest:
         # if verbose_level >= 2:
             # print(skeleton_versions)
         test_result = self.run_one_test(skeleton_versions == self.expected_available_skeleton_versions)
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_metadata_3(self):
         if verbose_level >= 1:
@@ -283,7 +283,7 @@ class SkeletonsServiceIntegrationTest:
                 {'id': 'compartment', 'data_type': 'uint8', 'num_components': 1}
             ]
         })
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     #====================================================================================================
     # Cache status tests
@@ -298,8 +298,8 @@ class SkeletonsServiceIntegrationTest:
             test_result = self.run_one_test(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     def run_test_cache_status_1_2(self):
         if verbose_level >= 1:
@@ -311,8 +311,8 @@ class SkeletonsServiceIntegrationTest:
             test_result = self.run_one_test(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     def run_test_cache_status_1_3(self):
         if verbose_level >= 1:
@@ -325,8 +325,8 @@ class SkeletonsServiceIntegrationTest:
             test_result = self.run_one_test(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     #====================================================================================================
     # Cache contents tests
@@ -342,8 +342,8 @@ class SkeletonsServiceIntegrationTest:
                 "num_found": 0,
                 "files": []
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     def run_test_cache_contents_2(self):
         if verbose_level >= 1:
@@ -356,8 +356,8 @@ class SkeletonsServiceIntegrationTest:
                 "num_found": 0,
                 "files": []
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     def run_test_cache_contents_3(self):
         if verbose_level >= 1:
@@ -371,8 +371,8 @@ class SkeletonsServiceIntegrationTest:
                 "num_found": 0,
                 "files": []
             })
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     #====================================================================================================
     # Invalid skeleton request tests
@@ -387,8 +387,8 @@ class SkeletonsServiceIntegrationTest:
             if verbose_level >= 2:
                 print(e.args[0])
             test_result = self.run_one_test('"Error": "Problematic root id: ' + str(self.sample_refusal_list_rid) + ' is in the refusal list"' in e.args[0])
-            return (1, 0) if test_result else (0, 1)
-        return (0, 1)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (0, 0, 1)
 
     def run_test_invalid_request_2(self):
         if verbose_level >= 1:
@@ -400,8 +400,8 @@ class SkeletonsServiceIntegrationTest:
             if verbose_level >= 2:
                 print(e.args[0])
             test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
-            return (1, 0) if test_result else (0, 1)
-        return (0, 1)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (0, 0, 1)
 
     def run_test_invalid_request_3(self):
         if verbose_level >= 1:
@@ -413,8 +413,8 @@ class SkeletonsServiceIntegrationTest:
             if verbose_level >= 2:
                 print(e.args[0])
             test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
-            return (1, 0) if test_result else (0, 1)
-        return (0, 1)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (0, 0, 1)
 
     #====================================================================================================
     # Skeleton request tests
@@ -427,13 +427,13 @@ class SkeletonsServiceIntegrationTest:
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
-        test_result = np.array([0, 0])
+        test_result = np.array([0, 0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
-        test_result += (1, 0) if test_result1 else (0, 1)
+        test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
         if not test_result2:
             print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
-        test_result += (1, 0) if test_result2 else (0, 1)
+        test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
     def run_test_retrieval_2(self):
@@ -444,13 +444,13 @@ class SkeletonsServiceIntegrationTest:
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
-        test_result = np.array([0, 0])
+        test_result = np.array([0, 0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
-        test_result += (1, 0) if test_result1 else (0, 1)
+        test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
             print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
-        test_result += (1, 0) if test_result2 else (0, 1)
+        test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
     def run_test_retrieval_3(self):
@@ -461,13 +461,13 @@ class SkeletonsServiceIntegrationTest:
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
-        test_result = np.array([0, 0])
+        test_result = np.array([0, 0, 0])
         test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
-        test_result += (1, 0) if test_result1 else (0, 1)
+        test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
             print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
-        test_result += (1, 0) if test_result2 else (0, 1)
+        test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
     def run_test_retrieval_4(self):
@@ -479,13 +479,13 @@ class SkeletonsServiceIntegrationTest:
             elapsed_time = default_timer() - start_time
             # if verbose_level >= 2:
                 # display(sk)
-            test_result = np.array([0, 0])
+            test_result = np.array([0, 0, 0])
             test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
-            test_result += (1, 0) if test_result1 else (0, 1)
+            test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
             test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
             if not test_result2:
                 print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
-            test_result += (1, 0) if test_result2 else (0, 1)
+            test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
             return test_result
         return np.array([0, 0])
 
@@ -514,8 +514,8 @@ class SkeletonsServiceIntegrationTest:
                 print( \
 f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
 might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC if not kube else ''}")
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     def run_test_cache_status_2_2(self):
         if verbose_level >= 1:
@@ -543,8 +543,8 @@ might complete between the time when the cache is cleared at the beginning of th
                 print( \
 f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
 might complete between the time when the cache is cleared at the beginning of this run and the time this test is run.{bcolors.ENDC if not kube else ''}")
-            return (1, 0) if test_result else (0, 1)
-        return (1, 0)
+            return (1, 0, 0) if test_result else (0, 0, 1)
+        return (1, 0, 0)
 
     # Small bulk skeleton request tests
     ## This routine truncates the request list to a small number (10 at the time of this writing), returns any skeletons that are available, and submits the rest to the asynchronous queue
@@ -556,7 +556,7 @@ might complete between the time when the cache is cleared at the beginning of th
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_retrieval_2(self):
         if verbose_level >= 1:
@@ -565,7 +565,7 @@ might complete between the time when the cache is cleared at the beginning of th
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_retrieval_3(self):
         if verbose_level >= 1:
@@ -574,7 +574,7 @@ might complete between the time when the cache is cleared at the beginning of th
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
@@ -589,7 +589,7 @@ might complete between the time when the cache is cleared at the beginning of th
         if verbose_level >= 2:
             print(type(result), result)
         test_result = self.run_one_test(result == 60.0)
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_2(self):
         if verbose_level >= 1:
@@ -598,7 +598,7 @@ might complete between the time when the cache is cleared at the beginning of th
         if verbose_level >= 2:
             print(type(result), result)
         test_result = self.run_one_test(result == 60.0)
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_3(self):
         if verbose_level >= 1:
@@ -607,7 +607,7 @@ might complete between the time when the cache is cleared at the beginning of th
         if verbose_level >= 2:
             print(type(result), result)
         test_result = self.run_one_test(result == 60.0)
-        return (1, 0) if test_result else (0, 1)
+        return (1, 0, 0) if test_result else (0, 0, 1)
 
     def test_integration(self, datastack_name, server_address, force_run=False):
         # Pick a test server:
@@ -632,16 +632,16 @@ might complete between the time when the cache is cleared at the beginning of th
             skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
             sksv_version = skclient.get_version()
             
-            return sksv_version, (0, 1)
+            return sksv_version, (0, 0, 1)
     
     def run(self, datastack, server, verbose_level_=0):
         global verbose_level
         verbose_level = verbose_level_
 
-        sksv_version, (num_passed, num_failed) = self.test_integration(datastack, server, True)
+        sksv_version, (num_passed, num_suspicious, num_failed) = self.test_integration(datastack, server, True)
         if verbose_level >= 1:
-            print(f"Test results on datastack and server {datastack}, {server}:    Num tests passed: {num_passed},    Num tests failed: {num_failed}")
-        return sksv_version, num_failed
+            print(f"Test results against {datastack} on {server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}")
+        return sksv_version, num_passed, num_suspicious, num_failed
 
 def dispatch_slack_msg(msg):
     slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
@@ -672,9 +672,9 @@ if __name__ == "__main__":
         client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
         skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
         sksv_version = skclient.get_version()
-        print(f"Comparing local and deployed SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
+        print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
         if sksv_version != this_skeletonservice_version:
-            print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}SkeletonService version mismatch. Deployed (v{sksv_version} != local v{this_skeletonservice_version}). Various components are not all fully deployed yet.{bcolors.ENDC if not kube else ''}")
+            print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}SkeletonService version mismatch. Deployed v{sksv_version} != local v{this_skeletonservice_version}. Various components are not all fully deployed yet.{bcolors.ENDC if not kube else ''}")
             # Exit with a nonzero status so Kubernetes will rerun this pods again until the components are all ready to go
             sys.exit(1)
         print("The versions match. Proceeding with the test...")
@@ -689,15 +689,19 @@ if __name__ == "__main__":
             sys.exit(1)
 
     test = SkeletonsServiceIntegrationTest()
-    sksv_version, num_failed = test.run(args.datastack, args.server, verbose_level)
+    sksv_version, num_passed, num_suspicious, num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
-        msg = f"ALERT! SkeletonService v{sksv_version}: {num_failed} integration tests have failed."
+        msg = f"ALERT! SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}"
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
+    elif num_suspicious > 0:
+        msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious."
+        dispatch_slack_msg(msg)
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
     else:
-        msg = f"SkeletonService v{sksv_version}: All integration tests passed successfully."
+        msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed."
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
 
