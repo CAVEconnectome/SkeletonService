@@ -645,6 +645,7 @@ might complete between the time when the cache is cleared at the beginning of th
         return sksv_version, num_passed, num_suspicious, num_failed
 
 def dispatch_slack_msg(msg):
+    # Default to Keith Wiley's DM webhook if we don't find a better option
     slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
     if slack_webhook_id:
         url = f"https://hooks.slack.com/services/{slack_webhook_id}"
@@ -678,9 +679,8 @@ if __name__ == "__main__":
         while True:
             num_attempts -= 1
             if num_attempts <= 0:
-                msg = f"ERROR: SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed."
-                dispatch_slack_msg(msg)
-                print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+                dispatch_slack_msg(f":bangbang: SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed.")
+                print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed.{bcolors.ENDC if not kube else ''}")
                 if not kube:
                     sys.exit(1)
                 sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
@@ -695,12 +695,14 @@ if __name__ == "__main__":
             print("Woke up. Rechecking the deployed SkeletonService version...")
 
     if args.datastack not in DATASTACKS:
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
+        dispatch_slack_msg(f":bangbang: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! Invalid datastack name: *{args.datastack}*. Valid datastack options: *{', '.join(DATASTACKS)}*.{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
         sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
     if args.server not in SERVERS:
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.{bcolors.ENDC if not kube else ''}")
+        dispatch_slack_msg(f":bangbang: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! Invalid server address: *{args.server}*. Valid server options: *{', '.join(SERVERS)}*.{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
         sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
@@ -708,18 +710,15 @@ if __name__ == "__main__":
     test = SkeletonsServiceIntegrationTest()
     sksv_version, num_passed, num_suspicious, num_failed = test.run(args.datastack, args.server, verbose_level)
     if num_failed > 0:
-        msg = f"ALERT! SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}"
-        dispatch_slack_msg(msg)
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+        dispatch_slack_msg(f":exclamation: SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*:\n:white_check_mark:    {num_passed} passed\n:warning:    {num_suspicious} suspicious\n:x:    {num_failed} failed")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ALERT! SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}{bcolors.ENDC if not kube else ''}")
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     elif num_suspicious > 0:
-        msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious."
-        dispatch_slack_msg(msg)
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+        dispatch_slack_msg(f":warning: SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious.")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}WARNING SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious.{bcolors.ENDC if not kube else ''}")
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     else:
-        msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed."
-        dispatch_slack_msg(msg)
-        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+        dispatch_slack_msg(f":white_check_mark: SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*: All tests passed. :tada:")
+        print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed.{bcolors.ENDC if not kube else ''}")
 
     sys.exit(0)  # Prevent Kubernetes from rerunning the job
