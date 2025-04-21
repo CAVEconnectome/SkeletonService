@@ -14,6 +14,7 @@ import inspect
 import os
 import sys
 import argparse
+import time
 from timeit import default_timer
 import numpy as np
 import packaging
@@ -665,31 +666,44 @@ if __name__ == "__main__":
     verbose_level = args.verbose_level
 
     print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
-
-    print("Simulating failed test to develop Kubernetes pod restart behavior...")
-    sys.exit(1)
     
     # Confirm that the various skeleton service components have fully deployed
     if this_skeletonservice_version:
         client = cc.CAVEclient(args.datastack)
         client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
         skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
-        sksv_version = skclient.get_version()
-        print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
-        if sksv_version != this_skeletonservice_version:
+        max_wait_time = 60 * 10
+        sleep_time_s = 60
+        num_attempts = max_wait_time // sleep_time_s
+        while True:
+            num_attempts -= 1
+            if num_attempts <= 0:
+                msg = f"ERROR: SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed."
+                dispatch_slack_msg(msg)
+                print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+                if not kube:
+                    sys.exit(1)
+                sys.exit(0)  # Prevent Kubernetes from rerunning the job
+            sksv_version = skclient.get_version()
+            print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
+            if sksv_version == this_skeletonservice_version:
+                print("The SkeletonService versions match. Proceeding with the test...")
+                break
             print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}SkeletonService version mismatch. Deployed v{sksv_version} != local v{this_skeletonservice_version}. Various components are not all fully deployed yet.{bcolors.ENDC if not kube else ''}")
-            # Exit with a nonzero status so Kubernetes will rerun this pods again until the components are all ready to go
-            sys.exit(1)
-        print("The versions match. Proceeding with the test...")
+            print(f"Sleeping for {sleep_time_s} seconds to allow the components to fully deploy...")
+            time.sleep(sleep_time_s)
+            print("Woke up. Rechecking the deployed SkeletonService version...")
 
     if args.datastack not in DATASTACKS:
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
+        sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
     if args.server not in SERVERS:
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR: Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
+        sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
 
     test = SkeletonsServiceIntegrationTest()
     sksv_version, num_passed, num_suspicious, num_failed = test.run(args.datastack, args.server, verbose_level)
@@ -699,13 +713,15 @@ if __name__ == "__main__":
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
         if not kube:
             sys.exit(1)
+        # Permit Kubernetes to rerun the job since this might be a non-deterministic failure
     elif num_suspicious > 0:
         msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious."
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
+        # Permit Kubernetes to rerun the job since this might be a non-deterministic failure
     else:
         msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed."
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
 
-    sys.exit(0)
+    sys.exit(0)  # Prevent Kubernetes from rerunning the job
