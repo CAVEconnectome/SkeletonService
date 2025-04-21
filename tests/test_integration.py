@@ -683,7 +683,7 @@ if __name__ == "__main__":
                 print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
                 if not kube:
                     sys.exit(1)
-                sys.exit(0)  # Prevent Kubernetes from rerunning the job
+                sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
             sksv_version = skclient.get_version()
             print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
             if sksv_version == this_skeletonservice_version:
@@ -711,14 +711,12 @@ if __name__ == "__main__":
         msg = f"ALERT! SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}"
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
-        if not kube:
-            sys.exit(1)
-        # Permit Kubernetes to rerun the job since this might be a non-deterministic failure
+        sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     elif num_suspicious > 0:
         msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious."
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
-        # Permit Kubernetes to rerun the job since this might be a non-deterministic failure
+        sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     else:
         msg = f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed."
         dispatch_slack_msg(msg)
