@@ -665,6 +665,9 @@ if __name__ == "__main__":
     verbose_level = args.verbose_level
 
     print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
+
+    print("Simulating failed test to develop Kubernetes pod restart behavior...")
+    sys.exit(1)
     
     # Confirm that the various skeleton service components have fully deployed
     if this_skeletonservice_version:
@@ -705,6 +708,4 @@ if __name__ == "__main__":
         dispatch_slack_msg(msg)
         print(f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}{msg}{bcolors.ENDC if not kube else ''}")
 
-    # Explicitly exiting with a zero status to indicate success is actually interpreted by Kubernetes as an error and the container will be restarted.
-    # So we can't do this. We just have to quietly fall out the bottom of the script.
-    # sys.exit(0)
+    sys.exit(0)
