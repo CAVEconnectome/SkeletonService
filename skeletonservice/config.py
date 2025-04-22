@@ -63,12 +63,6 @@ class BaseConfig(object):
     # INFOSERVICE_ENDPOINT = f"{GLOBAL_SERVER_URL}/info"
     # AUTH_URI = f"{GLOBAL_SERVER_URL}/auth"
 
-    # Slack webhook to Keith Wiley's Slack direct messages in the Connectome org
-    # SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"
-
-    # Slack webhook to the deployment-hour-alerts channel in the Connectome org
-    SLACK_WEBHOOK_ID = "T0CL3AB5X/B08LQN8DE9M/89QK1Pv9Lb5XWzUdCX29QhM5"
-
 config = {
     "development": "skeletonservice.config.BaseConfig",
     "testing": "skeletonservice.config.BaseConfig",

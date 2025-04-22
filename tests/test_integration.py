@@ -96,6 +96,11 @@ SERVERS = [
     "https://minniev6.microns-daf.com",
 ]
 
+# SLACK_WEBHOOK_ID will be overridden by an environment variable coming from Kubernetes
+# but the global here will be used when running locally.
+SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
+# SLACK_WEBHOOK_ID = "T0CL3AB5X/B08LQN8DE9M/89QK1Pv9Lb5XWzUdCX29QhM5"  # deployment-hour-alerts channel in the Connectome org
+
 verbose_level = 0
 
 class bcolors:
@@ -645,15 +650,15 @@ might complete between the time when the cache is cleared at the beginning of th
         return sksv_version, num_passed, num_suspicious, num_failed
 
 def dispatch_slack_msg(msg):
-    # Default to Keith Wiley's DM webhook if we don't find a better option
-    slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38")
-    if slack_webhook_id:
-        url = f"https://hooks.slack.com/services/{slack_webhook_id}"
-        json_content = {
-            "text": msg
-        }
-        result = requests.post(url, json=json_content)
-        print(f"Slack requests.post status and text: {result.status_code} {result.text}")
+    # When run on Kuberetes, the SLACK_WEBHOOK_ID environment variable will (ought to be) passed in,
+    # but when run locally, it will be picked up from the global variable
+    slack_webhook_id = os.getenv("SLACK_WEBHOOK_ID", SLACK_WEBHOOK_ID)
+    url = f"https://hooks.slack.com/services/{slack_webhook_id}"
+    json_content = {
+        "text": msg
+    }
+    result = requests.post(url, json=json_content)
+    print(f"Slack requests.post status and text: {result.status_code} {result.text}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
