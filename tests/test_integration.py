@@ -206,12 +206,12 @@ class SkeletonsServiceIntegrationTest:
             print(f"Testing bucket: {bucket}")
 
         cf = CloudFiles(bucket)
-        for rid in self.valid_rids:
-            for output_format in ["h5", "flatdict", "swccompressed"]:
-                filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.remapped_datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
-                if verbose_level >= 2:
-                    print(filename)
-                    print(cf.exists(filename))
+        # for rid in self.valid_rids:
+        #     for output_format in ["h5", "flatdict", "swccompressed"]:
+        #         filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.remapped_datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
+        #         if verbose_level >= 2:
+        #             print(filename)
+        #             print("Exists status:", cf.exists(filename))
 
         for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
@@ -222,7 +222,7 @@ class SkeletonsServiceIntegrationTest:
                 if not self.fast_run:
                     cf.delete(filename)
                 if verbose_level >= 2:
-                    print(predeletion_exists, cf.exists(filename))
+                    print("Exists status before/after deletion:", predeletion_exists, cf.exists(filename))
         
         results = np.array([0, 0, 0])
         # results += self.run_test_metadata_1()
@@ -658,7 +658,7 @@ def dispatch_slack_msg(msg):
         "text": msg
     }
     result = requests.post(url, json=json_content)
-    print(f"Slack requests.post status and text: {result.status_code} {result.text}")
+    print(f"Slack message dispatched to webhook ending in [...{slack_webhook_id[-4:]}] with requests.post status & text: {result.status_code} {result.text}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
