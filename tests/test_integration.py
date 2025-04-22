@@ -55,6 +55,8 @@ kube = False
 # but it can't be enabled because it will fail on Github.
 PYTEST_INTEGRATION_TESTS_ENABLED = False
 
+CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+
 DATASTACKS = {
     "minnie65_public": {
         "remapped": "minnie65_phase3_v1",
@@ -99,7 +101,7 @@ SERVERS = [
 # SLACK_WEBHOOK_ID will be overridden by an environment variable coming from Kubernetes
 # but the global here will be used when running locally.
 SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
-# SLACK_WEBHOOK_ID = "T0CL3AB5X/B08LQN8DE9M/89QK1Pv9Lb5XWzUdCX29QhM5"  # deployment-hour-alerts channel in the Connectome org
+# SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
 verbose_level = 0
 
@@ -155,7 +157,7 @@ class SkeletonsServiceIntegrationTest:
 
         self.datastack_name = datastack_name
 
-        self.client = cc.CAVEclient(self.datastack_name)
+        self.client = cc.CAVEclient(self.datastack_name, server_address=CAVE_CLIENT_SERVER)
 
         self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
         
@@ -658,7 +660,7 @@ def dispatch_slack_msg(msg):
         "text": msg
     }
     result = requests.post(url, json=json_content)
-    print(f"Slack message dispatched to webhook ending in [...{slack_webhook_id[-4:]}] with requests.post status & text: {result.status_code} {result.text}")
+    print(f"Slack message dispatched to webhook ending in '{slack_webhook_id[-4:]}' with requests.post status & text: {result.status_code} {result.text}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
