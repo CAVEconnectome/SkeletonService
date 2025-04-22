@@ -438,7 +438,7 @@ class SkeletonsServiceIntegrationTest:
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
         if not test_result2:
-            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
@@ -455,7 +455,7 @@ class SkeletonsServiceIntegrationTest:
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
-            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
@@ -472,7 +472,7 @@ class SkeletonsServiceIntegrationTest:
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
         test_result2 = self.run_one_test(elapsed_time < 5, True)
         if not test_result2:
-            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
+            print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
@@ -490,7 +490,7 @@ class SkeletonsServiceIntegrationTest:
             test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
             test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
             if not test_result2:
-                print(f"{bcolors.BOLD if not kube else ''}Skeletonization time fell outside expected range. This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
+                print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow).{bcolors.ENDC if not kube else ''}")
             test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
             return test_result
         return np.array([0, 0])
