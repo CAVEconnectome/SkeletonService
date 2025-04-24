@@ -1,7 +1,7 @@
 import os
 import traceback as tb
 import logging
-from messagingclient import MessagingClient
+from messagingclient import MessagingClientConsumer
 from .service import SkeletonService
 
 logging.basicConfig(level=logging.INFO)
@@ -91,7 +91,7 @@ def callback(payload):
         tb.print_exc()
 
 try:
-    c = MessagingClient()
+    c = MessagingClientConsumer()
     skeletoncache_low_priority_queue = os.getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", None)
     skeletoncache_high_priority_queue = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_RETRIEVE_QUEUE", None)
     skeletoncache_dead_letter_queue = os.getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)

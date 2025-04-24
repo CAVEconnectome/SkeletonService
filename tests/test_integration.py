@@ -70,6 +70,12 @@ DATASTACKS = {
         "bulk_rids": [864691135463611454, 864691135687456480],
         "single_vertex_rid": 864691131576191498,
     },
+    "v1dd": {
+        "remapped": "v1dd",
+        "materialization_version": 974,
+        "bulk_rids": [864691132789453393, 864691133066666568],
+        "single_vertex_rid": None,  # TBD
+    },
     "zheng_ca3": {
         "remapped": "zheng_ca3",
         "materialization_version": 245,
@@ -96,6 +102,10 @@ SERVERS = [
     # This should be pretty safe, but I like to run it manually, on my local machine.
     # Therefore, I would recommend commenting it out before pushing to Github.
     "https://minniev6.microns-daf.com",
+    
+    # Run integration tests against the V1DD server.
+    # This is a production server, so don't abuse it.
+    "https://globalv1.em.brain.allentech.org",
 ]
 
 # SLACK_WEBHOOK_ID will be overridden by an environment variable coming from Kubernetes

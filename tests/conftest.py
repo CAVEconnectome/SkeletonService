@@ -9,7 +9,7 @@ from skeletonservice.datasets.service_skvn3 import SkeletonService_skvn3
 from skeletonservice.datasets.service_skvn4 import SkeletonService_skvn4
 
 from cloudfiles import CloudFiles
-from messagingclient import MessagingClient
+from messagingclient import MessagingClientPublisher
 
 from caveclient.tools.testing import (
     CAVEclientMock,
@@ -79,4 +79,4 @@ def cloudvolume_mock():
 
 @pytest.fixture()
 def messagingclient_mock():
-    return MessagingClient()
+    return MessagingClientPublisher(100)

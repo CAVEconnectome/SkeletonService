@@ -8,7 +8,7 @@ from typing import List, Union
 import os
 import traceback
 import datetime
-from messagingclient import MessagingClient
+from messagingclient import MessagingClientPublisher
 import numpy as np
 import json
 import gzip
@@ -105,7 +105,6 @@ verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
 # Enable verbose debugging for one root id, e.g., a problematic id that has been encountered by a user
 debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
-
 class SkeletonService:
     @staticmethod
     def get_session_timestamp():
@@ -1380,6 +1379,7 @@ class SkeletonService:
 
     @staticmethod
     def publish_skeleton_request(
+        messaging_client: MessagingClientPublisher,
         datastack_name: str,
         rid: int,
         output_format: str,
@@ -1406,13 +1406,12 @@ class SkeletonService:
             "verbose_level": f"{verbose_level_}",
         }
 
-        c = MessagingClient()
         exchange = os.getenv(
             "SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE" if high_priority else "SKELETON_CACHE_LOW_PRIORITY_EXCHANGE",
             None)
         if verbose_level >= 1:
             SkeletonService.print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
-        c.publish(exchange, payload, attributes)
+        messaging_client.publish(exchange, payload, attributes)
 
         if verbose_level_ >= 1:
             SkeletonService.print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} output_format: {output_format} skvn:{skeleton_version} {bucket}")
@@ -2054,6 +2053,8 @@ class SkeletonService:
             server_address=CAVE_CLIENT_SERVER,
         )
         cv = cave_client.info.segmentation_cloudvolume()
+
+        messaging_client = MessagingClientPublisher(100)
         
         skeletons = {}
         for rid in rids:
@@ -2104,6 +2105,7 @@ class SkeletonService:
                 if not h5_available:
                     # No H5 skeleton was found, so generate one asynchronously
                     SkeletonService.publish_skeleton_request(
+                        messaging_client,
                         datastack_name,
                         rid,
                         "none",
@@ -2135,7 +2137,9 @@ class SkeletonService:
                 elif output_format == "swccompressed":
                     skeleton_hex_ascii = binascii.hexlify(skeleton.getvalue()).decode('ascii')
                     skeletons[rid] = skeleton_hex_ascii
-    
+
+        messaging_client.close()
+
         return skeletons
     
     @staticmethod
@@ -2183,7 +2187,10 @@ class SkeletonService:
         ):
             t1 = default_timer()
 
+            messaging_client = MessagingClientPublisher(100)
+
             SkeletonService.publish_skeleton_request(
+                messaging_client,
                 datastack_name,
                 rid,
                 "meshwork",
@@ -2195,6 +2202,8 @@ class SkeletonService:
                 True,
                 verbose_level_,
             )
+
+            messaging_client.close()
 
             t2 = default_timer()
 
@@ -2297,7 +2306,10 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
 
+            messaging_client = MessagingClientPublisher(100)
+
             SkeletonService.publish_skeleton_request(
+                messaging_client,
                 datastack_name,
                 rid,
                 "none",
@@ -2309,6 +2321,8 @@ class SkeletonService:
                 True,
                 verbose_level_,
             )
+
+            messaging_client.close()
 
             t2 = default_timer()
 
@@ -2391,6 +2405,8 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
 
+        messaging_client = MessagingClientPublisher(100)
+
         num_valid_rids = 0
         for rid in rids:
             # Don't perform the normal validation on the debugging root id.
@@ -2401,6 +2417,7 @@ class SkeletonService:
                     and cave_client.chunkedgraph.is_valid_nodes(rid)
                 ): 
                 SkeletonService.publish_skeleton_request(
+                    messaging_client,
                     datastack_name,
                     rid,
                     "meshwork_none",
@@ -2413,6 +2430,8 @@ class SkeletonService:
                     verbose_level_,
                 )
                 num_valid_rids += 1
+        
+        messaging_client.close()
         
         meshwork_generation_time_estimate_secs = 60  # seconds
         try:
@@ -2488,6 +2507,8 @@ class SkeletonService:
         t3 = default_timer()
         rf_et = t3 - t2
 
+        messaging_client = MessagingClientPublisher(100)
+        
         t2a_ets = 0
         t2b_ets = 0
         t2c_ets = 0
@@ -2508,6 +2529,7 @@ class SkeletonService:
                         t2d = default_timer()
                         t2c_ets += t2d - t2c
                         SkeletonService.publish_skeleton_request(
+                            messaging_client,
                             datastack_name,
                             rid,
                             "none",
@@ -2528,9 +2550,13 @@ class SkeletonService:
             else:
                 t2a_ets += default_timer() - t2a
         
+        t4 = default_timer()
+        messaging_client.close()
+        t4_et = default_timer() - t4
+
         if verbose_level >= 1:
             SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Called with {num_rids_submitted} root ids, of which {num_valid_rids} were dispatched for skeletonization.")
-            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f}s -- RF2:{t2a_ets:.3f}s LR:{t2b_ets:.3f}s VD:{t2c_ets:.3f}s PB:{t2d_ets:.3f}s")
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f}s -- RF2:{t2a_ets:.3f}s LR:{t2b_ets:.3f}s VD:{t2c_ets:.3f}s PB1:{t2d_ets:.3f}s -- PB2:{t4_et:.3f}s")
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:
