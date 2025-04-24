@@ -9,7 +9,7 @@ middle-auth-client>=3.16.0
 caveclient>=7.7.1
 meshparty>=1.18.2
 pcg_skel>=1.3.1
-messagingclient @ git+https://github.com/seung-lab/messaging-client@batch_pub
+git+https://github.com/seung-lab/messaging-client@batch_pub
 cloud-files>=5.0.3
 cloud-volume>=11.2.0
 Flask-Limiter[redis]
