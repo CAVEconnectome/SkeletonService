@@ -19,6 +19,10 @@ def callback(payload):
         verbose_level = int(payload.attributes["verbose_level"])
         if env_verbose_level > verbose_level:
             verbose_level = env_verbose_level
+        
+        # DEBUG
+        if verbose_level >= 100:
+            return
             
         if verbose_level >= 1:
             s = ""
