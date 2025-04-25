@@ -2584,9 +2584,11 @@ class SkeletonService:
         messaging_client.close()
         t4_et = default_timer() - t4
 
+        total_et = t4 - t0
+
         if verbose_level >= 1:
             SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Called with {num_rids_submitted} root ids, of which {num_valid_rids} were dispatched for skeletonization.")
-            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f}s -- RF2:{t2a_ets:.3f}s LR:{t2b_ets:.3f}s VD:{t2c_ets:.3f}s PB1:{t2d_ets:.3f}s -- PB2:{t4_et:.3f}s")
+            SkeletonService.print(f"generate_skeletons_bulk_by_datastack_and_rids_async() Elapsed times: CV:{cv_et:.3f}s EX:{ex_et:.3f}s RF1:{rf_et:.3f}s -- RF2:{t2a_ets:.3f}s LR:{t2b_ets:.3f}s VD:{t2c_ets:.3f}s PB1:{t2d_ets:.3f}s -- PB2:{t4_et:.3f}s -- TOTAL:{total_et:.3f}s")
         
         skeleton_generation_time_estimate_secs = 60  # seconds
         try:

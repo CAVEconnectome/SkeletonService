@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from timeit import default_timer
 # Import flask dependencies
 from flask import jsonify, render_template, current_app, request, make_response, Blueprint
 from flask_accepts import accepts, responds
@@ -853,11 +854,18 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
         
         # data = request.parsed_obj  # Doesn't work, doesn't exist
         
+        t0 = default_timer()
         data = request.json
         rids = data['root_ids']
         skvn = data['skeleton_version']
         verbose_level = data['verbose_level'] if 'verbose_level' in data else 0
         verbose_level = max(int(request.args.get('verbose_level')), verbose_level) if 'verbose_level' in request.args else verbose_level
-
+        t1 = default_timer()
+        
         response = self.process(datastack_name, skvn, rids, verbose_level)
+        t2 = default_timer()
+        t1_et = t1 - t0
+        t2_et = t2 - t1
+        SkeletonService.print(f"SkeletonResource__gen_skeletons_bulk_async_C() Elapsed times: {t1_et:.3f}s {t2_et:.3f}s")
+        
         return response, 200
