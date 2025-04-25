@@ -39,6 +39,7 @@ DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_e
 DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immediately trigger an exception when skeletonizing, which will send it to the dead letter queue
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
+PUBSUB_BATCH_SIZE = 100
 DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
     'flywire_fafb_public': 'flywire_fafb_production',
@@ -94,6 +95,9 @@ SKELETON_VERSION_PARAMS = {
 }
 
 logging.basicConfig(level=logging.WARNING)
+
+logger = logging.getLogger('messagingclient')
+logger.setLevel(logging.INFO)
 
 # Since processes are threaded and not forked, I'm concerned this global might get shared across threads processing different requests.
 # Consequently, I'm not sure this approach is safe. But there is no class object created anywhere in the request handling.
@@ -2054,7 +2058,13 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
 
-        messaging_client = MessagingClientPublisher(100)
+        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
+        pubsub_batch_size = PUBSUB_BATCH_SIZE
+        if verbose_level == 2:
+            pubsub_batch_size = 1
+        elif verbose_level == 3:
+            pubsub_batch_size = 10
+        messaging_client = MessagingClientPublisher(pubsub_batch_size)
         
         skeletons = {}
         for rid in rids:
@@ -2187,7 +2197,13 @@ class SkeletonService:
         ):
             t1 = default_timer()
 
-            messaging_client = MessagingClientPublisher(100)
+            # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
+            pubsub_batch_size = PUBSUB_BATCH_SIZE
+            if verbose_level == 2:
+                pubsub_batch_size = 1
+            elif verbose_level == 3:
+                pubsub_batch_size = 10
+            messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
             SkeletonService.publish_skeleton_request(
                 messaging_client,
@@ -2306,7 +2322,13 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
 
-            messaging_client = MessagingClientPublisher(100)
+            # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
+            pubsub_batch_size = PUBSUB_BATCH_SIZE
+            if verbose_level == 2:
+                pubsub_batch_size = 1
+            elif verbose_level == 3:
+                pubsub_batch_size = 10
+            messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
             SkeletonService.publish_skeleton_request(
                 messaging_client,
@@ -2405,7 +2427,13 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
 
-        messaging_client = MessagingClientPublisher(100)
+        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
+        pubsub_batch_size = PUBSUB_BATCH_SIZE
+        if verbose_level == 2:
+            pubsub_batch_size = 1
+        elif verbose_level == 3:
+            pubsub_batch_size = 10
+        messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
         num_valid_rids = 0
         for rid in rids:
@@ -2507,7 +2535,13 @@ class SkeletonService:
         t3 = default_timer()
         rf_et = t3 - t2
 
-        messaging_client = MessagingClientPublisher(100)
+        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
+        pubsub_batch_size = PUBSUB_BATCH_SIZE
+        if verbose_level == 2:
+            pubsub_batch_size = 1
+        elif verbose_level == 3:
+            pubsub_batch_size = 10
+        messaging_client = MessagingClientPublisher(pubsub_batch_size)
         
         t2a_ets = 0
         t2b_ets = 0
