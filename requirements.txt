@@ -244,7 +244,7 @@ mdurl==0.1.2
     # via markdown-it-py
 meshparty==1.18.2
     # via pcg-skel
-messagingclient @ git+https://github.com/seung-lab/messaging-client@735846c7881f141b053de90cf1498674b94523a5
+messagingclient @ git+https://github.com/seung-lab/messaging-client@14c5d28b1a3383adf52e69c596f661b10c700511
 microviewer==1.11.0
     # via cloud-volume
 middle-auth-client==3.16.2
