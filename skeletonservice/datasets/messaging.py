@@ -1,11 +1,12 @@
 import os
 import traceback as tb
+import google.cloud.logging
 import logging
 from messagingclient import MessagingClientConsumer
 from .service import SkeletonService
 
+google.cloud.logging.Client().setup_logging()
 logging.basicConfig(level=logging.INFO)
-
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 

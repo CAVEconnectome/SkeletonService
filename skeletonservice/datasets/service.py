@@ -1,5 +1,6 @@
 from io import BytesIO
 import binascii
+import google.cloud.logging
 import logging
 import math
 import time
@@ -94,8 +95,8 @@ SKELETON_VERSION_PARAMS = {
         }]},
 }
 
+google.cloud.logging.Client().setup_logging()
 logging.basicConfig(level=logging.WARNING)
-
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 

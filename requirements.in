@@ -13,3 +13,4 @@ git+https://github.com/seung-lab/messaging-client@batch_pub
 cloud-files>=5.0.3
 cloud-volume>=11.2.0
 Flask-Limiter[redis]
+google.cloud.logging

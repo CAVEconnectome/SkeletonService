@@ -71,7 +71,9 @@ decorator==5.1.1
 deflate==0.6.0
     # via cloud-files
 deprecated==1.2.18
-    # via limits
+    # via
+    #   limits
+    #   opentelemetry-api
 dill==0.3.8
     # via
     #   multiprocess
@@ -113,7 +115,9 @@ gevent==24.2.1
     #   cloud-volume
 google-api-core==2.18.0
     # via
+    #   google-cloud-appengine-logging
     #   google-cloud-core
+    #   google-cloud-logging
     #   google-cloud-pubsub
     #   google-cloud-storage
 google-auth==2.29.0
@@ -121,14 +125,22 @@ google-auth==2.29.0
     #   cloud-files
     #   cloud-volume
     #   google-api-core
+    #   google-cloud-appengine-logging
     #   google-cloud-core
+    #   google-cloud-logging
     #   google-cloud-pubsub
     #   google-cloud-storage
+google-cloud-appengine-logging==1.6.1
+    # via google-cloud-logging
+google-cloud-audit-log==0.3.2
+    # via google-cloud-logging
 google-cloud-core==2.4.1
     # via
     #   cloud-files
     #   cloud-volume
+    #   google-cloud-logging
     #   google-cloud-storage
+google-cloud-logging==3.12.1
 google-cloud-pubsub==2.21.3
     # via messagingclient
 google-cloud-storage==2.16.0
@@ -145,12 +157,15 @@ google-resumable-media==2.7.0
 googleapis-common-protos==1.63.0
     # via
     #   google-api-core
+    #   google-cloud-audit-log
     #   grpc-google-iam-v1
     #   grpcio-status
 greenlet==3.0.3
     # via gevent
 grpc-google-iam-v1==0.13.0
-    # via google-cloud-pubsub
+    # via
+    #   google-cloud-logging
+    #   google-cloud-pubsub
 grpcio==1.64.1
     # via
     #   google-api-core
@@ -172,6 +187,7 @@ importlib-metadata==7.0.1
     # via
     #   flask
     #   markdown
+    #   opentelemetry-api
 importlib-resources==6.1.1
     # via
     #   flask-restx
@@ -275,6 +291,8 @@ numpy==1.26.4
     #   simplejpeg
     #   tables
     #   trimesh
+opentelemetry-api==1.32.1
+    # via google-cloud-logging
 ordered-set==4.1.0
     # via flask-limiter
 orderedmultidict==1.0.1
@@ -331,12 +349,17 @@ prompt-toolkit==3.0.43
 proto-plus==1.23.0
     # via
     #   google-api-core
+    #   google-cloud-appengine-logging
+    #   google-cloud-logging
     #   google-cloud-pubsub
 protobuf==4.25.3
     # via
     #   cloud-files
     #   cloud-volume
     #   google-api-core
+    #   google-cloud-appengine-logging
+    #   google-cloud-audit-log
+    #   google-cloud-logging
     #   google-cloud-pubsub
     #   googleapis-common-protos
     #   grpc-google-iam-v1
