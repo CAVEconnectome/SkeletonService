@@ -2061,10 +2061,9 @@ class SkeletonService:
 
         # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
         pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level == 2:
-            pubsub_batch_size = 1
-        elif verbose_level == 3:
-            pubsub_batch_size = 10
+        if verbose_level_ >= 100:
+            pubsub_batch_size = verbose_level_ - 99
+            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
         messaging_client = MessagingClientPublisher(pubsub_batch_size)
         
         skeletons = {}
@@ -2200,10 +2199,9 @@ class SkeletonService:
 
             # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
             pubsub_batch_size = PUBSUB_BATCH_SIZE
-            if verbose_level == 2:
-                pubsub_batch_size = 1
-            elif verbose_level == 3:
-                pubsub_batch_size = 10
+            if verbose_level_ >= 100:
+                pubsub_batch_size = verbose_level_ - 99
+                SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
             messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
             SkeletonService.publish_skeleton_request(
@@ -2325,10 +2323,9 @@ class SkeletonService:
 
             # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
             pubsub_batch_size = PUBSUB_BATCH_SIZE
-            if verbose_level == 2:
-                pubsub_batch_size = 1
-            elif verbose_level == 3:
-                pubsub_batch_size = 10
+            if verbose_level_ >= 100:
+                pubsub_batch_size = verbose_level_ - 99
+                SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
             messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
             SkeletonService.publish_skeleton_request(
@@ -2430,10 +2427,9 @@ class SkeletonService:
 
         # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
         pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level == 2:
-            pubsub_batch_size = 1
-        elif verbose_level == 3:
-            pubsub_batch_size = 10
+        if verbose_level_ >= 100:
+            pubsub_batch_size = verbose_level_ - 99
+            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
         messaging_client = MessagingClientPublisher(pubsub_batch_size)
 
         num_valid_rids = 0
@@ -2538,10 +2534,9 @@ class SkeletonService:
 
         # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
         pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level == 2:
-            pubsub_batch_size = 1
-        elif verbose_level == 3:
-            pubsub_batch_size = 10
+        if verbose_level_ >= 100:
+            pubsub_batch_size = verbose_level_ - 99
+            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
         messaging_client = MessagingClientPublisher(pubsub_batch_size)
         
         t2a_ets = 0
