@@ -96,7 +96,7 @@ SKELETON_VERSION_PARAMS = {
 }
 
 google.cloud.logging.Client().setup_logging()
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 
