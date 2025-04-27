@@ -20,10 +20,6 @@ def callback(payload):
         if env_verbose_level > verbose_level:
             verbose_level = env_verbose_level
         
-        # DEBUG
-        if verbose_level >= 100:
-            return
-            
         if verbose_level >= 1:
             s = ""
             for k in payload.attributes:
