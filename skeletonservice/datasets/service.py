@@ -2059,12 +2059,7 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
 
-        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
-        pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level_ >= 100:
-            pubsub_batch_size = verbose_level_ - 100
-            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
-        messaging_client = MessagingClientPublisher(pubsub_batch_size)
+        messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
         
         skeletons = {}
         for rid in rids:
@@ -2197,12 +2192,7 @@ class SkeletonService:
         ):
             t1 = default_timer()
 
-            # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
-            pubsub_batch_size = PUBSUB_BATCH_SIZE
-            if verbose_level_ >= 100:
-                pubsub_batch_size = verbose_level_ - 100
-                SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
-            messaging_client = MessagingClientPublisher(pubsub_batch_size)
+            messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
 
             SkeletonService.publish_skeleton_request(
                 messaging_client,
@@ -2321,12 +2311,7 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid_async() Rid {rid} not found in cache. Publishing a skeleton request to the message queue...")
 
-            # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
-            pubsub_batch_size = PUBSUB_BATCH_SIZE
-            if verbose_level_ >= 100:
-                pubsub_batch_size = verbose_level_ - 100
-                SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
-            messaging_client = MessagingClientPublisher(pubsub_batch_size)
+            messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
 
             SkeletonService.publish_skeleton_request(
                 messaging_client,
@@ -2425,12 +2410,7 @@ class SkeletonService:
         )
         cv = cave_client.info.segmentation_cloudvolume()
 
-        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
-        pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level_ >= 100:
-            pubsub_batch_size = verbose_level_ - 100
-            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
-        messaging_client = MessagingClientPublisher(pubsub_batch_size)
+        messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
 
         num_valid_rids = 0
         for rid in rids:
@@ -2532,12 +2512,7 @@ class SkeletonService:
         t3 = default_timer()
         rf_et = t3 - t2
 
-        # DEBUG: Analyze the benefit of PubSub batching via specific verbose level flags
-        pubsub_batch_size = PUBSUB_BATCH_SIZE
-        if verbose_level_ >= 100:
-            pubsub_batch_size = verbose_level_ - 100
-            SkeletonService.print(f"Overriding pubsub_batch_size with {pubsub_batch_size}")
-        messaging_client = MessagingClientPublisher(pubsub_batch_size)
+        messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
         
         t2a_ets = 0
         t2b_ets = 0
