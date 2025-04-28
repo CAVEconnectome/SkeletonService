@@ -193,14 +193,13 @@ class SkeletonsServiceIntegrationTest:
         self.fast_run = fast_run
 
         if verbose_level >= 1:
+            # These have to agree. They are pull from the same source.
             printer.print(f"CAVEclient version: v{cc.__version__} , v{importlib.metadata.version('CAVEclient')}")
 
         self.datastack_name = datastack_name
+        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
 
         self.client = cc.CAVEclient(self.datastack_name, server_address=CAVE_CLIENT_SERVER)
-
-        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
-        
         self.client.materialize.version = DATASTACKS[self.datastack_name]["materialization_version"]
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
@@ -733,17 +732,25 @@ if __name__ == "__main__":
     
     # Confirm that the various skeleton service components have fully deployed
     if this_skeletonservice_version:
-        client = cc.CAVEclient(args.datastack)
+        client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
         client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
         skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+        
+        # if skclient._server_version != this_skeletonservice_version:
+        #     dispatch_slack_msg(":bangbang:", url_location_specifier, f"SkeletonService version mismatch. CAVEclient remote SkeletonService v{skclient._server_version} != local v{this_skeletonservice_version}. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
+        #     printer.print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! SkeletonService version mismatch. CAVEclient remote SkeletonService v{skclient._server_version} != local v{this_skeletonservice_version}. Integration tests cannot be performed. Confirm that SkeletonService.requirements.[in|txt] requires v{this_skeletonservice_version}.{bcolors.ENDC if not kube else ''}")
+        #     if not kube:
+        #         sys.exit(1)
+        #     sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
+
         max_wait_time = 60 * 10
         sleep_time_s = 60
         num_attempts = max_wait_time // sleep_time_s
         while True:
             num_attempts -= 1
             if num_attempts <= 0:
-                dispatch_slack_msg(":bangbang:", url_location_specifier, f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed.")
-                printer.print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed.{bcolors.ENDC if not kube else ''}")
+                dispatch_slack_msg(":bangbang:", url_location_specifier, f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
+                printer.print(f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.{bcolors.ENDC if not kube else ''}")
                 if not kube:
                     sys.exit(1)
                 sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
