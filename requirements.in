@@ -6,7 +6,7 @@ flask-restx
 flask-accepts
 responses
 middle-auth-client>=3.16.0
-caveclient>=7.7.1
+caveclient>=7.7.2
 meshparty>=1.18.2
 pcg_skel>=1.3.1
 messagingclient
