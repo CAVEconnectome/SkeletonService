@@ -4,7 +4,7 @@ import responses
 import pandas as pd
 from skeletonservice.datasets.service import SkeletonService
 from cloudfiles import CloudFiles
-from messagingclient import MessagingClient
+from messagingclient import MessagingClientPublisher
 from caveclient import CAVEclient, endpoints
 
 from .conftest import (
@@ -56,6 +56,36 @@ class TestSkeletonsService:
         data_compressed = SkelClassVsn.compressDictToBytes(data)
         data_decompressed = SkelClassVsn.decompressBytesToDict(data_compressed)
         assert data_decompressed == data
+
+    @responses.activate
+    def test_get_refusal_list(self, test_app, cloudfiles_mock):
+        refusal_list_w_timestamp_df = pd.DataFrame(
+            {
+                "TIMESTAMP": [1234567890, 1234567891],
+                "DATASTACK_NAME": ["datastack", "datastack"],
+                "ROOT_ID": [1, 2],
+            }
+        )
+        refusal_list_w_timestamp_csv = refusal_list_w_timestamp_df.to_csv(
+            index=False, sep=",", header=True
+        ).encode("utf-8")
+        refusal_list_wo_timestamp_df = refusal_list_w_timestamp_df.drop(columns=["TIMESTAMP"])
+        
+        patch.object(CloudFiles, "exists", return_value=True).start()
+        patch.object(CloudFiles, "get", return_value=refusal_list_w_timestamp_csv).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        response = SkelClassVsn.get_refusal_list(
+            bucket="gs://test_bucket/",
+            datastack_name=datastack_dict["datastack_name"],
+        )
+        file_content = SkeletonService.decompressBytesToString(response.data)
+
+        refusal_list_result_df = pd.read_csv(
+            io.StringIO(file_content),
+        )
+        assert refusal_list_result_df.equals(refusal_list_wo_timestamp_df)
 
     def test_get_cache_contents(self, test_app, cloudfiles_mock):
         rid_prefix = "a"
@@ -130,11 +160,14 @@ class TestSkeletonsService:
         pass
 
     def test_publish_skeleton_request(self, test_app, messagingclient_mock):
-        patch.object(MessagingClient, "publish", return_value=None).start()
+        patch.object(MessagingClientPublisher, "publish", return_value=None).start()
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(4)
 
+        messaging_client = MessagingClientPublisher(1)
+        
         SkelClassVsn.publish_skeleton_request(
+            messaging_client=messaging_client,
             datastack_name=datastack_dict["datastack_name"],
             rid=1,
             output_format="none",

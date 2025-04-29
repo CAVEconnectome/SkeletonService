@@ -8,6 +8,21 @@ class SkeletonService_skvn3(SkeletonService):
         SkeletonService.print("SkeletonService_skvn3 initialized")
     
     @staticmethod
+    def get_refusal_list(
+        bucket: str,
+        datastack_name: str,
+        session_timestamp_: str = "not_provided",
+        verbose_level_: int = 0,
+    ):
+        if verbose_level_ >= 1:
+            SkeletonService.print(f"SkeletonService_skvn3.get_refusal_list: {bucket}")
+        return SkeletonService.get_refusal_list_without_timestamps(
+            bucket,
+            session_timestamp_,
+            verbose_level_,
+        )
+    
+    @staticmethod
     def get_cache_contents(
         bucket: str,
         datastack_name: str,

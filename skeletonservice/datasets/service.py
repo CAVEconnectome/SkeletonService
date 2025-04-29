@@ -1221,6 +1221,35 @@ class SkeletonService:
             return None
     
     @staticmethod
+    def get_refusal_list_without_timestamps(
+        bucket: str,
+        session_timestamp_: str = "not_provided",
+        verbose_level_: int = 0
+    ):
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+
+        skeletonization_refusal_root_ids_df_without_timestamps = SkeletonService._read_refusal_list_without_timestamps(bucket)
+        
+        file_content = BytesIO()
+        skeletonization_refusal_root_ids_df_without_timestamps.to_csv(file_content, index=False)
+        # file_content.seek(0)  # This is necessary when return uncompressed data, but not when we compress it first
+        file_content = SkeletonService.compressBytes(file_content)
+        
+        response = Response(
+            file_content, mimetype="application/octet-stream"
+        )
+        response.headers.update(SkeletonService._response_headers())
+        # Don't call after_request to compress the data since it is already compressed.
+        # response = SkeletonService._after_request(response)
+
+        return response
+    
+    @staticmethod
     def get_cache_contents(
         bucket: str,
         datastack_name: str,

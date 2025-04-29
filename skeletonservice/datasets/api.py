@@ -254,6 +254,38 @@ class SkeletonResource__bulk_skeleton_info(Resource):
             "bulk skeletons": "Use the bulk skeletons endpoint to get skeletons for multiple root ids at once.",
         }
 
+
+@api_bp.route("/<string:datastack_name>/precomputed/skeleton/get_refusal_list")
+class SkeletonResource__get_refusal_list_A(Resource):
+    """SkeletonResource"""
+    method_decorators = [
+        limit_by_category("request"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
+
+    @staticmethod
+    def process(datastack_name: str, verbose_level: int=0):
+        skvn_latest = list(SKELETON_VERSION_PARAMS.keys())[-1]
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn_latest)
+        
+        return SkelClassVsn.get_refusal_list(
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            datastack_name=datastack_name,
+            session_timestamp_=SkeletonService.get_session_timestamp(),
+            verbose_level_=verbose_level,
+        )
+
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    @api_bp.doc("SkeletonResource", security="apikey")
+    def get(self, datastack_name: str,):
+        """
+        Get the refusal list
+        """
+        verbose_level = int(request.args.get('verbose_level')) if 'verbose_level' in request.args else 0
+        return self.process(datastack_name, verbose_level)
+
+
 # NOTE: Use of this endpoint has been removed from CAVEclient:SkeletonService, but it can't be removed from here if there are any older clients in the wild that might access it.
 @api_bp.route("/<string:datastack_name>/precomputed/skeleton/query_cache/<string:root_id_prefixes>/<int:limit>")
 class SkeletonResource__query_cache_A(Resource):
