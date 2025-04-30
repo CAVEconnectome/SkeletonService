@@ -10,6 +10,7 @@ Ultimately, the script needs to be automatically called in a container on a pod 
 
 # SkeletonService integration tests
 
+import ast
 import datetime
 import inspect
 import os
@@ -48,64 +49,13 @@ logger.setLevel(logging.WARNING)
 
 printer = None
 
-# Behave differently when running on a Kubernetes pod
-kube = False
-
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 
-DATASTACKS = {
-    "minnie65_public": {
-        "remapped": "minnie65_phase3_v1",
-        "materialization_version": 1078,
-        "bulk_rids": [864691135463611454, 864691135687456480],
-        "single_vertex_rid": 864691131576191498,
-    },
-    "minnie65_phase3_v1": {
-        "remapped": "minnie65_phase3_v1",
-        "materialization_version": 1078,
-        "bulk_rids": [864691135463611454, 864691135687456480],
-        "single_vertex_rid": 864691131576191498,
-    },
-    "v1dd": {
-        "remapped": "v1dd",
-        "materialization_version": 974,
-        "bulk_rids": [864691132789453393, 864691133066666568],
-        "single_vertex_rid": None,  # TBD
-    },
-    "zheng_ca3": {
-        "remapped": "zheng_ca3",
-        "materialization_version": 245,
-        "bulk_rids": [6485183464483296940, 6485183464552828300],
-        "single_vertex_rid": None,  # TBD
-    },
-    "flywire_fafb_public": {
-        "remapped": "flywire_fafb_production",
-        "materialization_version": None,
-        "bulk_rids": None,  # TBD
-        "single_vertex_rid": None,  # TBD
-    },
-}
-SERVERS = [
-    # This server won't work on Github, only on a local machine where VSCode is running skeleton service in the debugger.
-    # It can be used when running the tests locally but needs to be disabled before pushing the code to Github.
-    "https://localhost:5000",
-
-    # Run integration tests against the test cluster.
-    # This should be a pretty safe test to run.
-    "https://ltv5.microns-daf.com",
-    
-    # Run integration tests against a production cluster.
-    # This should be pretty safe, but I like to run it manually, on my local machine.
-    # Therefore, I would recommend commenting it out before pushing to Github.
-    "https://minniev6.microns-daf.com",
-    
-    # Run integration tests against the V1DD server.
-    # This is a production server, so don't abuse it.
-    "https://globalv1.em.brain.allentech.org",
-]
 PROD_SERVERS = [
     "https://minniev6.microns-daf.com",
-    "https://globalv1.em.brain.allentech.org",
+    "https://api.em.brain.allentech.com",
+    "https://cave.fanc-fly.com",
+    "https://prod.flywire-daf.com",
 ]
 
 # DEFAULT_SLACK_WEBHOOK_ID will be overridden by an environment variable coming from Kubernetes but the global here will be used when running locally.
@@ -126,6 +76,7 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+bold_fmt_begin = None
 ok_fmt_begin = None
 warning_fmt_begin = None
 fail_fmt_begin = None
@@ -136,14 +87,15 @@ class SessionedPrinter:
     This class was adapted from the static version in servicy.py.
     """
 
-    def __init__(self):
-        global ok_fmt_begin, warning_fmt_begin, fail_fmt_begin, fmt_end
+    def __init__(self, kube):
+        global bold_fmt_begin, ok_fmt_begin, warning_fmt_begin, fail_fmt_begin, fmt_end
 
         self.session_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S.%f')[:-3]
 
-        ok_fmt_begin = f"{bcolors.BOLD if not kube else ''}{bcolors.OKGREEN if not kube else ''}"
-        warning_fmt_begin = f"{bcolors.BOLD if not kube else ''}{bcolors.WARNING if not kube else ''}"
-        fail_fmt_begin = f"{bcolors.BOLD if not kube else ''}{bcolors.FAIL if not kube else ''}"
+        bold_fmt_begin = f"{bcolors.BOLD if not kube else ''}"
+        ok_fmt_begin = bold_fmt_begin + f"{bcolors.OKGREEN if not kube else ''}"
+        warning_fmt_begin = bold_fmt_begin + f"{bcolors.WARNING if not kube else ''}"
+        fail_fmt_begin = bold_fmt_begin + f"{bcolors.FAIL if not kube else ''}"
         fmt_end = f"{bcolors.ENDC if not kube else ''}"
     
     def _print_with_session_timestamp(self, *args, sep=' ', end='\n', file=None, flush=False):
@@ -166,6 +118,10 @@ class SessionedPrinter:
             print(*args, sep=sep, end=end, file=file, flush=flush)
 
 class SkeletonsServiceIntegrationTest:
+    def __init__(self, kube, datastack_config):
+        self.kube = kube
+        self.datastack_config = datastack_config
+    
     def test_passed(self):
         if verbose_level >= 1:
             printer.print(ok_fmt_begin + "TEST PASSED" + fmt_end)
@@ -173,10 +129,6 @@ class SkeletonsServiceIntegrationTest:
     def test_failed_with_warning(self):
         if verbose_level >= 1:
             printer.print(warning_fmt_begin + "TEST SUSPICIOUS" + fmt_end)
-            # if not kube:
-            #     printer.print(f"{bcolors.BOLD}{bcolors.WARNING}TEST SUSPICIOUS{bcolors.ENDC}")
-            # else:
-            #     logging.warning(f"TEST SUSPICIOUS")
 
     def test_failed(self):
         if verbose_level >= 1:
@@ -190,14 +142,14 @@ class SkeletonsServiceIntegrationTest:
         else:
             self.test_failed()
             
-    def run_one_test(self, result, warning_only=False):
+    def eval_one_test_result(self, result, warning_only=False):
         self.print_test_result(result, warning_only)
         # Asserting the result prevents the notebook from automatically running all tests.
         # I'm unsure if I want to assert the result and stop or gather all test results at the end.
         # assert result
         return result
 
-    def run_one_server_test(self, datastack_name, server_address, fast_run=False):
+    def run_one_server_test(self, server_address, fast_run=False):
         # Set things up
         self.fast_run = fast_run
 
@@ -205,18 +157,17 @@ class SkeletonsServiceIntegrationTest:
             # These have to agree. They are pull from the same source.
             printer.print(f"CAVEclient version: v{cc.__version__} , v{importlib.metadata.version('CAVEclient')}")
 
-        self.datastack_name = datastack_name
-        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_name] if self.datastack_name in DATASTACK_NAME_REMAPPING else self.datastack_name
+        self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_config["name"]] if self.datastack_config["name"] in DATASTACK_NAME_REMAPPING else self.datastack_config["name"]
 
-        self.client = cc.CAVEclient(self.datastack_name, server_address=CAVE_CLIENT_SERVER)
-        self.client.materialize.version = DATASTACKS[self.datastack_name]["materialization_version"]
+        self.client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
+        self.client.materialize.version = self.datastack_config["materialization_version"]
 
-        self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
+        self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=self.client, verify=False)
         if verbose_level >= 1:
             printer.print(f"SkeletonService server and version C: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient.get_version()} , v{this_skeletonservice_version}")
         if self.skclient._server_version != this_skeletonservice_version:
             printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
-            wait_for_skeletonservice_updated_version_deployment()
+            wait_for_skeletonservice_updated_version_deployment(self.kube, self.datastack_config["name"], self.datastack_config["materialization_version"])
 
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
         self.expected_skeleton_service_version = "0.18.10"
@@ -224,26 +175,12 @@ class SkeletonsServiceIntegrationTest:
 
         self.skvn = 4
 
-        if self.datastack_name == "minnie65_phase3_v1":
-            self.bulk_rids = [864691135463611454, 864691135687456480]
-            self.single_vertex_rid = 864691131576191498
-        elif self.datastack_name == "minnie65_public":
-            self.bulk_rids = [864691135463611454, 864691135687456480]
-            self.single_vertex_rid = 864691131576191498
-        elif self.datastack_name == "zheng_ca3":
-            self.bulk_rids = [6485183464483296940, 6485183464552828300]
-            self.single_vertex_rid = None  # TBD
-        elif self.datastack_name == "flywire_fafb_public":
-            self.bulk_rids = None  # TBD
-            self.single_vertex_rid = None  # TBD
-        
-        if not self.bulk_rids:
+        if not self.datastack_config["bulk_rids"]:
             return self.skclient._server_version, np.array([0, 0])
 
-        self.single_rid = self.bulk_rids[0]
-        self.single_vertex_rid = 864691131576191498
-        self.valid_rids = self.bulk_rids + [self.single_vertex_rid]
-        self.larger_bulk_rids = self.bulk_rids * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
+        self.single_rid = self.datastack_config["bulk_rids"][0]
+        self.valid_rids = self.datastack_config["bulk_rids"] + [self.datastack_config["single_vertex_rid"]]
+        self.larger_bulk_rids = self.datastack_config["bulk_rids"] * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
         self.sample_refusal_list_rid = 864691135943184500  # We can't use our test id (112233445566778899) because we need the id to pass the initial validity/layer filters
         self.sample_invalid_node_rid = 864691135687000000
         self.sample_supervoxel_rid =    88891049011371731
@@ -252,9 +189,9 @@ class SkeletonsServiceIntegrationTest:
 
         bucket = None
         if "localhost" in server_address or "ltv" in server_address:
-            bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_name}/{self.skvn}"
+            bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
         elif "minnie" in server_address:
-            bucket = f"gs://minnie65_skeletons/{self.datastack_name}/{self.skvn}"
+            bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
 
@@ -314,7 +251,7 @@ class SkeletonsServiceIntegrationTest:
         skeleton_service_version = self.skclient.get_version()
         # if verbose_level >= 2:
             # printer.print(skeleton_service_version)
-        test_result = self.run_one_test(skeleton_service_version == packaging.version.Version(self.expected_skeleton_service_version))
+        test_result = self.eval_one_test_result(skeleton_service_version == packaging.version.Version(self.expected_skeleton_service_version))
         if not test_result:
             printer.print("Make sure you have assigned the expected version near the top of this test suite. Search for 'expected_skeleton_service_version'.")
         return (1, 0, 0) if test_result else (0, 0, 1)
@@ -325,7 +262,7 @@ class SkeletonsServiceIntegrationTest:
         skeleton_versions = self.skclient.get_versions()
         # if verbose_level >= 2:
             # printer.print(skeleton_versions)
-        test_result = self.run_one_test(skeleton_versions == self.expected_available_skeleton_versions)
+        test_result = self.eval_one_test_result(skeleton_versions == self.expected_available_skeleton_versions)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_metadata_3(self):
@@ -334,7 +271,7 @@ class SkeletonsServiceIntegrationTest:
         precomputed_skeleton_info = self.skclient.get_precomputed_skeleton_info(skvn=self.skvn)
         # if verbose_level >= 2:
             # printer.print(precomputed_skeleton_info)
-        test_result = self.run_one_test(precomputed_skeleton_info == {
+        test_result = self.eval_one_test_result(precomputed_skeleton_info == {
             '@type': 'neuroglancer_skeletons',
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
@@ -354,7 +291,7 @@ class SkeletonsServiceIntegrationTest:
         # if verbose_level >= 2:
             # printer.print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(rids_exist == {
+            test_result = self.eval_one_test_result(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0) if test_result else (0, 0, 1)
@@ -367,7 +304,7 @@ class SkeletonsServiceIntegrationTest:
         # if verbose_level >= 2:
             # printer.print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(rids_exist == {
+            test_result = self.eval_one_test_result(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0) if test_result else (0, 0, 1)
@@ -381,7 +318,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 2:
             printer.print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(rids_exist == {
+            test_result = self.eval_one_test_result(rids_exist == {
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0) if test_result else (0, 0, 1)
@@ -397,7 +334,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 2:
             printer.print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(cache_contents == {
+            test_result = self.eval_one_test_result(cache_contents == {
                 "num_found": 0,
                 "files": []
             })
@@ -411,7 +348,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 2:
             printer.print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(cache_contents == {
+            test_result = self.eval_one_test_result(cache_contents == {
                 "num_found": 0,
                 "files": []
             })
@@ -426,7 +363,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 2:
             printer.print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
-            test_result = self.run_one_test(cache_contents == {
+            test_result = self.eval_one_test_result(cache_contents == {
                 "num_found": 0,
                 "files": []
             })
@@ -440,12 +377,12 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         try:
-            sk = self.skclient.get_skeleton(self.sample_refusal_list_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            sk = self.skclient.get_skeleton(self.sample_refusal_list_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except requests.HTTPError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
-            test_result = self.run_one_test('"Error": "Problematic root id: ' + str(self.sample_refusal_list_rid) + ' is in the refusal list"' in e.args[0])
+            test_result = self.eval_one_test_result('"Error": "Problematic root id: ' + str(self.sample_refusal_list_rid) + ' is in the refusal list"' in e.args[0])
             return (1, 0, 0) if test_result else (0, 0, 1)
         return (0, 0, 1)
 
@@ -453,12 +390,12 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         try:
-            sk = self.skclient.get_skeleton(self.sample_invalid_node_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            sk = self.skclient.get_skeleton(self.sample_invalid_node_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except ValueError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
-            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
+            test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0, 0) if test_result else (0, 0, 1)
         return (0, 0, 1)
 
@@ -466,12 +403,12 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         try:
-            sk = self.skclient.get_skeleton(self.sample_supervoxel_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            sk = self.skclient.get_skeleton(self.sample_supervoxel_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except ValueError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
-            test_result = self.run_one_test(e.args[0] == 'Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
+            test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.sample_supervoxel_rid) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
             return (1, 0, 0) if test_result else (0, 0, 1)
         return (0, 0, 1)
 
@@ -482,16 +419,16 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
-        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
         test_result = np.array([0, 0, 0])
-        test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
+        test_result1 = self.eval_one_test_result(sk is not None and isinstance(sk, dict))
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
-        test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
+        test_result2 = self.eval_one_test_result(elapsed_time > 5 and elapsed_time < 90, True)
         if not test_result2:
-            printer.print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
+            printer.print(bold_fmt_begin + f"Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
@@ -499,16 +436,16 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
-        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
         test_result = np.array([0, 0, 0])
-        test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
+        test_result1 = self.eval_one_test_result(sk is not None and isinstance(sk, dict))
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
-        test_result2 = self.run_one_test(elapsed_time < 5, True)
+        test_result2 = self.eval_one_test_result(elapsed_time < 5, True)
         if not test_result2:
-            printer.print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
+            printer.print(bold_fmt_begin + f"Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
@@ -516,34 +453,34 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
-        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_name, skeleton_version=self.skvn, output_format='swc', verbose_level=1)
+        sk = self.skclient.get_skeleton(self.single_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='swc', verbose_level=1)
         elapsed_time = default_timer() - start_time
         # if verbose_level >= 2:
             # display(sk)
         test_result = np.array([0, 0, 0])
-        test_result1 = self.run_one_test(sk is not None and isinstance(sk, pd.DataFrame))
+        test_result1 = self.eval_one_test_result(sk is not None and isinstance(sk, pd.DataFrame))
         test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
-        test_result2 = self.run_one_test(elapsed_time < 5, True)
+        test_result2 = self.eval_one_test_result(elapsed_time < 5, True)
         if not test_result2:
-            printer.print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
+            printer.print(bold_fmt_begin + f"Skeletonization time {elapsed_time:>.1f}s fell outside expected range (<5s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
         test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
         return test_result
 
     def run_test_retrieval_4(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
-        if self.single_vertex_rid:
+        if self.datastack_config["single_vertex_rid"]:
             start_time = default_timer()
-            sk = self.skclient.get_skeleton(self.single_vertex_rid, self.datastack_name, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            sk = self.skclient.get_skeleton(self.datastack_config["single_vertex_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             elapsed_time = default_timer() - start_time
             # if verbose_level >= 2:
                 # display(sk)
             test_result = np.array([0, 0, 0])
-            test_result1 = self.run_one_test(sk is not None and isinstance(sk, dict))
+            test_result1 = self.eval_one_test_result(sk is not None and isinstance(sk, dict))
             test_result += (1, 0, 0) if test_result1 else (0, 0, 1)
-            test_result2 = self.run_one_test(elapsed_time > 5 and elapsed_time < 90, True)
+            test_result2 = self.eval_one_test_result(elapsed_time > 5 and elapsed_time < 90, True)
             if not test_result2:
-                printer.print(f"{bcolors.BOLD if not kube else ''}Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
+                printer.print(bold_fmt_begin + f"Skeletonization time {elapsed_time:>.1f}s fell outside expected range (5s - 90s). This could indicate that a skeleton was found in the cache when not expected (if too fast) or vs/va (if too slow)." + fmt_end)
             test_result += (1, 0, 0) if test_result2 else (0, 1, 0)
             return test_result
         return np.array([0, 0])
@@ -558,16 +495,16 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 2:
             printer.print(json.dumps(rids_exist, indent=4))
         if not self.fast_run:
-            if self.single_vertex_rid:
-                test_result = self.run_one_test(rids_exist == {
-                    self.bulk_rids[0]: True,
-                    self.bulk_rids[1]: False,
-                    self.single_vertex_rid: True,
+            if self.datastack_config["single_vertex_rid"]:
+                test_result = self.eval_one_test_result(rids_exist == {
+                    self.datastack_config["bulk_rids"][0]: True,
+                    self.datastack_config["bulk_rids"][1]: False,
+                    self.datastack_config["single_vertex_rid"]: True,
                 })
             else:
-                test_result = self.run_one_test(rids_exist == {
-                    self.bulk_rids[0]: True,
-                    self.bulk_rids[1]: False,
+                test_result = self.eval_one_test_result(rids_exist == {
+                    self.datastack_config["bulk_rids"][0]: True,
+                    self.datastack_config["bulk_rids"][1]: False,
                 })
             if not test_result:
                 printer.print( \
@@ -583,19 +520,19 @@ might complete between the time when the cache is cleared at the beginning of th
         if verbose_level >= 2:
             printer.print(json.dumps(cache_contents, indent=4))
         if not self.fast_run:
-            if self.single_vertex_rid:
-                test_result = self.run_one_test(cache_contents == {
+            if self.datastack_config["single_vertex_rid"]:
+                test_result = self.eval_one_test_result(cache_contents == {
                     "num_found": 2,
                     "files": [
-                        f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
-                        f"skeleton__v4__rid-{self.single_vertex_rid}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                        f"skeleton__v4__rid-{self.datastack_config['bulk_rids'][0]}__ds-{self.datastack_config['name']}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                        f"skeleton__v4__rid-{self.datastack_config['single_vertex_rid']}__ds-{self.datastack_config['name']}__res-1x1x1__cs-True__cr-7500.h5.gz",
                     ]
                 })
             else:
-                test_result = self.run_one_test(cache_contents == {
+                test_result = self.eval_one_test_result(cache_contents == {
                     "num_found": 1,
                     "files": [
-                        f"skeleton__v4__rid-{self.bulk_rids[0]}__ds-{self.datastack_name}__res-1x1x1__cs-True__cr-7500.h5.gz",
+                        f"skeleton__v4__rid-{self.datastack_config['bulk_rids'][0]}__ds-{self.datastack_config['name']}__res-1x1x1__cs-True__cr-7500.h5.gz",
                     ]
                 })
             if not test_result:
@@ -611,19 +548,19 @@ might complete between the time when the cache is cleared at the beginning of th
     def run_test_bulk_retrieval_1(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
-        result = self.skclient.get_bulk_skeletons(self.bulk_rids, skeleton_version=self.skvn, output_format='dict')
+        result = self.skclient.get_bulk_skeletons(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, output_format='dict')
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
-        test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
+        test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_retrieval_2(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
-        result = self.skclient.get_bulk_skeletons(self.bulk_rids, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+        result = self.skclient.get_bulk_skeletons(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
-        test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
+        test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_retrieval_3(self):
@@ -632,7 +569,7 @@ might complete between the time when the cache is cleared at the beginning of th
         result = self.skclient.get_bulk_skeletons(self.larger_bulk_rids, skeleton_version=self.skvn, output_format='dict', verbose_level=1)
         # We can't test(both root ids but only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
-        test_result = self.run_one_test(str(self.bulk_rids[0]) in result.keys())
+        test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     # Asynchronous bulk skeleton request tests
@@ -644,19 +581,19 @@ might complete between the time when the cache is cleared at the beginning of th
     def run_test_bulk_async_request_1(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
-        result = self.skclient.generate_bulk_skeletons_async(self.bulk_rids, skeleton_version=self.skvn)
+        result = self.skclient.generate_bulk_skeletons_async(self.datastack_config["bulk_rids"], skeleton_version=self.skvn)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.run_one_test(result == 60.0)
+        test_result = self.eval_one_test_result(result == 60.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_2(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
-        result = self.skclient.generate_bulk_skeletons_async(self.bulk_rids, skeleton_version=self.skvn, verbose_level=1)
+        result = self.skclient.generate_bulk_skeletons_async(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, verbose_level=1)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.run_one_test(result == 60.0)
+        test_result = self.eval_one_test_result(result == 60.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_3(self):
@@ -665,56 +602,56 @@ might complete between the time when the cache is cleared at the beginning of th
         result = self.skclient.generate_bulk_skeletons_async(self.larger_bulk_rids, skeleton_version=self.skvn, verbose_level=1)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.run_one_test(result == 60.0)
+        test_result = self.eval_one_test_result(result == 60.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
-    def test_integration(self, datastack_name, server_address, fast_run=False):
+    def test_integration(self, server_address, fast_run=False):
         # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then it reverts by the time the code reachs approximately line 216!
-        client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
-        client.materialize.version = DATASTACKS[datastack_name]["materialization_version"]
-        skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
+        client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
+        client.materialize.version = self.datastack_config["materialization_version"]
+        skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=client, verify=False)
         if verbose_level >= 1:
             printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{skclient._server_version} , v{skclient.get_version()} , v{this_skeletonservice_version}")
         if skclient._server_version != this_skeletonservice_version:
             printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
-            wait_for_skeletonservice_updated_version_deployment()
+            wait_for_skeletonservice_updated_version_deployment(self.kube, self.datastack_config["name"], self.datastack_config["materialization_version"])
 
         try:
-            sksv_version, results = self.run_one_server_test(datastack_name, server_address, fast_run)
+            sksv_version, results = self.run_one_server_test(server_address, fast_run)
             return sksv_version, results
         except Exception as e:
             if verbose_level >= 2:
                 printer.print(f"Error running test on {server_address}: {e}")
             # Run an artificial failed test to generate a failure message
-            self.run_one_test(False)
+            self.eval_one_test_result(False)
 
-            client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
-            client.materialize.version = DATASTACKS[datastack_name]["materialization_version"]
-            skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
+            client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
+            client.materialize.version = self.datastack_config["materialization_version"]
+            skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=client, verify=False)
             sksv_version = skclient.get_version()
             
             return sksv_version, (0, 0, 1)
     
-    def run(self, datastack, server, fast_run=False, verbose_level_=0):
+    def run(self, server, fast_run=False, verbose_level_=0):
         global verbose_level, printer
         verbose_level = verbose_level_
         if not printer:
             # If the tests are run by directly creating a test object and calling run(), such as from a notebook,
             # then the printer will not have been initialized in __main__, so we need to do that here.
             # If the tests are run via a bash script, entering through __main__, then the printer will have been initialized there.
-            printer = SessionedPrinter()
+            printer = SessionedPrinter(False)
 
-        sksv_version, (num_passed, num_suspicious, num_failed) = self.test_integration(datastack, server, fast_run)
+        sksv_version, (num_passed, num_suspicious, num_failed) = self.test_integration(server, fast_run)
         if verbose_level >= 1:
-            printer.print(f"Test results against {datastack} on {server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}")
+            printer.print(f"Test results against {self.datastack_config['name']} on {server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}")
         return sksv_version, num_passed, num_suspicious, num_failed
 
-def dispatch_slack_msg(server, icon, url_location_specifier, msg):
+def dispatch_slack_msg(icon, msg):
     logs_url = f"https://console.cloud.google.com/kubernetes/job/{url_location_specifier}default/skeletoncache-integration-tester/logs"
     session_timestamp_link = f"<{logs_url}|_[{printer.session_timestamp}]_>"
     
     # target will be "DEV" for less serious reporting or "PROD" for critical production failures
-    target = "PROD" if icon != ":white_check_mark:" and server in PROD_SERVERS else "DEV"
+    target = "PROD" if icon != ":white_check_mark:" and args.server in PROD_SERVERS else "DEV"
 
     # When run on Kuberetes, the Slack webhook id environment variable will (ought to) be passed in,
     # but when run locally, it will be picked up from the default global variable.
@@ -728,12 +665,12 @@ def dispatch_slack_msg(server, icon, url_location_specifier, msg):
     result = requests.post(slack_url, json=json_content)
     printer.print(f"Slack message dispatched to webhook ending in '{slack_webhook_id[-4:]}' with requests.post status & text: {result.status_code} {result.text}")
 
-def wait_for_skeletonservice_updated_version_deployment():
+def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, materialization_version):
     # Wait for the various skeleton service components to be fully deployed
     if this_skeletonservice_version:
-        client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
-        client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
-        skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+        client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
+        client.materialize.version = materialization_version
+        skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, verify=False)
         
         max_wait_time = 60 * 10
         sleep_time_s = 60
@@ -741,7 +678,7 @@ def wait_for_skeletonservice_updated_version_deployment():
         while True:
             num_attempts -= 1
             if num_attempts <= 0:
-                dispatch_slack_msg(args.server, ":bangbang:", url_location_specifier, f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
+                dispatch_slack_msg(":bangbang:", f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
                 printer.print(fail_fmt_begin + f"ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}." + fmt_end)
                 if not kube:
                     sys.exit(1)
@@ -757,65 +694,66 @@ def wait_for_skeletonservice_updated_version_deployment():
             printer.print("Woke up. Rechecking the deployed SkeletonService version...")
 
     # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then sometimes reverts by the time the code reaches approximately line 216!
-    client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
-    client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
-    skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+    client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
+    client.materialize.version = materialization_version
+    skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, verify=False)
     if verbose_level >= 1:
         printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {args.server} , v{skclient._server_version} , v{skclient.get_version()} , v{this_skeletonservice_version}")
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--kube", default=False, action="store_true", help="Inform the tests that they are running in a Kubernetes pod")
-    parser.add_argument("-d", "--datastack")
     parser.add_argument("-s", "--server")
+    parser.add_argument("-d", "--datastack_config")
     parser.add_argument("-z", "--zone")
     parser.add_argument("-c", "--cluster_name")
     parser.add_argument("-f", "--fast_run", default=False, action="store_true", help="Run the tests in fast mode (no skeleton generation)")
     parser.add_argument("-v", "--verbose_level", type=int, default=0, help="Set the verbosity level of the tests (0: no output, 1: basic output, 2: detailed output)")
     args = parser.parse_args()
 
-    kube = args.kube
     verbose_level = args.verbose_level
 
-    printer = SessionedPrinter()
+    printer = SessionedPrinter(args.kube)
+
+    datastack_config = ast.literal_eval(args.datastack_config)
 
     url_location_specifier = f"{args.zone}/{args.cluster_name}/"
 
-    printer.print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not kube else ''}indicated...")
+    printer.print(f"Running SkeletonService integration tests with Kubernetes environment {'not ' if not args.kube else ''}indicated...")
 
     # Confirm that the datastack is valid
-    if args.datastack not in DATASTACKS:
-        dispatch_slack_msg(args.server, ":bangbang:", url_location_specifier, f"Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.")
-        printer.print(fail_fmt_begin + f"ERROR! Invalid datastack name: *{args.datastack}*. Valid datastack options: *{', '.join(DATASTACKS)}*." + fmt_end)
-        if not kube:
-            sys.exit(1)
-        sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
+    # if args.datastack not in DATASTACKS:
+    #     dispatch_slack_msg(":bangbang:", f"Invalid datastack name: {args.datastack}. Valid datastack options: {', '.join(DATASTACKS)}.")
+    #     printer.print(fail_fmt_begin + f"ERROR! Invalid datastack name: *{args.datastack}*. Valid datastack options: *{', '.join(DATASTACKS)}*." + fmt_end)
+    #     if not args.kube:
+    #         sys.exit(1)
+    #     sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
     
     # Confirm that the server is valid
-    if args.server not in SERVERS:
-        dispatch_slack_msg(args.server, ":bangbang:", url_location_specifier, f"Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.")
-        printer.print(fail_fmt_begin + f"ERROR! Invalid server address: *{args.server}*. Valid server options: *{', '.join(SERVERS)}*." + fmt_end)
-        if not kube:
-            sys.exit(1)
-        sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
+    # if args.server not in SERVERS:
+    #     dispatch_slack_msg(":bangbang:", f"Invalid server address: {args.server}. Valid server options: {', '.join(SERVERS)}.")
+    #     printer.print(fail_fmt_begin + f"ERROR! Invalid server address: *{args.server}*. Valid server options: *{', '.join(SERVERS)}*." + fmt_end)
+    #     if not args.kube:
+    #         sys.exit(1)
+    #     sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
     
-    wait_for_skeletonservice_updated_version_deployment()
+    wait_for_skeletonservice_updated_version_deployment(args.kube, datastack_config["name"], datastack_config["materialization_version"])
 
     # Run the integration tests
-    test = SkeletonsServiceIntegrationTest()
-    sksv_version, num_passed, num_suspicious, num_failed = test.run(args.datastack, args.server, args.fast_run, verbose_level)
+    test = SkeletonsServiceIntegrationTest(args.kube, datastack_config)
+    sksv_version, num_passed, num_suspicious, num_failed = test.run(args.server, args.fast_run, verbose_level)
 
     # Report the results
     if num_failed > 0:
-        dispatch_slack_msg(args.server, ":exclamation:", url_location_specifier, f"SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*:\n:white_check_mark:    {num_passed} passed\n:warning:    {num_suspicious} suspicious\n:x:    {num_failed} failed")
-        printer.print(fail_fmt_begin + f"ALERT! SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}" + fmt_end)
+        dispatch_slack_msg(":exclamation:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*:\n:white_check_mark:    {num_passed} passed\n:warning:    {num_suspicious} suspicious\n:x:    {num_failed} failed")
+        printer.print(fail_fmt_begin + f"ALERT! SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}" + fmt_end)
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     elif num_suspicious > 0:
-        dispatch_slack_msg(args.server, ":warning:", url_location_specifier, f"SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious.")
-        printer.print(ok_fmt_begin + f"WARNING SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious." + fmt_end)
+        dispatch_slack_msg(":warning:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious.")
+        printer.print(warning_fmt_begin + f"WARNING SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious." + fmt_end)
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
     else:
-        dispatch_slack_msg(args.server, ":white_check_mark:", url_location_specifier, f"SkeletonService v{sksv_version} integration test results against *{args.datastack}* on *{args.server}*: All tests passed. :tada:")
-        printer.print(ok_fmt_begin + f"SkeletonService v{sksv_version} integration test results against {args.datastack} on {args.server}: All tests passed." + fmt_end)
+        dispatch_slack_msg(":white_check_mark:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*: All tests passed. :tada:")
+        printer.print(ok_fmt_begin + f"SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: All tests passed." + fmt_end)
 
     sys.exit(0)  # Prevent Kubernetes from rerunning the job
