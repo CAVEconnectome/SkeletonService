@@ -686,7 +686,7 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
             sksv_version_a = skclient._server_version
             sksv_version_b = skclient._get_version()
             sksv_version_c = skclient.get_version()
-            printer.print(f"Comparing deployed and local SkeletonService versions: [{sksv_version}_a|{sksv_version_b}|{sksv_version_c}] ==? v{this_skeletonservice_version}")
+            printer.print(f"Comparing deployed and local SkeletonService versions: [{sksv_version_a}|{sksv_version_b}|{sksv_version_c}] ==? v{this_skeletonservice_version}")
             if sksv_version_a == this_skeletonservice_version and sksv_version_b == this_skeletonservice_version and sksv_version_c == this_skeletonservice_version:
                 printer.print("The SkeletonService versions match. Proceeding with the test...")
                 break
