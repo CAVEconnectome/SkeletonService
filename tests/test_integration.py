@@ -686,11 +686,11 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
             sksv_version_a = skclient._server_version
             sksv_version_b = skclient._get_version()
             sksv_version_c = skclient.get_version()
-            printer.print(f"Comparing deployed and local SkeletonService versions: [{sksv_version_a}|{sksv_version_b}|{sksv_version_c}] ==? v{this_skeletonservice_version}")
+            printer.print(f"Comparing deployed and local SkeletonService versions: [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}] ==? v{this_skeletonservice_version}")
             if sksv_version_a == this_skeletonservice_version and sksv_version_b == this_skeletonservice_version and sksv_version_c == this_skeletonservice_version:
                 printer.print("The SkeletonService versions match. Proceeding with the test...")
                 break
-            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed v{sksv_version} != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
+            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}] != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
             printer.print(f"Sleeping for {sleep_time_s} seconds to allow the components to fully deploy...")
             time.sleep(sleep_time_s)
             printer.print("Woke up. Rechecking the deployed SkeletonService version...")
