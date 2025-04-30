@@ -164,7 +164,7 @@ class SkeletonsServiceIntegrationTest:
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=self.client, verify=False)
         if verbose_level >= 1:
-            printer.print(f"SkeletonService server and version C: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient._get_version()} , v{self.skclient.get_version()} , v{this_skeletonservice_version}")
+            printer.print(f"SkeletonService server and version C: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient.server_version} , v{self.skclient._get_version()} , v{self.skclient.get_version()} , v{this_skeletonservice_version}")
         if self.skclient._server_version != this_skeletonservice_version:
             printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
             wait_for_skeletonservice_updated_version_deployment(self.kube, self.datastack_config["name"], self.datastack_config["materialization_version"])
@@ -611,7 +611,7 @@ might complete between the time when the cache is cleared at the beginning of th
         client.materialize.version = self.datastack_config["materialization_version"]
         skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=client, verify=False)
         if verbose_level >= 1:
-            printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{skclient._server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+            printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{skclient._server_version} , v{skclient.server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
         if skclient._server_version != this_skeletonservice_version:
             printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
             wait_for_skeletonservice_updated_version_deployment(self.kube, self.datastack_config["name"], self.datastack_config["materialization_version"])
@@ -668,10 +668,6 @@ def dispatch_slack_msg(icon, msg):
 def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, materialization_version):
     # Wait for the various skeleton service components to be fully deployed
     if this_skeletonservice_version:
-        client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
-        client.materialize.version = materialization_version
-        skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, verify=False)
-        
         max_wait_time = 60 * 10
         sleep_time_s = 60
         num_attempts = max_wait_time // sleep_time_s
@@ -683,14 +679,20 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
                 if not kube:
                     sys.exit(1)
                 sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
+            
+            client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
+            client.materialize.version = materialization_version
+            skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, verify=False)
+            
             sksv_version_a = skclient._server_version
-            sksv_version_b = skclient._get_version()
-            sksv_version_c = skclient.get_version()
-            printer.print(f"Comparing deployed and local SkeletonService versions: [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}] ==? v{this_skeletonservice_version}")
-            if sksv_version_a == this_skeletonservice_version and sksv_version_b == this_skeletonservice_version and sksv_version_c == this_skeletonservice_version:
+            sksv_version_b = skclient.server_version
+            sksv_version_c = skclient._get_version()
+            sksv_version_d = skclient.get_version()
+            printer.print(f"Comparing deployed and local SkeletonService versions: [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}|v{sksv_version_d}] ==? v{this_skeletonservice_version}")
+            if sksv_version_a == this_skeletonservice_version and sksv_version_b == this_skeletonservice_version and sksv_version_c == this_skeletonservice_version and sksv_version_d == this_skeletonservice_version:
                 printer.print("The SkeletonService versions match. Proceeding with the test...")
                 break
-            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}] != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
+            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed [v{sksv_version_a}|v{sksv_version_b}|v{sksv_version_c}|v{sksv_version_d}] != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
             printer.print(f"Sleeping for {sleep_time_s} seconds to allow the components to fully deploy...")
             time.sleep(sleep_time_s)
             printer.print("Woke up. Rechecking the deployed SkeletonService version...")
@@ -700,7 +702,7 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
     client.materialize.version = materialization_version
     skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, verify=False)
     if verbose_level >= 1:
-        printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {args.server} , v{skclient._server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+        printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {args.server} , v{skclient._server_version} , v{skclient.server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
