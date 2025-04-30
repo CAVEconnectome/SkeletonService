@@ -213,7 +213,10 @@ class SkeletonsServiceIntegrationTest:
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_name, over_client=self.client, verify=False)
         if verbose_level >= 1:
-            printer.print(f"SkeletonService server and version: {server_address} , v{self.skclient._server_version}")
+            printer.print(f"SkeletonService server and version C: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient.get_version()} , v{this_skeletonservice_version}")
+        if self.skclient._server_version != this_skeletonservice_version:
+            printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
+            wait_for_skeletonservice_updated_version_deployment()
 
         # Hard-code the expected service version instead of retrieving it from the skclient above so we can manually determine when an intended version has fully deployed on a new pod
         self.expected_skeleton_service_version = "0.18.10"
@@ -666,6 +669,16 @@ might complete between the time when the cache is cleared at the beginning of th
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def test_integration(self, datastack_name, server_address, fast_run=False):
+        # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then it reverts by the time the code reachs approximately line 216!
+        client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
+        client.materialize.version = DATASTACKS[datastack_name]["materialization_version"]
+        skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
+        if verbose_level >= 1:
+            printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{skclient._server_version} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+        if skclient._server_version != this_skeletonservice_version:
+            printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
+            wait_for_skeletonservice_updated_version_deployment()
+
         try:
             sksv_version, results = self.run_one_server_test(datastack_name, server_address, fast_run)
             return sksv_version, results
@@ -675,7 +688,7 @@ might complete between the time when the cache is cleared at the beginning of th
             # Run an artificial failed test to generate a failure message
             self.run_one_test(False)
 
-            client = cc.CAVEclient(datastack_name)
+            client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
             client.materialize.version = DATASTACKS[datastack_name]["materialization_version"]
             skclient = cc.skeletonservice.SkeletonClient(server_address, datastack_name, over_client=client, verify=False)
             sksv_version = skclient.get_version()
@@ -715,6 +728,41 @@ def dispatch_slack_msg(server, icon, url_location_specifier, msg):
     result = requests.post(slack_url, json=json_content)
     printer.print(f"Slack message dispatched to webhook ending in '{slack_webhook_id[-4:]}' with requests.post status & text: {result.status_code} {result.text}")
 
+def wait_for_skeletonservice_updated_version_deployment():
+    # Wait for the various skeleton service components to be fully deployed
+    if this_skeletonservice_version:
+        client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
+        client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
+        skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+        
+        max_wait_time = 60 * 10
+        sleep_time_s = 60
+        num_attempts = max_wait_time // sleep_time_s
+        while True:
+            num_attempts -= 1
+            if num_attempts <= 0:
+                dispatch_slack_msg(args.server, ":bangbang:", url_location_specifier, f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
+                printer.print(fail_fmt_begin + f"ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}." + fmt_end)
+                if not kube:
+                    sys.exit(1)
+                sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
+            sksv_version = skclient.get_version()
+            printer.print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
+            if sksv_version == this_skeletonservice_version:
+                printer.print("The SkeletonService versions match. Proceeding with the test...")
+                break
+            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed v{sksv_version} != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
+            printer.print(f"Sleeping for {sleep_time_s} seconds to allow the components to fully deploy...")
+            time.sleep(sleep_time_s)
+            printer.print("Woke up. Rechecking the deployed SkeletonService version...")
+
+    # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then sometimes reverts by the time the code reaches approximately line 216!
+    client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
+    client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
+    skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
+    if verbose_level >= 1:
+        printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {args.server} , v{skclient._server_version} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--kube", default=False, action="store_true", help="Inform the tests that they are running in a Kubernetes pod")
@@ -751,32 +799,7 @@ if __name__ == "__main__":
             sys.exit(1)
         sys.exit(0)  # Prevent Kubernetes from rerunning the job since this is a deterministic failure
     
-    # Wait for the various skeleton service components to be fully deployed
-    if this_skeletonservice_version:
-        client = cc.CAVEclient(args.datastack, server_address=CAVE_CLIENT_SERVER)
-        client.materialize.version = DATASTACKS[args.datastack]["materialization_version"]
-        skclient = cc.skeletonservice.SkeletonClient(args.server, args.datastack, over_client=client, verify=False)
-        
-        max_wait_time = 60 * 10
-        sleep_time_s = 60
-        num_attempts = max_wait_time // sleep_time_s
-        while True:
-            num_attempts -= 1
-            if num_attempts <= 0:
-                dispatch_slack_msg(args.server, ":bangbang:", url_location_specifier, f"SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}.")
-                printer.print(fail_fmt_begin + f"ERROR! SkeletonService version check timed out after {max_wait_time} seconds. Integration tests cannot be performed. Confirm that _SkeletonService.requirements.[in|txt]_ requires v{this_skeletonservice_version}." + fmt_end)
-                if not kube:
-                    sys.exit(1)
-                sys.exit(0)  # Prevent Kubernetes from rerunning the job since something external is presumably in error and preventing a clean deployment
-            sksv_version = skclient.get_version()
-            printer.print(f"Comparing deployed and local SkeletonService versions: {sksv_version} ==? v{this_skeletonservice_version}")
-            if sksv_version == this_skeletonservice_version:
-                printer.print("The SkeletonService versions match. Proceeding with the test...")
-                break
-            printer.print(fail_fmt_begin + f"SkeletonService version mismatch. Deployed v{sksv_version} != local v{this_skeletonservice_version}. Various components are not all fully deployed yet." + fmt_end)
-            printer.print(f"Sleeping for {sleep_time_s} seconds to allow the components to fully deploy...")
-            time.sleep(sleep_time_s)
-            printer.print("Woke up. Rechecking the deployed SkeletonService version...")
+    wait_for_skeletonservice_updated_version_deployment()
 
     # Run the integration tests
     test = SkeletonsServiceIntegrationTest()
