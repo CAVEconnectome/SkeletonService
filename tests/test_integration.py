@@ -611,7 +611,7 @@ might complete between the time when the cache is cleared at the beginning of th
         client.materialize.version = self.datastack_config["materialization_version"]
         skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=client, verify=False)
         if verbose_level >= 1:
-            printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{skclient._server_version} , v{self.skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+            printer.print(f"SkeletonService server and version B: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
         if skclient._server_version != this_skeletonservice_version:
             printer.print(fail_fmt_begin + "ERROR: SkeletonService version mismatch! This should be impossible at this point! Rerunning the version update wait..." + fmt_end)
             wait_for_skeletonservice_updated_version_deployment(self.kube, self.datastack_config["name"], self.datastack_config["materialization_version"])
@@ -717,7 +717,8 @@ if __name__ == "__main__":
 
     printer = SessionedPrinter(args.kube)
 
-    printer.print(f"datastack_config: `{args.datastack_config}`")
+    if verbose_level >= 1:
+        printer.print(f"datastack_config: `{args.datastack_config}`")
     datastack_config = ast.literal_eval(args.datastack_config)
 
     url_location_specifier = f"{args.zone}/{args.cluster_name}/"
