@@ -715,6 +715,7 @@ if __name__ == "__main__":
 
     printer = SessionedPrinter(args.kube)
 
+    printer.print(f"datastack_config: `{args.datastack_config}`")
     datastack_config = ast.literal_eval(args.datastack_config)
 
     url_location_specifier = f"{args.zone}/{args.cluster_name}/"
