@@ -1,4 +1,6 @@
 import datetime
+import json
+import os
 from flask import Flask, jsonify, request, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
 
@@ -90,8 +92,12 @@ def create_app(test_config=None):
 
         app.register_blueprint(baseapi_bp)
 
-        # This line prevents the app from running on the local machine in the VS Debugger
-        # limiter.init_app(app)
+        # Initializing the limiter prevents the app from running on the local machine in the VS Debugger.
+        # One way to turn it off only on the local machine is to check for the related environment variable.
+        # If it is missing, we are running in the debugger on the local machine.
+        categories = json.loads(os.environ.get("LIMITER_CATEGORIES", "{}"))
+        if categories:  # We are presumably running on the server and can use the limiter
+            limiter.init_app(app)
 
     @app.route("/skeletoncache/health")
     def health():
