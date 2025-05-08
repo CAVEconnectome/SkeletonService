@@ -1,6 +1,7 @@
+import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask import g
+from flask import copy_current_request_context, g
 import os
 import json
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SkeletonService
@@ -15,6 +16,8 @@ def limit_by_skeleton_exists(request):
     """
     Apply rate limiting based on the category and check if the skeleton exists for the root ID in the request.
     """
+    print(f"Limiter.limit_by_skeleton_exists(): request: {request}")
+    print(f"Limiter.limit_by_skeleton_exists(): has_app_context(): {flask.has_app_context()}")
     try:
         root_id = request.args.get("rid")
         if not root_id:
