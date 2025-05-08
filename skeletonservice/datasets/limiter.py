@@ -15,17 +15,23 @@ def limit_by_skeleton_exists(request):
     """
     Apply rate limiting based on the category and check if the skeleton exists for the root ID in the request.
     """
-    root_id = request.args.get("rid")
-    if not root_id:
-        raise ValueError("Root ID is missing from the request.")
-    datastack_name = request.args.get("datastack_name")
-    if not datastack_name:
-        raise ValueError("Datastack name is missing from the request.")
-    skvn = request.args.get("skvn")
-    if not skvn:
-        # raise ValueError("Skeleton version is missing from the request.")
-        print("Limiter.limit_by_skeleton_exists(): Skeleton version is missing from the request. Using default version.")
-        skvn = NEUROGLANCER_SKELETON_VERSION
+    try:
+        root_id = request.args.get("rid")
+        if not root_id:
+            raise ValueError("Root ID is missing from the request.")
+        datastack_name = request.args.get("datastack_name")
+        if not datastack_name:
+            raise ValueError("Datastack name is missing from the request.")
+        skvn = request.args.get("skvn")
+        if not skvn:
+            # raise ValueError("Skeleton version is missing from the request.")
+            print("Limiter.limit_by_skeleton_exists(): Skeleton version is missing from the request. Using default version.")
+            skvn = NEUROGLANCER_SKELETON_VERSION
+    except RuntimeError as e:
+        print(f"Limiter.limit_by_skeleton_exists(): Error parsing request arguments: {e}")
+        return lambda x: x
+    
+    print(f"Limiter.limit_by_skeleton_exists(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
 
     # Check if the skeleton exists
     bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
