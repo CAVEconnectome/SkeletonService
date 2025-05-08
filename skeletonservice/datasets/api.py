@@ -9,7 +9,7 @@ from flask_restx import Namespace, Resource, reqparse
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.limiter import limit_by_category
+from skeletonservice.datasets.limiter import limit_by_category, limit_by_skeleton_exists
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
@@ -20,7 +20,7 @@ from middle_auth_client import (
 
 from typing import List, Dict
 
-__version__ = "0.21.10"
+__version__ = "0.21.9"
 
 
 authorizations = {
@@ -482,7 +482,7 @@ class SkeletonResource__get_meshwork_A(Resource):
 class SkeletonResource__get_skeleton_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_skeleton_exists(request=request),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -503,7 +503,7 @@ class SkeletonResource__get_skeleton_A(Resource):
 class SkeletonResource__get_skeleton_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_skeleton_exists(request=request),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -524,7 +524,7 @@ class SkeletonResource__get_skeleton_B(Resource):
 class SkeletonResource__get_skeleton_C(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_skeleton_exists(request=request),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
