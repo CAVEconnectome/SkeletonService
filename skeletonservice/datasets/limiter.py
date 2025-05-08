@@ -46,14 +46,23 @@ def limit_by_skeleton_exists(request):
 
 def get_rate_limit_from_config(category=None):
     if category:
-        categories = json.loads(os.environ.get("LIMITER_CATEGORIES", "{}"))
-        if not categories:
+        categories_str = os.environ.get("LIMITER_CATEGORIES", "{}")
+        print(f"Limiter.get_rate_limit_from_config(): categories_str: {categories_str}")
+        if not categories_str:
             # None, "", {} : The environment variable was probably populated with an empty string during deployment
             # such that it isn't literally "None", but JSON won't read an empty string, so it's just as bad as None.
             return None
-        if category not in categories:
+        
+        categories_dict = json.loads(categories_str)
+        print(f"Limiter.get_rate_limit_from_config(): categories_dict: {categories_dict}")
+        if not categories_dict:
+            # None, "", {} : The environment variable was probably populated with an empty string during deployment
+            # such that it isn't literally "None", but JSON won't read an empty string, so it's just as bad as None.
+            return None
+        if category not in categories_dict:
             return None  # Default rate limit if not found
-        return categories[category]
+        
+        return categories_dict[category]
     else:
         return None
 
