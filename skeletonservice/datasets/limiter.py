@@ -1,10 +1,8 @@
-import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask import copy_current_request_context, g
+from flask import g
 import os
 import json
-from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SkeletonService
 
 def limit_by_category(category):
     limit = get_rate_limit_from_config(category)
@@ -12,40 +10,49 @@ def limit_by_category(category):
         return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
     return lambda x: x
 
-def limit_by_skeleton_exists(request):
-    """
-    Apply rate limiting based on the category and check if the skeleton exists for the root ID in the request.
-    """
-    print(f"Limiter.limit_by_skeleton_exists(): request: {request}")
-    print(f"Limiter.limit_by_skeleton_exists(): has_app_context(): {flask.has_app_context()}")
-    try:
-        root_id = request.args.get("rid")
-        if not root_id:
-            raise ValueError("Root ID is missing from the request.")
-        datastack_name = request.args.get("datastack_name")
-        if not datastack_name:
-            raise ValueError("Datastack name is missing from the request.")
-        skvn = request.args.get("skvn")
-        if not skvn:
-            # raise ValueError("Skeleton version is missing from the request.")
-            print("Limiter.limit_by_skeleton_exists(): Skeleton version is missing from the request. Using default version.")
-            skvn = NEUROGLANCER_SKELETON_VERSION
-    except RuntimeError as e:
-        print(f"Limiter.limit_by_skeleton_exists(): Error parsing request arguments: {e}")
-        return lambda x: x
+# 20250509, Keith Wiley
+# I couldn't get this varying limiter to work. The limiter couldn't access the request context,
+# which prevented me from retrieving request arguments (e.g. a root id) and processing those
+# arguments to determine the rate limit (such as applying a different limit if the skeleton exists
+# in the cache as opposed to requiring a new skeletonization). I've left this code here as
+# placeholde for potential future development.
+# def limit_by_skeleton_exists(request):
+#     """
+#     Apply rate limiting based on the category and check if the skeleton exists for the root ID in the request.
+#     """
+#     try:
+#         print(f"Limiter.limit_by_skeleton_exists(): has_app_context(): {flask.has_app_context()}")
+#         print(f"Limiter.limit_by_skeleton_exists(): request: {request is not None}")
+#         print(f"Limiter.limit_by_skeleton_exists(): request: {type(request)}")
+#         print(f"Limiter.limit_by_skeleton_exists(): request: {request}")
+        
+#         root_id = request.args.get("rid")
+#         if not root_id:
+#             raise ValueError("Root ID is missing from the request.")
+#         datastack_name = request.args.get("datastack_name")
+#         if not datastack_name:
+#             raise ValueError("Datastack name is missing from the request.")
+#         skvn = request.args.get("skvn")
+#         if not skvn:
+#             # raise ValueError("Skeleton version is missing from the request.")
+#             print("Limiter.limit_by_skeleton_exists(): Skeleton version is missing from the request. Using default version.")
+#             skvn = NEUROGLANCER_SKELETON_VERSION
+#     except RuntimeError as e:
+#         print(f"Limiter.limit_by_skeleton_exists(): Error parsing request arguments: {e}")
+#         return lambda x: x
     
-    print(f"Limiter.limit_by_skeleton_exists(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
+#     print(f"Limiter.limit_by_skeleton_exists(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
 
-    # Check if the skeleton exists
-    bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
-    sk_exists = SkeletonService.skeletons_exist(bucket, datastack_name, int(skvn), int(root_id))
+#     # Check if the skeleton exists
+#     bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
+#     sk_exists = SkeletonService.skeletons_exist(bucket, datastack_name, int(skvn), int(root_id))
 
-    # Retrieve the rate limit for the category
-    limit = get_rate_limit_from_config("sk_exists" if sk_exists else "sk_not_exists")
-    print(f"Limiter.limit_by_skeleton_exists(): root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}, bucket: {bucket}, skeleton exists: {sk_exists}, limit: {limit}")
-    if limit is not None:
-        return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
-    return lambda x: x
+#     # Retrieve the rate limit for the category
+#     limit = get_rate_limit_from_config("sk_exists" if sk_exists else "sk_not_exists")
+#     print(f"Limiter.limit_by_skeleton_exists(): root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}, bucket: {bucket}, skeleton exists: {sk_exists}, limit: {limit}")
+#     if limit is not None:
+#         return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
+#     return lambda x: x
 
 def get_rate_limit_from_config(category=None):
     if category:
