@@ -321,7 +321,7 @@ class SkeletonResource__query_cache_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_id_prefixes: str, limit: int, verbose_level: int=0):
-        # limiter.limit_query_cache(request)
+        # limit_query_cache(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
         
@@ -409,7 +409,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_ids: List, verbose_level: int=0):
-        # limiter.limit_skeleton_exists(request)
+        # limit_skeleton_exists(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
@@ -533,7 +533,7 @@ class SkeletonResource__get_skeleton_C(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
-        limiter.limit_get_skeleton(request)
+        limit_get_skeleton(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
@@ -591,7 +591,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
-        limiter.limit_get_skeletons_via_msg(request)
+        limit_get_skeletons_via_msg(request)
 
         SkeletonService.publish_skeleton_request(
             datastack_name,
@@ -665,7 +665,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str, verbose_level: int=0):
-        # limiter.limit_get_skeletons_bulk(request)
+        # limit_get_skeletons_bulk(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
@@ -744,7 +744,7 @@ class SkeletonResource__get_skeleton_async_C(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
-        limiter.limit_get_skeleton_async(request)
+        limit_get_skeleton_async(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
@@ -872,7 +872,7 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rids: List, verbose_level: int=0):
-        # limiter.limit_gen_skeletons_bulk_async(request)
+        # limit_gen_skeletons_bulk_async(request)
 
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
