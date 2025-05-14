@@ -1,80 +1,98 @@
+import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import g
 import os
 import json
 
-def limit_by_category(category):
-    limit = get_rate_limit_from_config(category)
-    if limit is not None:
-        return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
-    return lambda x: x
-
-# 20250509, Keith Wiley
-# I couldn't get this varying limiter to work. The limiter couldn't access the request context,
-# which prevented me from retrieving request arguments (e.g. a root id) and processing those
-# arguments to determine the rate limit (such as applying a different limit if the skeleton exists
-# in the cache as opposed to requiring a new skeletonization). I've left this code here as
-# placeholde for potential future development.
-# def limit_by_skeleton_exists(request):
-#     """
-#     Apply rate limiting based on the category and check if the skeleton exists for the root ID in the request.
-#     """
-#     try:
-#         print(f"Limiter.limit_by_skeleton_exists(): has_app_context(): {flask.has_app_context()}")
-#         print(f"Limiter.limit_by_skeleton_exists(): request: {request is not None}")
-#         print(f"Limiter.limit_by_skeleton_exists(): request: {type(request)}")
-#         print(f"Limiter.limit_by_skeleton_exists(): request: {request}")
-        
-#         root_id = request.args.get("rid")
-#         if not root_id:
-#             raise ValueError("Root ID is missing from the request.")
-#         datastack_name = request.args.get("datastack_name")
-#         if not datastack_name:
-#             raise ValueError("Datastack name is missing from the request.")
-#         skvn = request.args.get("skvn")
-#         if not skvn:
-#             # raise ValueError("Skeleton version is missing from the request.")
-#             print("Limiter.limit_by_skeleton_exists(): Skeleton version is missing from the request. Using default version.")
-#             skvn = NEUROGLANCER_SKELETON_VERSION
-#     except RuntimeError as e:
-#         print(f"Limiter.limit_by_skeleton_exists(): Error parsing request arguments: {e}")
-#         return lambda x: x
-    
-#     print(f"Limiter.limit_by_skeleton_exists(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
-
-#     # Check if the skeleton exists
-#     bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
-#     sk_exists = SkeletonService.skeletons_exist(bucket, datastack_name, int(skvn), int(root_id))
-
-#     # Retrieve the rate limit for the category
-#     limit = get_rate_limit_from_config("sk_exists" if sk_exists else "sk_not_exists")
-#     print(f"Limiter.limit_by_skeleton_exists(): root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}, bucket: {bucket}, skeleton exists: {sk_exists}, limit: {limit}")
-#     if limit is not None:
-#         return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
-#     return lambda x: x
+from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SkeletonService
 
 def get_rate_limit_from_config(category=None):
     if category:
         categories_str = os.environ.get("LIMITER_CATEGORIES", "{}")
-        print(f"Limiter.get_rate_limit_from_config(): categories_str: {categories_str}")
-        if not categories_str:
-            # None, "", {} : The environment variable was probably populated with an empty string during deployment
-            # such that it isn't literally "None", but JSON won't read an empty string, so it's just as bad as None.
+        print(f"Limiter.get_rate_limit_from_config(): categories_str 1: {categories_str}")
+        categories_str = categories_str.replace('\,', ',')
+        print(f"Limiter.get_rate_limit_from_config(): categories_str 2: {categories_str}")
+        categories_str = categories_str.replace("'", '"')
+        print(f"Limiter.get_rate_limit_from_config(): categories_str 3: {categories_str}")
+
+        if not categories_str:  # Catch any "False" equivalent: None, "", {}, [], etc.
+            # The environment variable was probably populated with an empty string during deployment
+            # such that it isn't literally "None", but the json library won't read an empty string, so it's just as bad as None.
             return None
         
         categories_dict = json.loads(categories_str)
         print(f"Limiter.get_rate_limit_from_config(): categories_dict: {categories_dict}")
-        if not categories_dict:
-            # None, "", {} : The environment variable was probably populated with an empty string during deployment
-            # such that it isn't literally "None", but JSON won't read an empty string, so it's just as bad as None.
-            return None
-        if category not in categories_dict:
+        if not categories_dict or category not in categories_dict:
             return None  # Default rate limit if not found
         
-        return categories_dict[category]
+        print(f"Limiter.get_rate_limit_from_config(): limit for category {category}: {categories_dict.get(category)}")
+        return categories_dict.get(category)
     else:
         return None
+
+def apply_rate_limit(limit):
+    if limit is not None:
+        return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
+    return lambda x: x
+
+def limit_by_category(category):
+    return apply_rate_limit(get_rate_limit_from_config(category))
+
+
+
+
+# def limit_query_cache(request):
+#     return apply_rate_limit(get_rate_limit_from_config("query_cache"))
+
+# def limit_skeleton_exists(request):
+#     return apply_rate_limit(get_rate_limit_from_config("skeleton_exists"))
+
+def limit_get_skeleton(request, via_msg=False):
+    try:
+        root_id = request.args.get("rid")
+        if not root_id:
+            raise ValueError("Root ID is missing from the request.")
+        datastack_name = request.args.get("datastack_name")
+        if not datastack_name:
+            raise ValueError("Datastack name is missing from the request.")
+        skvn = request.args.get("skvn")
+        if not skvn:
+            print("Limiter.limit_get_skeleton(): Skeleton version is missing from the request. Using default version.")
+            skvn = NEUROGLANCER_SKELETON_VERSION
+    except RuntimeError as e:
+        print(f"Limiter.limit_get_skeleton(): Error parsing request arguments: {e}")
+        return lambda x: x
+    
+    print(f"Limiter.limit_get_skeleton(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
+
+    # Check if the skeleton exists
+    bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
+    sk_exists = SkeletonService.skeletons_exist(bucket, datastack_name, int(skvn), int(root_id))
+
+    # Retrieve the rate limit for the category
+    if not via_msg:
+        category = "get_skeleton_that_exists" if sk_exists else "get_skeleton_that_doesnt_exist"
+    else:
+        category = "get_skeleton_via_msg_that_exists" if sk_exists else "get_skeleton_via_msg_that_doesnt_exist"
+    limit = get_rate_limit_from_config(category)
+    print(f"Limiter.limit_get_skeleton(): root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}, bucket: {bucket}, skeleton exists: {sk_exists}, limit: {limit}")
+    return apply_rate_limit(limit)
+
+def limit_get_skeletons_via_msg(request):
+    return limit_get_skeleton(request, via_msg=True)
+
+# def limit_get_skeletons_bulk(request):
+#     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk"))
+
+def limit_get_skeleton_async(request):
+    return limit_get_skeleton(request)
+
+# def limit_gen_skeletons_bulk_async(request):
+#     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))
+
+
+
 
 limiter = Limiter(
     get_remote_address,

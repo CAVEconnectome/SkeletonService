@@ -9,7 +9,8 @@ from flask_restx import Namespace, Resource, reqparse
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
 from skeletonservice.datasets import schemas
-from skeletonservice.datasets.limiter import limit_by_category
+from skeletonservice.datasets import limiter
+from skeletonservice.datasets.limiter import *
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService
 
 from middle_auth_client import (
@@ -17,7 +18,7 @@ from middle_auth_client import (
     auth_requires_permission,
 )
 
-from typing import List, Dict
+from typing import List
 
 __version__ = "0.21.14"
 
@@ -258,7 +259,7 @@ class SkeletonResource__bulk_skeleton_info(Resource):
 class SkeletonResource__get_refusal_list_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_refusal_list"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -290,7 +291,7 @@ class SkeletonResource__get_refusal_list_A(Resource):
 class SkeletonResource__query_cache_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("query_cache"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -314,12 +315,14 @@ class SkeletonResource__query_cache_A(Resource):
 class SkeletonResource__query_cache_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("query_cache"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_id_prefixes: str, limit: int, verbose_level: int=0):
+        # limiter.limit_query_cache(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
         
         return SkelClassVsn.get_cache_contents(
@@ -350,7 +353,7 @@ class SkeletonResource__query_cache_B(Resource):
 class SkeletonResource__skeleton_exists_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("skeleton_exists"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -375,7 +378,7 @@ class SkeletonResource__skeleton_exists_A(Resource):
 class SkeletonResource__skeleton_exists_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("skeleton_exists"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -400,12 +403,14 @@ class SkeletonResource__skeleton_exists_B(Resource):
 class SkeletonResource__skeleton_exists_C(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("skeleton_exists"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, root_ids: List, verbose_level: int=0):
+        # limiter.limit_skeleton_exists(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         if len(root_ids) == 1:
@@ -419,7 +424,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
             rids=root_ids,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        )
+        ), 200
 
     @api_bp.expect(bulk_async_parser)
     @auth_required
@@ -439,8 +444,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
         verbose_level = data['verbose_level'] if 'verbose_level' in data else 0
         verbose_level = max(int(request.args.get('verbose_level')), verbose_level) if 'verbose_level' in request.args else verbose_level
 
-        response = self.process(datastack_name, skvn, rids, verbose_level)
-        return response, 200
+        return self.process(datastack_name, skvn, rids, verbose_level)
 
 
 @api_bp.route("/<string:datastack_name>/precomputed/meshwork/<int:rid>")
@@ -481,7 +485,7 @@ class SkeletonResource__get_meshwork_A(Resource):
 class SkeletonResource__get_skeleton_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -502,7 +506,7 @@ class SkeletonResource__get_skeleton_A(Resource):
 class SkeletonResource__get_skeleton_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -523,12 +527,14 @@ class SkeletonResource__get_skeleton_B(Resource):
 class SkeletonResource__get_skeleton_C(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
+        limiter.limit_get_skeleton(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         try:
@@ -543,7 +549,7 @@ class SkeletonResource__get_skeleton_C(Resource):
                 skeleton_version=skvn,
                 session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
-            )
+            ), 200
         except ValueError as e:
             return {"Error": str(e)}, 400
         except Exception as e:
@@ -585,6 +591,8 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
+        limiter.limit_get_skeletons_via_msg(request)
+
         SkeletonService.publish_skeleton_request(
             datastack_name,
             rid,
@@ -596,7 +604,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
             skvn,
             True,
             verbose_level,
-        )
+        ), 200
 
         # from messagingclient import MessagingClient
 
@@ -619,7 +627,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
         # c.publish(exchange, payload, attributes)
 
         # print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
-        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}", 200
 
     # @auth_required
     # @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -635,7 +643,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 class SkeletonResource__get_skeletons_bulk_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_skeletons_bulk"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -651,12 +659,14 @@ class SkeletonResource__get_skeletons_bulk_A(Resource):
 class SkeletonResource__get_skeletons_bulk_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_skeletons_bulk"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, output_format: str, gms: bool, rids: str, verbose_level: int=0):
+        # limiter.limit_get_skeletons_bulk(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.get_skeletons_bulk_by_datastack_and_rids(
@@ -671,7 +681,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
             generate_missing_skeletons=gms,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        )
+        ), 200
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -686,7 +696,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
 class SkeletonResource__get_skeleton_async_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -707,7 +717,7 @@ class SkeletonResource__get_skeleton_async_A(Resource):
 class SkeletonResource__get_skeleton_async_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -728,12 +738,14 @@ class SkeletonResource__get_skeleton_async_B(Resource):
 class SkeletonResource__get_skeleton_async_C(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        # limit_by_category("request"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
+        limiter.limit_get_skeleton_async(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         try:
@@ -748,7 +760,7 @@ class SkeletonResource__get_skeleton_async_C(Resource):
                 skeleton_version=skvn,
                 session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
-            )
+            ), 200
         except ValueError as e:
             return {"Error": str(e)}, 400
         except Exception as e:
@@ -816,7 +828,7 @@ class SkeletonResource__gen_meshworks_bulk_async_A(Resource):
 class SkeletonResource__gen_skeletons_bulk_async_A(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_skeletons_bulk_async"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -834,7 +846,7 @@ class SkeletonResource__gen_skeletons_bulk_async_A(Resource):
 class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_skeletons_bulk_async"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
@@ -854,12 +866,14 @@ class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
 class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
     """SkeletonResource"""
     method_decorators = [
-        limit_by_category("request"),
+        limit_by_category("get_skeletons_bulk_async"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rids: List, verbose_level: int=0):
+        # limiter.limit_gen_skeletons_bulk_async(request)
+
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.generate_skeletons_bulk_by_datastack_and_rids_async(
@@ -872,7 +886,7 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
             skeleton_version=skvn,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        )
+        ), 200
 
     @api_bp.expect(bulk_async_parser)
     @auth_required
@@ -899,4 +913,4 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
         t2_et = t2 - t1
         SkeletonService.print(f"SkeletonResource__gen_skeletons_bulk_async_C() Elapsed times: {t1_et:.3f}s {t2_et:.3f}s")
         
-        return response, 200
+        return response
