@@ -11,10 +11,8 @@ def get_rate_limit_from_config(category=None):
     if category:
         categories_str = os.environ.get("LIMITER_CATEGORIES", "{}")
         print(f"Limiter.get_rate_limit_from_config(): categories_str 1: {categories_str}")
-        categories_str = categories_str.replace('\,', ',')
-        print(f"Limiter.get_rate_limit_from_config(): categories_str 2: {categories_str}")
         categories_str = categories_str.replace("'", '"')
-        print(f"Limiter.get_rate_limit_from_config(): categories_str 3: {categories_str}")
+        print(f"Limiter.get_rate_limit_from_config(): categories_str 2: {categories_str}")
 
         if not categories_str:  # Catch any "False" equivalent: None, "", {}, [], etc.
             # The environment variable was probably populated with an empty string during deployment
