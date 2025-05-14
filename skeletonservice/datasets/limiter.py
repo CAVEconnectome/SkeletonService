@@ -48,16 +48,22 @@ def limit_by_category(category):
 
 def limit_get_skeleton(request, via_msg=False):
     try:
-        root_id = request.args.get("rid")
+        root_id = request.args.get("rid")  # POST args
         if not root_id:
-            raise ValueError("Root ID is missing from the request.")
+            root_id = request.view_args.get("rid")  # GET args
+            if not root_id:
+                raise ValueError("Root ID is missing from the request.")
         datastack_name = request.args.get("datastack_name")
         if not datastack_name:
-            raise ValueError("Datastack name is missing from the request.")
+            datastack_name = request.view_args.get("datastack_name")
+            if not datastack_name:
+                raise ValueError("Datastack name is missing from the request.")
         skvn = request.args.get("skvn")
         if not skvn:
-            print("Limiter.limit_get_skeleton(): Skeleton version is missing from the request. Using default version.")
-            skvn = NEUROGLANCER_SKELETON_VERSION
+            skvn = request.view_args.get("skvn")
+            if not skvn:
+                print("Limiter.limit_get_skeleton(): Skeleton version is missing from the request. Using default version.")
+                skvn = NEUROGLANCER_SKELETON_VERSION
     except RuntimeError as e:
         print(f"Limiter.limit_get_skeleton(): Error parsing request arguments: {e}")
         return lambda x: x
