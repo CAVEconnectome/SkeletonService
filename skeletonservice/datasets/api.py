@@ -424,7 +424,7 @@ class SkeletonResource__skeleton_exists_C(Resource):
             rids=root_ids,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        ), 200
+        )
 
     @api_bp.expect(bulk_async_parser)
     @auth_required
@@ -549,7 +549,7 @@ class SkeletonResource__get_skeleton_C(Resource):
                 skeleton_version=skvn,
                 session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
-            ), 200
+            )
         except ValueError as e:
             return {"Error": str(e)}, 400
         except Exception as e:
@@ -604,7 +604,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
             skvn,
             True,
             verbose_level,
-        ), 200
+        )
 
         # from messagingclient import MessagingClient
 
@@ -627,7 +627,7 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
         # c.publish(exchange, payload, attributes)
 
         # print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
-        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}", 200
+        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
 
     # @auth_required
     # @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -681,7 +681,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
             generate_missing_skeletons=gms,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        ), 200
+        )
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -760,7 +760,7 @@ class SkeletonResource__get_skeleton_async_C(Resource):
                 skeleton_version=skvn,
                 session_timestamp_=SkeletonService.get_session_timestamp(),
                 verbose_level_=verbose_level,
-            ), 200
+            )
         except ValueError as e:
             return {"Error": str(e)}, 400
         except Exception as e:
@@ -886,7 +886,7 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
             skeleton_version=skvn,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
-        ), 200
+        )
 
     @api_bp.expect(bulk_async_parser)
     @auth_required
