@@ -1,7 +1,7 @@
 import datetime
 import json
 import os
-from flask import Flask, jsonify, request, url_for, redirect, Blueprint
+from flask import Flask, jsonify, make_response, request, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
 
 # from skeletonservice.database import Base
@@ -98,6 +98,10 @@ def create_app(test_config=None):
         categories = os.environ.get("LIMITER_CATEGORIES", None)
         if categories:  # We are presumably running on the server and can use the limiter
             limiter.init_app(app)
+        
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        return make_response(jsonify(error=f"ratelimit exceeded {e.description}"), 429)
 
     @app.route("/skeletoncache/health")
     def health():

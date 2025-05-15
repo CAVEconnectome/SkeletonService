@@ -1,4 +1,3 @@
-import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask import current_app, g
@@ -36,7 +35,6 @@ def apply_rate_limit(limit):
 
 def limit_by_category(category):
     return apply_rate_limit(get_rate_limit_from_config(category))
-
 
 
 
