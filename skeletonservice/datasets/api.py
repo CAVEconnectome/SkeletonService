@@ -5,6 +5,7 @@ from timeit import default_timer
 # Import flask dependencies
 from flask import jsonify, render_template, current_app, request, make_response, Blueprint
 from flask_accepts import accepts, responds
+from flask_limiter import RateLimitExceeded
 from flask_restx import Namespace, Resource, reqparse
 from werkzeug.routing import BaseConverter
 from meshparty import skeleton
@@ -533,27 +534,29 @@ class SkeletonResource__get_skeleton_C(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, output_format: str, verbose_level: int=0):
-        limit_get_skeleton(request)
-
-        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
-
         try:
-            return SkelClassVsn.get_skeleton_by_datastack_and_rid_async(
-                datastack_name=datastack_name,
-                rid=rid,
-                output_format=output_format,
-                bucket=current_app.config["SKELETON_CACHE_BUCKET"],
-                root_resolution=[1, 1, 1],
-                collapse_soma=True,
-                collapse_radius=7500,
-                skeleton_version=skvn,
-                session_timestamp_=SkeletonService.get_session_timestamp(),
-                verbose_level_=verbose_level,
-            )
-        except ValueError as e:
-            return {"Error": str(e)}, 400
-        except Exception as e:
-            return {"Error": str(e)}, 500
+            with limit_get_skeleton(request):
+                SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+                try:
+                    return SkelClassVsn.get_skeleton_by_datastack_and_rid_async(
+                        datastack_name=datastack_name,
+                        rid=rid,
+                        output_format=output_format,
+                        bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+                        root_resolution=[1, 1, 1],
+                        collapse_soma=True,
+                        collapse_radius=7500,
+                        skeleton_version=skvn,
+                        session_timestamp_=SkeletonService.get_session_timestamp(),
+                        verbose_level_=verbose_level,
+                    )
+                except ValueError as e:
+                    return {"Error": str(e)}, 400
+                except Exception as e:
+                    return {"Error": str(e)}, 500
+        except RateLimitExceeded as e:
+            return {"get_skeleton() RateLimitExceeded": str(e)}, 429
 
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")

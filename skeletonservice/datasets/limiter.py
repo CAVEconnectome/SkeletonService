@@ -1,33 +1,33 @@
 import flask
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask import g
+from flask import current_app, g
 import os
 import json
 
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SkeletonService
 
 def get_rate_limit_from_config(category=None):
-    if category:
-        categories_str = os.environ.get("LIMITER_CATEGORIES", "{}")
-        # print(f"Limiter.get_rate_limit_from_config(): categories_str 1: {categories_str}")
-        categories_str = categories_str.replace("'", '"')
-        # print(f"Limiter.get_rate_limit_from_config(): categories_str 2: {categories_str}")
-
-        if not categories_str:  # Catch any "False" equivalent: None, "", {}, [], etc.
-            # The environment variable was probably populated with an empty string during deployment
-            # such that it isn't literally "None", but the json library won't read an empty string, so it's just as bad as None.
-            return None
-        
-        categories_dict = json.loads(categories_str)
-        print(f"Limiter.get_rate_limit_from_config(): categories_dict: {categories_dict}")
-        if not categories_dict or category not in categories_dict:
-            return None  # Default rate limit if not found
-        
-        print(f"Limiter.get_rate_limit_from_config(): limit for category {category}: {categories_dict.get(category)}")
-        return categories_dict.get(category)
-    else:
+    if not category:
         return None
+    
+    categories_str = os.environ.get("LIMITER_CATEGORIES", "{}")
+    # print(f"Limiter.get_rate_limit_from_config(): categories_str 1: {categories_str}")
+    categories_str = categories_str.replace("'", '"')
+    # print(f"Limiter.get_rate_limit_from_config(): categories_str 2: {categories_str}")
+
+    if not categories_str:  # Catch any "False" equivalent: None, "", {}, [], etc.
+        # The environment variable was probably populated with an empty string during deployment
+        # such that it isn't literally "None", but the json library won't read an empty string, so it's just as bad as None.
+        return None
+    
+    categories_dict = json.loads(categories_str)
+    print(f"Limiter.get_rate_limit_from_config(): categories_dict: {categories_dict}")
+    if not categories_dict or category not in categories_dict:
+        return None  # Default rate limit if not found
+    
+    print(f"Limiter.get_rate_limit_from_config(): limit for category {category}: {categories_dict.get(category)}")
+    return categories_dict.get(category)
 
 def apply_rate_limit(limit):
     if limit is not None:
@@ -71,7 +71,8 @@ def limit_get_skeleton(request, via_msg=False):
     print(f"Limiter.limit_get_skeleton(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
 
     # Check if the skeleton exists
-    bucket = os.environ.get("SKELETON_BUCKET", "default_bucket")
+    bucket = current_app.config["SKELETON_CACHE_BUCKET"]
+    # bucket = os.environ.get("SKELETON_CACHE_BUCKET", "default_bucket")
     sk_exists = SkeletonService.skeletons_exist(bucket, datastack_name, int(skvn), int(root_id))
 
     # Retrieve the rate limit for the category
