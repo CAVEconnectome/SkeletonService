@@ -556,6 +556,7 @@ class SkeletonResource__get_skeleton_C(Resource):
                 except Exception as e:
                     return {"Error": str(e)}, 500
         except RateLimitExceeded as e:
+            print(f"get_skeleton() RateLimitExceeded: {e}")
             return {"get_skeleton() RateLimitExceeded": str(e)}, 429
 
     @auth_required
