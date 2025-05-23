@@ -38,9 +38,11 @@ def limit_by_category(category):
 
 
 
+# Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_query_cache(request):
 #     return apply_rate_limit(get_rate_limit_from_config("query_cache"))
 
+# Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_skeleton_exists(request):
 #     return apply_rate_limit(get_rate_limit_from_config("skeleton_exists"))
 
@@ -83,17 +85,20 @@ def limit_get_skeleton(request, via_msg=False):
     return apply_rate_limit(limit)
 
 def limit_get_skeletons_via_msg(request):
+    # We can reuse the basic skeleton limit for this endpoint
     return limit_get_skeleton(request, via_msg=True)
 
+# Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_get_skeletons_bulk(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk"))
 
 def limit_get_skeleton_async(request):
+    # We can reuse the basic skeleton limit for this endpoint
     return limit_get_skeleton(request)
 
+# Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_gen_skeletons_bulk_async(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))
-
 
 
 

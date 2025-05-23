@@ -51,9 +51,11 @@ printer = None
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 
+SKELETON_CACHE_BUCKET = os.environ.get("SKELETON_CACHE_BUCKET", "")
+
 PROD_SERVERS = [
     "https://minniev6.microns-daf.com",
-    "https://api.em.brain.allentech.com",
+    "https://api.em.brain.allentech.org",
     "https://cave.fanc-fly.com",
     "https://prod.flywire-daf.com",
 ]
@@ -187,11 +189,16 @@ class SkeletonsServiceIntegrationTest:
 
         # Delete the test rid files from the bucket so we can test regenerating them from scratch
 
-        bucket = None
-        if "localhost" in server_address or "ltv" in server_address:
-            bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
-        elif "minnie" in server_address:
-            bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        # bucket = None
+        # if "localhost" in server_address or "ltv" in server_address:
+        #     bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
+        # elif "minnie" in server_address:
+        #     bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        # elif "flywire" in server_address:
+        #     bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        # elif "api" in server_address:
+        #     bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
 
@@ -584,7 +591,10 @@ might complete between the time when the cache is cleared at the beginning of th
         result = self.skclient.generate_bulk_skeletons_async(self.datastack_config["bulk_rids"], skeleton_version=self.skvn)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.eval_one_test_result(result == 60.0)
+        if not self.fast_run:
+            test_result = self.eval_one_test_result(result == 60.0)
+        else:
+            test_result = self.eval_one_test_result(result == 0.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_2(self):
@@ -593,7 +603,10 @@ might complete between the time when the cache is cleared at the beginning of th
         result = self.skclient.generate_bulk_skeletons_async(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, verbose_level=1)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.eval_one_test_result(result == 60.0)
+        if not self.fast_run:
+            test_result = self.eval_one_test_result(result == 60.0)
+        else:
+            test_result = self.eval_one_test_result(result == 0.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def run_test_bulk_async_request_3(self):
@@ -602,7 +615,10 @@ might complete between the time when the cache is cleared at the beginning of th
         result = self.skclient.generate_bulk_skeletons_async(self.larger_bulk_rids, skeleton_version=self.skvn, verbose_level=1)
         if verbose_level >= 2:
             printer.print(type(result), result)
-        test_result = self.eval_one_test_result(result == 60.0)
+        if not self.fast_run:
+            test_result = self.eval_one_test_result(result == 60.0)
+        else:
+            test_result = self.eval_one_test_result(result == 0.0)
         return (1, 0, 0) if test_result else (0, 0, 1)
 
     def test_integration(self, server_address, fast_run=False):
@@ -622,6 +638,11 @@ might complete between the time when the cache is cleared at the beginning of th
         except Exception as e:
             if verbose_level >= 2:
                 printer.print(f"Error running test on {server_address}: {e}")
+            
+            # [20250523_155310.279] Error running test on https://api3.em.brain.allentech.org: 401 Client Error: UNAUTHORIZED for url: https://api3.em.brain.allentech.org/skeletoncache/api/v1/v1dd/precomputed/skeleton/4/info content: b'{\n  "error": "invalid_token",\n  "message": "Unauthorized - Token is Invalid or Expired"\n}\n'
+            if e.args[0] == 401 or "UNAUTHORIZED" in str(e) or "Token is Invalid or Expired" in str(e):
+                print("Please manually authenticate the test using the provided URL:", e)
+
             # Run an artificial failed test to generate a failure message
             self.eval_one_test_result(False)
 
