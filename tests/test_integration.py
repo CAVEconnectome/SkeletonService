@@ -189,16 +189,16 @@ class SkeletonsServiceIntegrationTest:
 
         # Delete the test rid files from the bucket so we can test regenerating them from scratch
 
-        # bucket = None
-        # if "localhost" in server_address or "ltv" in server_address:
-        #     bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
-        # elif "minnie" in server_address:
-        #     bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
-        # elif "flywire" in server_address:
-        #     bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
-        # elif "api" in server_address:
-        #     bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
-        bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
+        bucket = None
+        if "localhost" in server_address or "ltv" in server_address:
+            bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
+        elif "minnie" in server_address:
+            bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        elif "flywire" in server_address:
+            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        elif "api" in server_address:
+            bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        # bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
 
