@@ -1,5 +1,6 @@
 import copy
 import logging
+import google.cloud.logging
 import os
 from timeit import default_timer
 # Import flask dependencies
@@ -23,6 +24,7 @@ from typing import List
 
 __version__ = "0.21.25"
 
+google.cloud.logging.Client().setup_logging()
 
 authorizations = {
     "apikey": {"type": "apiKey", "in": "query", "name": "middle_auth_token"}

@@ -1,6 +1,6 @@
 import datetime
-import json
 import os
+import google.cloud.logging
 from flask import Flask, jsonify, make_response, request, url_for, redirect, Blueprint
 from skeletonservice.config import configure_app
 
@@ -21,6 +21,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from middle_auth_client import auth_required
 
 __version__ = "0.21.25"
+
+google.cloud.logging.Client().setup_logging()
 
 # migrate = Migrate()
 
