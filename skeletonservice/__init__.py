@@ -95,9 +95,18 @@ def create_app(test_config=None):
         # Initializing the limiter prevents the app from running on the local machine in the VS Debugger.
         # One way to turn it off only on the local machine is to check for the related environment variable.
         # If it is missing, we are running in the debugger on the local machine.
-        categories = os.environ.get("LIMITER_CATEGORIES", None)
-        if categories:  # We are presumably running on the server and can use the limiter
-            limiter.init_app(app)
+        try:
+            categories = os.environ.get("LIMITER_CATEGORIES", None)
+            app.logger.debug(
+                f"Rate limiter categories (will be None in local VS Debugger): {categories}"
+            )
+            if categories:  # We are presumably running on the server and can use the limiter
+                limiter.init_app(app)
+        except Exception as e:
+            app.logger.warning(
+                f"Failed to initialize the rate limiter: {e}. "
+                "This is expected if running in the local VS Debugger."
+            )
         
     @app.errorhandler(429)
     def ratelimit_handler(e):
