@@ -64,6 +64,8 @@ PROD_SERVERS = [
 DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
 # DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
+TOTAL_NUM_TESTS = 27
+
 verbose_level = 0
 
 # Ref: https://svn.blender.org/svnroot/bf-blender/trunk/blender/build_files/scons/tools/bcolors.py
@@ -164,7 +166,7 @@ class SkeletonsServiceIntegrationTest:
         self.client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
         self.client.materialize.version = self.datastack_config["materialization_version"]
 
-        self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=self.client, verify=False)
+        self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=self.client, auth_client=self.client.auth, verify=False)
         if verbose_level >= 1:
             printer.print(f"SkeletonService server and version C: {CAVE_CLIENT_SERVER} , {server_address} , v{self.skclient._server_version} , v{self.skclient.server_version} , v{self.skclient._get_version()} , v{self.skclient.get_version()} , v{this_skeletonservice_version}")
         if self.skclient._server_version != this_skeletonservice_version:
@@ -222,7 +224,7 @@ class SkeletonsServiceIntegrationTest:
                     printer.print("Exists status before/after deletion:", predeletion_exists, cf.exists(filename))
         
         results = np.array([0, 0, 0])
-        # results += self.run_test_metadata_1()
+        # results += self.run_test_metadata_1()  # This test isn't too important and likely to cause problems if I forget to update it.
         results += self.run_test_metadata_2()
         results += self.run_test_metadata_3()
         results += self.run_test_cache_status_1_1()
@@ -234,10 +236,10 @@ class SkeletonsServiceIntegrationTest:
         results += self.run_test_invalid_request_1()
         results += self.run_test_invalid_request_2()
         results += self.run_test_invalid_request_3()
-        results += self.run_test_retrieval_1()
-        results += self.run_test_retrieval_2()
-        results += self.run_test_retrieval_3()
-        results += self.run_test_retrieval_4()
+        results += self.run_test_retrieval_1()  # Runs two tests, accumulates two tallied results
+        results += self.run_test_retrieval_2()  # Runs two tests, accumulates two tallied results
+        results += self.run_test_retrieval_3()  # Runs two tests, accumulates two tallied results
+        results += self.run_test_retrieval_4()  # Runs two tests, accumulates two tallied results
         results += self.run_test_cache_status_2_1()
         results += self.run_test_cache_status_2_2()
         results += self.run_test_bulk_retrieval_1()
@@ -771,6 +773,12 @@ if __name__ == "__main__":
     sksv_version, num_passed, num_suspicious, num_failed = test.run(args.server, args.fast_run, verbose_level)
 
     # Report the results
+    num_total = num_passed + num_suspicious + num_failed
+    assert num_total <= TOTAL_NUM_TESTS, f"Total number of tests {num_total} exceeds the expected number {TOTAL_NUM_TESTS}."
+    if num_total < TOTAL_NUM_TESTS:
+        dispatch_slack_msg(":bangbang:", f"Total number of tests run {num_total} is less than the number of tests implemented {TOTAL_NUM_TESTS}. This indicates that the testing sequence ended early.")
+        printer.print(fail_fmt_begin + f"ERROR! Total number of tests run {num_total} is less than the number of tests implemented {TOTAL_NUM_TESTS}. This indicates that the testing sequence ended early." + fmt_end)
+        
     if num_failed > 0:
         dispatch_slack_msg(":exclamation:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*:\n:white_check_mark:    {num_passed} passed\n:warning:    {num_suspicious} suspicious\n:x:    {num_failed} failed")
         printer.print(fail_fmt_begin + f"ALERT! SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: Passed/Suspicious/Failed: {num_passed}, {num_suspicious}, {num_failed}" + fmt_end)
