@@ -84,6 +84,7 @@ bold_fmt_begin = None
 ok_fmt_begin = None
 warning_fmt_begin = None
 fail_fmt_begin = None
+skip_fmt_begin = None
 fmt_end = None
 
 class SessionedPrinter:
@@ -92,7 +93,7 @@ class SessionedPrinter:
     """
 
     def __init__(self, kube):
-        global bold_fmt_begin, ok_fmt_begin, warning_fmt_begin, fail_fmt_begin, fmt_end
+        global bold_fmt_begin, ok_fmt_begin, warning_fmt_begin, fail_fmt_begin, skip_fmt_begin, fmt_end
 
         self.session_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S.%f')[:-3]
 
@@ -100,6 +101,7 @@ class SessionedPrinter:
         ok_fmt_begin = bold_fmt_begin + f"{bcolors.OKGREEN if not kube else ''}"
         warning_fmt_begin = bold_fmt_begin + f"{bcolors.WARNING if not kube else ''}"
         fail_fmt_begin = bold_fmt_begin + f"{bcolors.FAIL if not kube else ''}"
+        skip_fmt_begin = bold_fmt_begin + f"{bcolors.OKBLUE if not kube else ''}"
         fmt_end = f"{bcolors.ENDC if not kube else ''}"
     
     def _print_with_session_timestamp(self, *args, sep=' ', end='\n', file=None, flush=False):
@@ -138,16 +140,22 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(fail_fmt_begin + "TEST FAILED" + fmt_end)
 
-    def print_test_result(self, result, warning_only):
+    def test_skipped(self):
+        if verbose_level >= 1:
+            printer.print(skip_fmt_begin + "TEST SKIPPED" + fmt_end)
+
+    def print_test_result(self, result, warning_only, skipped):
         if result:
             self.test_passed()
         elif warning_only:
             self.test_failed_with_warning()
+        elif skipped:
+            self.test_skipped()
         else:
             self.test_failed()
             
-    def eval_one_test_result(self, result, warning_only=False):
-        self.print_test_result(result, warning_only)
+    def eval_one_test_result(self, result, warning_only=False, skipped=False):
+        self.print_test_result(result, warning_only, skipped)
         # Asserting the result prevents the notebook from automatically running all tests.
         # I'm unsure if I want to assert the result and stop or gather all test results at the end.
         # assert result
@@ -387,6 +395,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["refusal_list_rid"]:
+            self.eval_one_test_result('"Skipped": "Test refusal list root id not provided', skipped=True)
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["refusal_list_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
@@ -415,6 +424,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["supervoxel_rid"]:
+            self.eval_one_test_result('"Skipped": "Test supervoxel root id not provided', skipped=True)
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["supervoxel_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
@@ -484,6 +494,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["single_vertex_rid"]:
+            self.eval_one_test_result('"Skipped": "Test single vertex root id not provided', skipped=True)
             return (0, 0, 0, 2)
         start_time = default_timer()
         sk = self.skclient.get_skeleton(self.datastack_config["single_vertex_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
