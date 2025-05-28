@@ -395,7 +395,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["refusal_list_rid"]:
-            self.eval_one_test_result('"Skipped": "Test refusal list root id not provided', skipped=True)
+            self.eval_one_test_result(False, skipped=True)
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["refusal_list_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
@@ -424,7 +424,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["supervoxel_rid"]:
-            self.eval_one_test_result('"Skipped": "Test supervoxel root id not provided', skipped=True)
+            self.eval_one_test_result(False, skipped=True)
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["supervoxel_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
@@ -494,7 +494,8 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["single_vertex_rid"]:
-            self.eval_one_test_result('"Skipped": "Test single vertex root id not provided', skipped=True)
+            # This function runs two tests, so it skips two tests, so produce two "skipped" messages
+            [self.eval_one_test_result(False, skipped=True) for i in range(2)]
             return (0, 0, 0, 2)
         start_time = default_timer()
         sk = self.skclient.get_skeleton(self.datastack_config["single_vertex_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
@@ -654,8 +655,7 @@ might complete between the time when the cache is cleared at the beginning of th
             sksv_version, results = self.run_one_server_test(server_address, fast_run)
             return sksv_version, results
         except Exception as e:
-            if verbose_level >= 2:
-                printer.print(f"Error running test on {server_address}: {e}")
+            printer.print(f"Error running test on {server_address}: {e}")
             
             # [20250523_155310.279] Error running test on https://api3.em.brain.allentech.org: 401 Client Error: UNAUTHORIZED for url: https://api3.em.brain.allentech.org/skeletoncache/api/v1/v1dd/precomputed/skeleton/4/info content: b'{\n  "error": "invalid_token",\n  "message": "Unauthorized - Token is Invalid or Expired"\n}\n'
             if e.args[0] == 401 or "UNAUTHORIZED" in str(e) or "Token is Invalid or Expired" in str(e):
