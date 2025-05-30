@@ -172,7 +172,8 @@ class SkeletonsServiceIntegrationTest:
         self.remapped_datastack_name = DATASTACK_NAME_REMAPPING[self.datastack_config["name"]] if self.datastack_config["name"] in DATASTACK_NAME_REMAPPING else self.datastack_config["name"]
 
         self.client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
-        self.client.materialize.version = self.datastack_config["materialization_version"]
+        if self.datastack_config["materialization_version"] is not None:
+            self.client.materialize.version = self.datastack_config["materialization_version"]
 
         self.skclient = cc.skeletonservice.SkeletonClient(server_address, self.datastack_config["name"], over_client=self.client, auth_client=self.client.auth, verify=False)
         
@@ -205,10 +206,12 @@ class SkeletonsServiceIntegrationTest:
             bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
         elif "minnie" in server_address:
             bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
-        elif "flywire" in server_address:
-            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
         elif "api" in server_address:
             bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        elif "fanc" in server_address:
+            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
+        elif "flywire" in server_address:  # aka prod or prodv5
+            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
         # bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
@@ -792,10 +795,10 @@ if __name__ == "__main__":
     num_total = num_passed + num_suspicious + num_failed + num_skipped
     assert num_total <= TOTAL_NUM_TESTS, f"Total number of tests run ({num_total}) > number of tests implemented ({TOTAL_NUM_TESTS})."
     if num_total < TOTAL_NUM_TESTS:
-        dispatch_slack_msg(":bangbang:", f"Total number of tests run ({num_total}) < number of tests implemented ({TOTAL_NUM_TESTS}). This indicates that the testing sequence ended early.")
+        dispatch_slack_msg(":bangbang:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*:\nTotal number of tests run ({num_total}) < number of tests implemented ({TOTAL_NUM_TESTS}). This indicates that the testing sequence ended early.")
         printer.print(fail_fmt_begin + f"ERROR! Total number of tests run ({num_total}) < number of tests implemented ({TOTAL_NUM_TESTS}). This indicates that the testing sequence ended early." + fmt_end)
-        
-    if num_failed > 0:
+        sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
+    elif num_failed > 0:
         dispatch_slack_msg(":exclamation:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*:\n:white_check_mark:    {num_passed} passed\n:warning:    {num_suspicious} suspicious\n:x:    {num_failed} failed\n:no_entry_sign:    {num_skipped} skipped")
         printer.print(fail_fmt_begin + f"ALERT! SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: Passed/Suspicious/Failed/Skipped: {num_passed}, {num_suspicious}, {num_failed}, {num_skipped}" + fmt_end)
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
@@ -803,8 +806,7 @@ if __name__ == "__main__":
         dispatch_slack_msg(":warning::no_entry_sign:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious and {num_skipped} {'was' if num_skipped == 1 else 'were'} skipped.")
         printer.print(warning_fmt_begin + f"WARNING SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: No tests failed, but {num_suspicious} {'was' if num_suspicious == 1 else 'were'} suspicious and {num_skipped} {'was' if num_skipped == 1 else 'were'} skipped." + fmt_end)
         sys.exit(1)  # Force Kubernetes to rerun the job since this might be a non-deterministic failure
-    else:
-        dispatch_slack_msg(":white_check_mark:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*: All tests passed. :tada:")
-        printer.print(ok_fmt_begin + f"SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: All tests passed." + fmt_end)
-
+    
+    dispatch_slack_msg(":white_check_mark:", f"SkeletonService v{sksv_version} integration test results against *{datastack_config['name']}* on *{args.server}*: All tests passed. :tada:")
+    printer.print(ok_fmt_begin + f"SkeletonService v{sksv_version} integration test results against {datastack_config['name']} on {args.server}: All tests passed." + fmt_end)
     sys.exit(0)  # Prevent Kubernetes from rerunning the job
