@@ -103,6 +103,8 @@ def create_app(test_config=None):
                 f"Rate limiter categories (will be None in local VS Debugger): {categories}"
             )
             if categories:  # We are presumably running on the server and can use the limiter
+                app.logger.info(f'Initializing the rate limiter. Current URI: {os.environ.get("LIMITER_URI", "LIMITER_URI not set")}') 
+                print(f'Initializing the rate limiter. Current URI: {os.environ.get("LIMITER_URI", "LIMITER_URI not set")}') 
                 limiter.init_app(app)
         except Exception as e:
             app.logger.warning(

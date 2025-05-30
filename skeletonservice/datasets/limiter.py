@@ -101,6 +101,7 @@ def limit_get_skeleton_async(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))
 
 
+print(f'Initializing Limiter with LIMITER_URI env. var.: {os.environ.get("LIMITER_URI", "LIMITER_URI not set")}')
 
 limiter = Limiter(
     get_remote_address,
