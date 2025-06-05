@@ -64,7 +64,9 @@ PROD_SERVERS = [
 DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
 # DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
-TOTAL_NUM_TESTS = 27
+TOTAL_NUM_TESTS = 28
+
+server = None
 
 verbose_level = 0
 
@@ -201,6 +203,7 @@ class SkeletonsServiceIntegrationTest:
 
         # Delete the test rid files from the bucket so we can test regenerating them from scratch
 
+        # TODO: Move the bucket into the datastack_config so it can be set by the caller.
         bucket = None
         if "localhost" in server_address or "ltv" in server_address:
             bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
@@ -209,9 +212,9 @@ class SkeletonsServiceIntegrationTest:
         elif "api" in server_address:
             bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
         elif "fanc" in server_address:
-            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://fanc-fly_chunkedgraph/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
         elif "flywire" in server_address:  # aka prod or prodv5
-            bucket = f"gs://flywire_skeletons/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://seunglab2/drosophila_v0/ws_190410_FAFB_v02_ws_size_threshold_200/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
         # bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
@@ -245,6 +248,7 @@ class SkeletonsServiceIntegrationTest:
         results += self.run_test_cache_contents_1()
         results += self.run_test_cache_contents_2()
         results += self.run_test_cache_contents_3()
+        results += self.run_test_refusal_list_1()
         results += self.run_test_invalid_request_1()
         results += self.run_test_invalid_request_2()
         results += self.run_test_invalid_request_3()
@@ -390,6 +394,21 @@ class SkeletonsServiceIntegrationTest:
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
         return (1, 0, 0, 0)
+
+    #====================================================================================================
+    # Refusal list tests
+
+    def run_test_refusal_list_1(self):
+        if verbose_level >= 1:
+            printer.print(inspect.stack()[0][3])
+        try:
+            refusal_list = self.skclient.get_refusal_list(self.datastack_config["name"], verbose_level=1)
+            print(refusal_list)
+            return (1, 0, 0, 0)
+        except requests.HTTPError as e:
+            if verbose_level >= 2:
+                printer.print(e.args[0])
+        return (0, 0, 1, 0)
 
     #====================================================================================================
     # Invalid skeleton request tests
@@ -693,7 +712,7 @@ def dispatch_slack_msg(icon, msg):
     session_timestamp_link = f"<{logs_url}|_[{printer.session_timestamp}]_>"
     
     # target will be "DEV" for less serious reporting or "PROD" for critical production failures
-    target = "PROD" if icon != ":white_check_mark:" and args.server in PROD_SERVERS else "DEV"
+    target = "PROD" if icon != ":white_check_mark:" and server in PROD_SERVERS else "DEV"
 
     # When run on Kuberetes, the Slack webhook id environment variable will (ought to) be passed in,
     # but when run locally, it will be picked up from the default global variable.
@@ -724,7 +743,7 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
             
             client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
             client.materialize.version = materialization_version
-            skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, auth_client=client.auth, verify=False)
+            skclient = cc.skeletonservice.SkeletonClient(server, datastack_name, over_client=client, auth_client=client.auth, verify=False)
             
             sksv_version_a = skclient._server_version
             sksv_version_b = skclient.server_version
@@ -742,9 +761,9 @@ def wait_for_skeletonservice_updated_version_deployment(kube, datastack_name, ma
     # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then sometimes reverts by the time the code reaches approximately line 216!
     client = cc.CAVEclient(datastack_name, server_address=CAVE_CLIENT_SERVER)
     client.materialize.version = materialization_version
-    skclient = cc.skeletonservice.SkeletonClient(args.server, datastack_name, over_client=client, auth_client=client.auth, verify=False)
+    skclient = cc.skeletonservice.SkeletonClient(server, datastack_name, over_client=client, auth_client=client.auth, verify=False)
     if verbose_level >= 1:
-        printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {args.server} , v{skclient._server_version} , v{skclient.server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
+        printer.print(f"SkeletonService server and version A: {CAVE_CLIENT_SERVER} , {server} , v{skclient._server_version} , v{skclient.server_version} , v{skclient._get_version()} , v{skclient.get_version()} , v{this_skeletonservice_version}")
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -760,6 +779,8 @@ if __name__ == "__main__":
     verbose_level = args.verbose_level
 
     printer = SessionedPrinter(args.kube)
+
+    server = args.server
 
     if verbose_level >= 1:
         printer.print(f"datastack_config: `{args.datastack_config}`")
