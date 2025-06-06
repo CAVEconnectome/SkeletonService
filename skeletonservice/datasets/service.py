@@ -2045,7 +2045,7 @@ class SkeletonService:
         collapse_radius: int,
         skeleton_version: int = 0,  # The default skeleton version is 0, the Neuroglancer compatible version, not -1, the latest version, for backward compatibility
         output_format: str = "flatdict",
-        generate_missing_skeletons: bool = False,  # Deprecated, unused
+        generate_missing_skeletons: bool = False,  # Deprecated, unused, vestigial placeholder to maintain API compatibility
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):

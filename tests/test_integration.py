@@ -403,7 +403,7 @@ class SkeletonsServiceIntegrationTest:
             printer.print(inspect.stack()[0][3])
         try:
             refusal_list = self.skclient.get_refusal_list(self.datastack_config["name"], verbose_level=1)
-            print(refusal_list)
+            # print(refusal_list)
             return (1, 0, 0, 0)
         except requests.HTTPError as e:
             if verbose_level >= 2:

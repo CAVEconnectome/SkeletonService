@@ -597,43 +597,26 @@ class SkeletonResource__gen_skeletons_via_msg_B(Resource):
 
     @staticmethod
     def process(datastack_name: str, skvn: int, rid: int, verbose_level: int=0):
-        limit_get_skeletons_via_msg(request)
+        try:
+            with limit_get_skeletons_via_msg(request):
+                SkeletonService.publish_skeleton_request(
+                    datastack_name,
+                    rid,
+                    "none",
+                    current_app.config["SKELETON_CACHE_BUCKET"],
+                    [1, 1, 1],
+                    True,
+                    7500,
+                    skvn,
+                    True,
+                    verbose_level,
+                )
 
-        SkeletonService.publish_skeleton_request(
-            datastack_name,
-            rid,
-            "none",
-            current_app.config["SKELETON_CACHE_BUCKET"],
-            [1, 1, 1],
-            True,
-            7500,
-            skvn,
-            True,
-            verbose_level,
-        )
-
-        # from messagingclient import MessagingClient
-
-        # payload = b""
-        # attributes = {
-        #     "skeleton_params_rid": f"{rid}",
-        #     "skeleton_params_output_format": "none",
-        #     "skeleton_params_bucket": current_app.config["SKELETON_CACHE_BUCKET"],
-        #     "skeleton_params_datastack_name": datastack_name,
-        #     "skeleton_params_root_resolution": "1 1 1",
-        #     "skeleton_params_collapse_soma": "True",
-        #     "skeleton_params_collapse_radius": "7500",
-        #     "skeleton_version": f"{skvn}",
-        #     "verbose_level": str(verbose_level),
-        # }
-
-        # c = MessagingClient()
-        exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", "skeleton")
-        # # print(f"SkeletonService sending payload for rid {rid} to exchange {exchange}")
-        # c.publish(exchange, payload, attributes)
-
-        # print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}")
-        return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+                exchange = os.getenv("SKELETON_CACHE_HIGH_PRIORITY_EXCHANGE", "skeleton")
+                return f"Message has been dispatched to {exchange}: {datastack_name} {rid} skvn:{skvn} {current_app.config['SKELETON_CACHE_BUCKET']}"
+        except RateLimitExceeded as e:
+            print(f"gen_skeletons_via_msg() RateLimitExceeded: {e}")
+            return {"gen_skeletons_via_msg() RateLimitExceeded": str(e)}, 429
 
     # @auth_required
     # @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
@@ -684,7 +667,7 @@ class SkeletonResource__get_skeletons_bulk_B(Resource):
             collapse_radius=7500,
             skeleton_version=skvn,
             output_format=output_format,
-            generate_missing_skeletons=gms,
+            generate_missing_skeletons=gms,  # Deprecated, unused, vestigial placeholder to maintain API compatibility
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
