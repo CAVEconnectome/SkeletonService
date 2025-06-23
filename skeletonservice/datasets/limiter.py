@@ -6,6 +6,19 @@ import json
 
 from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SkeletonService
 
+# An empty context manager to use when the limiter is not configured,
+# such as when running tests or in a local development environment.
+class EmptyContextManager:
+    """A context manager that does nothing."""
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+mock_limiter = EmptyContextManager()
+DEBUG = False
+
 def get_rate_limit_from_config(category=None):
     if not category:
         return None
@@ -31,6 +44,9 @@ def get_rate_limit_from_config(category=None):
 def apply_rate_limit(limit):
     if limit is not None:
         return limiter.limit(limit, key_func=lambda: g.auth_user["id"])
+    if DEBUG:
+        return mock_limiter
+    # I don't believe this lambda approach is compatible. The mock_limiter should work better, but this was the original approach taken from another repo.
     return lambda x: x
 
 def limit_by_category(category):
@@ -66,6 +82,9 @@ def limit_get_skeleton(request, via_msg=False):
                 skvn = NEUROGLANCER_SKELETON_VERSION
     except RuntimeError as e:
         print(f"Limiter.limit_get_skeleton(): Error parsing request arguments: {e}")
+        if DEBUG:
+            return mock_limiter
+        # I don't believe this lambda approach is compatible. The mock_limiter should work better, but this was the original approach taken from another repo.
         return lambda x: x
     
     print(f"Limiter.limit_get_skeleton(): successfully parsed request arguments: root id: {root_id}, datastack: {datastack_name}, skeleton_version: {skvn}")
@@ -94,13 +113,13 @@ def limit_get_skeletons_via_msg(request):
 
 def limit_get_skeleton_async(request):
     # We can reuse the basic skeleton limit for this endpoint
+    if DEBUG:
+        return mock_limiter
     return limit_get_skeleton(request)
 
 # Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_gen_skeletons_bulk_async(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))
-
-
 print(f'Initializing Limiter with LIMITER_URI env. var.: {os.environ.get("LIMITER_URI", "LIMITER_URI not set")}')
 
 limiter = Limiter(

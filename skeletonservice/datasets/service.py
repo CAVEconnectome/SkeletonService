@@ -82,6 +82,7 @@ SKELETON_VERSION_PARAMS = {
             'num_components': 1,
         }]},
     # V4: V3 extended to include level-2 ids (not included when requesting an SWC skeleton and therefore identical to V3 in the SWC case)
+    # Note that V4 still uses the same '@type' as V3, which is not compatible with NeuroGlancer.
     4: {'@type': 'neuroglancer_skeletons',  # TODO: This is explicitly *not* a NeuroGlancer representation. So what should this '@type' be?
         'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
         'vertex_attributes': [{
@@ -784,6 +785,10 @@ class SkeletonService:
                 collapse_radius,
                 cave_client,
             )
+        except KeyError as e:
+            SkeletonService.print(f"KeyError in _generate_v2_skeleton(): {str(e)}. Traceback:")
+            traceback.print_exc()
+            raise e
         except Exception as e:
             SkeletonService.print(f"Exception in _generate_v2_skeleton(): {str(e)}. Traceback:")
             traceback.print_exc()
