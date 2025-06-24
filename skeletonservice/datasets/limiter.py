@@ -15,9 +15,14 @@ class EmptyContextManager:
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+    
+    def __call__(self, func, skvn=None):
+        print(f"EmptyContextManager called with arg: {func}")
+        return lambda datastack_name: True
 
 mock_limiter = EmptyContextManager()
-DEBUG = False
+limit_uri = os.environ.get("LIMITER_URI", "LIMITER_URI not set")
+DEBUG = (limit_uri == "LIMITER_URI not set" or limit_uri == "None")
 
 def get_rate_limit_from_config(category=None):
     if not category:

@@ -262,6 +262,7 @@ class SkeletonResource__bulk_skeleton_info(Resource):
 class SkeletonResource__get_refusal_list_A(Resource):
     """SkeletonResource"""
     method_decorators = [
+        # Comment out the following line for local host development
         limit_by_category("get_refusal_list"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
@@ -318,6 +319,7 @@ class SkeletonResource__query_cache_A(Resource):
 class SkeletonResource__query_cache_B(Resource):
     """SkeletonResource"""
     method_decorators = [
+        # Comment out the following line for local host development
         limit_by_category("query_cache"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
@@ -406,6 +408,7 @@ class SkeletonResource__skeleton_exists_B(Resource):
 class SkeletonResource__skeleton_exists_C(Resource):
     """SkeletonResource"""
     method_decorators = [
+        # Comment out the following line for local host development
         limit_by_category("skeleton_exists"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
@@ -648,6 +651,7 @@ class SkeletonResource__get_skeletons_bulk_A(Resource):
 class SkeletonResource__get_skeletons_bulk_B(Resource):
     """SkeletonResource"""
     method_decorators = [
+        # Comment out the following line for local host development
         limit_by_category("get_skeletons_bulk"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
@@ -858,6 +862,7 @@ class SkeletonResource__gen_skeletons_bulk_async_B(Resource):
 class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
     """SkeletonResource"""
     method_decorators = [
+        # Comment out the following line for local host development
         limit_by_category("get_skeletons_bulk_async"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]

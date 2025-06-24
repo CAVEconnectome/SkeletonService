@@ -331,7 +331,7 @@ class SkeletonService:
             versioned_skeleton = VersionedSkeleton(skeleton, skeleton_version)
 
             if format == "flatdict":
-                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, versioned_skeleton)
+                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids)
             elif format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
                 skeleton = SkeletonService._skeleton_to_json(versioned_skeleton)
             elif format == "precomputed":
@@ -1955,7 +1955,7 @@ class SkeletonService:
                     assert versioned_skeleton is not None
                     if verbose_level >= 1:
                         SkeletonService.print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
-                    skeleton_json = SkeletonService._skeleton_to_flatdict(versioned_skeleton, lvl2_ids, skeleton_version)
+                    skeleton_json = SkeletonService._skeleton_to_flatdict(versioned_skeleton, lvl2_ids)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
