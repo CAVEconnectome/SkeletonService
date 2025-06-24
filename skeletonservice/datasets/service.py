@@ -16,7 +16,7 @@ import gzip
 from flask import current_app, send_file, Response, request, has_request_context, jsonify
 import pandas as pd
 from .skeleton_io_from_meshparty import SkeletonIO
-from meshparty import skeleton
+from meshparty import skeleton as mp_skeleton
 import caveclient
 import pcg_skel
 from cloudfiles import CloudFiles, compression
@@ -46,7 +46,6 @@ DATASTACK_NAME_REMAPPING = {
     'flywire_fafb_public': 'flywire_fafb_production',
 }
 MESHWORK_VERSION = 1
-NEUROGLANCER_SKELETON_VERSION = 2
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
 SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neuroglancer version
@@ -95,6 +94,23 @@ SKELETON_VERSION_PARAMS = {
             'num_components': 1,
         }]},
 }
+HIGHEST_SKELETON_VERSION = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
+NEUROGLANCER_SKELETON_VERSION = HIGHEST_SKELETON_VERSION  # This is complicated. NG's version is V2 in precomputed format, but V4 is used to create and store all skeletons, as of recent redesign.
+
+class VersionedSkeleton:
+    """
+    A class to represent a skeleton with its version.
+    This is used to return skeletons in a versioned format.
+    """
+    def __init__(self, skeleton, version):
+        self.skeleton = skeleton
+        self.version = version
+    
+    def __str__(self):
+        return f"VersionedSkeleton(version={self.version}, skeleton={self.skeleton})"
+    
+    def __repr__(self):
+        return self.__str__()
 
 google.cloud.logging.Client().setup_logging()
 logging.basicConfig(level=logging.INFO)
@@ -154,13 +170,18 @@ class SkeletonService:
             print(*args, sep=sep, end=end, file=file, flush=flush)
 
     @staticmethod
-    def get_version_specific_handler(skvn: int):
+    def get_version_specific_default_version(skvn: int):
         if skvn == -1:
-            skvn = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
+            return sorted(SKELETON_VERSION_PARAMS.keys())[-1]
         elif skvn == 0:
-            skvn = NEUROGLANCER_SKELETON_VERSION
+            return NEUROGLANCER_SKELETON_VERSION
         elif skvn not in SKELETON_VERSION_PARAMS.keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
+        return skvn
+
+    @staticmethod
+    def get_version_specific_handler(skvn: int):
+        skvn = SkeletonService.get_version_specific_default_version(skvn)
         return current_app.config['SKELETON_VERSION_ENGINES'][skvn]
     
     @staticmethod
@@ -307,11 +328,12 @@ class SkeletonService:
             skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(debug_skeleton_cache_loc + file_name)
 
             skeleton_version = params[2]
+            versioned_skeleton = VersionedSkeleton(skeleton, skeleton_version)
 
             if format == "flatdict":
-                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
+                skeleton = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, versioned_skeleton)
             elif format == "json" or format == "jsoncompressed" or format == "arrays" or format == "arrayscompressed":
-                skeleton = SkeletonService._skeleton_to_json(skeleton)
+                skeleton = SkeletonService._skeleton_to_json(versioned_skeleton)
             elif format == "precomputed":
                 cv_skeleton = cloudvolume.Skeleton(
                     vertices=skeleton.vertices,
@@ -332,7 +354,7 @@ class SkeletonService:
                 # It's already in H5 format, so just return the bytes as-is.
                 pass
 
-            return skeleton
+            return VersionedSkeleton(skeleton, skeleton_version)
         except Exception as e:
             SkeletonService.print(f"Exception in _retrieve_skeleton_from_local(): {str(e)}. Traceback:")
             traceback.print_exc()
@@ -350,6 +372,11 @@ class SkeletonService:
         if verbose_level >= 1:
             SkeletonService.print("File name being sought in cache:", file_name)
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            if verbose_level >= 1:
+                SkeletonService.print(f"_confirm_skeleton_in_cache() Skeleton version V{skeleton_version} was requested but caching only supports version V{HIGHEST_SKELETON_VERSION}, so that version will be sought.")
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
         if verbose_level >= 1:
             SkeletonService.print(f"_confirm_skeleton_in_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
@@ -387,11 +414,16 @@ class SkeletonService:
         if not CACHE_NON_H5_SKELETONS and format != "h5" and format != "h5_mpsk":
             return None
         
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            if verbose_level >= 1:
+                SkeletonService.print(f"_retrieve_skeleton_from_cache() Skeleton version V{skeleton_version} was requested but caching only supports version V{HIGHEST_SKELETON_VERSION}, so that version will be retrieved.")
+            skeleton_version = HIGHEST_SKELETON_VERSION
+        
         cached_format = format if format != "h5_mpsk" else "h5"
         file_name = SkeletonService._get_skeleton_filename(*params, cached_format)
         if verbose_level >= 1:
             SkeletonService.print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
-        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
         if verbose_level >= 1:
             SkeletonService.print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
@@ -412,7 +444,7 @@ class SkeletonService:
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
                 skeleton, lvl2_ids = SkeletonIO.read_skeleton_h5(skeleton_bytes)
-                return skeleton, lvl2_ids
+                return VersionedSkeleton(skeleton, skeleton_version), lvl2_ids
             elif format == "swc" or format == "swccompressed":
                 skeleton_bytes = cf.get(file_name)
                 skeleton_bytes = BytesIO(skeleton_bytes)
@@ -449,10 +481,19 @@ class SkeletonService:
         if not CACHE_NON_H5_SKELETONS and format != 'h5':
             return
         
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+
+        # All skeletons are cached as V4 (or the whatever the latest version is, if subsequent development renders this comment outdated).
+        # Requests for other versions are converted from V4 at the time of the request.
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            raise ValueError(
+                f"Skeleton version V{skeleton_version} was indicated for caching, but only V{HIGHEST_SKELETON_VERSION} is currently supported by caching. This situation should not occur and indicates a bug in the code."
+            )
+
         file_name = SkeletonService._get_skeleton_filename(
             *params, format, include_compression=include_compression
         )
-        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+
         if verbose_level >= 1:
             SkeletonService.print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
@@ -670,10 +711,10 @@ class SkeletonService:
             collapse_radius=collapse_radius,
         )
 
-        return skel
+        return VersionedSkeleton(skel, skeleton_version)
 
     @staticmethod
-    def _generate_v2_skeleton(
+    def _generate_v4_skeleton(
         rid,
         bucket,
         skeleton_version,
@@ -682,13 +723,10 @@ class SkeletonService:
         collapse_soma,
         collapse_radius,
         cave_client,
-        prep_for_neuroglancer=True,
+        prep_for_neuroglancer=False,
     ):
-        """
-        Templated and modified from _generate_v1_skeleton().
-        """
         if verbose_level >= 1:
-            SkeletonService.print("_generate_v2_skeleton()", rid)
+            SkeletonService.print("_generate_v4_skeleton()", rid)
         if verbose_level >= 1:
             SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
@@ -707,7 +745,7 @@ class SkeletonService:
         # Get the location of the soma from nucleus detection:
         if verbose_level >= 1:
             SkeletonService.print(
-                f"_generate_v2_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
+                f"_generate_v4_skeleton {rid} {datastack_name} {soma_resolution} {collapse_soma} {collapse_radius}"
             )
             SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
         
@@ -786,11 +824,11 @@ class SkeletonService:
                 cave_client,
             )
         except KeyError as e:
-            SkeletonService.print(f"KeyError in _generate_v2_skeleton(): {str(e)}. Traceback:")
+            SkeletonService.print(f"KeyError in _generate_v4_skeleton(): {str(e)}. Traceback:")
             traceback.print_exc()
             raise e
         except Exception as e:
-            SkeletonService.print(f"Exception in _generate_v2_skeleton(): {str(e)}. Traceback:")
+            SkeletonService.print(f"Exception in _generate_v4_skeleton(): {str(e)}. Traceback:")
             traceback.print_exc()
             raise e
 
@@ -819,12 +857,53 @@ class SkeletonService:
 
         if use_default_compartments:  # Don't change this to an "else"
             axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
+        
+        # Everything above this point is common to V2, V3, and V4 skeletons.
+        # V2 and V3 skeletons diverge at this point. Storing compartments as float is V2 and as unit8 is V3.
+        # Confusingly, V4 was originally built on V3 and therefore used uint8 compartments,
+        # but it has now been changed to use float32 compartments, like V2. Generating V2 and V3 from the new V4
+        # representation is now accomplished by explicitly altering the underlying V4 skeleton.
+
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(
-            np.float32 if prep_for_neuroglancer else np.uint8)
+        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.float32)
 
-        return nrn, skel
+        # V4 skeletons are indicated at this point by the addition of level 2 IDs.
+
+        lvl2_df = nrn.anno.lvl2_ids.df
+        lvl2_df.sort_values(by='mesh_ind', inplace=True)
+        lvl2_ids = list(lvl2_df['lvl2_id'])
+        if verbose_level >= 1:
+            SkeletonService.print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
+
+        return nrn, VersionedSkeleton(skel, skeleton_version), lvl2_ids
+
+    @staticmethod
+    def _generate_v2_skeleton(
+        rid,
+        bucket,
+        skeleton_version,
+        datastack_name,
+        root_resolution,
+        collapse_soma,
+        collapse_radius,
+        cave_client,
+    ):
+        if verbose_level >= 1:
+            SkeletonService.print("_generate_v2_skeleton() (which will pass through to v4)", rid)
+        nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(
+            rid,
+            bucket,
+            skeleton_version,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+            cave_client,
+            True,
+        )
+
+        return nrn, versioned_skeleton, lvl2_ids
 
     @staticmethod
     def _generate_v3_skeleton(
@@ -838,33 +917,8 @@ class SkeletonService:
         cave_client,
     ):
         if verbose_level >= 1:
-            SkeletonService.print("_generate_v3_skeleton() (which will pass through to v2)", rid)
-        return SkeletonService._generate_v2_skeleton(
-            rid,
-            bucket,
-            skeleton_version,
-            datastack_name,
-            root_resolution,
-            collapse_soma,
-            collapse_radius,
-            cave_client,
-            False,
-        )
-
-    @staticmethod
-    def _generate_v4_skeleton(
-        rid,
-        bucket,
-        skeleton_version,
-        datastack_name,
-        root_resolution,
-        collapse_soma,
-        collapse_radius,
-        cave_client,
-    ):
-        if verbose_level >= 1:
-            SkeletonService.print("_generate_v4_skeleton() (which will pass through to v3)", rid)
-        nrn, sk = SkeletonService._generate_v3_skeleton(
+            SkeletonService.print("_generate_v3_skeleton() (which will pass through to v4)", rid)
+        nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(
             rid,
             bucket,
             skeleton_version,
@@ -874,14 +928,10 @@ class SkeletonService:
             collapse_radius,
             cave_client,
         )
+    
+        # skel.vertex_properties['compartment'] = skel.vertex_properties['compartment'].astype(np.uint8)
 
-        lvl2_df = nrn.anno.lvl2_ids.df
-        lvl2_df.sort_values(by='mesh_ind', inplace=True)
-        lvl2_ids = list(lvl2_df['lvl2_id'])
-        if verbose_level >= 1:
-            SkeletonService.print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
-        
-        return nrn, sk, lvl2_ids
+        return nrn, versioned_skeleton, lvl2_ids
     
     @staticmethod
     def compressBytes(inputBytes: BytesIO):
@@ -997,66 +1047,66 @@ class SkeletonService:
         }
 
     @staticmethod
-    def _skeleton_to_json(skel):
+    def _skeleton_to_json(versioned_skeleton):
         """
         Convert a skeleton object to a JSON object.
         """
         sk_json = {
             "jsonification_version": "1.0",
         }
-        if skel.branch_points is not None:
-            sk_json["branch_points"] = skel.branch_points.tolist()
-        if skel.branch_points_undirected is not None:
-            sk_json["branch_points_undirected"] = skel.branch_points_undirected.tolist()
-        if skel.distance_to_root is not None:
-            sk_json["distance_to_root"] = skel.distance_to_root.tolist()
-        if skel.edges is not None:
-            sk_json["edges"] = skel.edges.tolist()
-        if skel.end_points is not None:
-            sk_json["end_points"] = skel.end_points.tolist()
-        if skel.end_points_undirected is not None:
-            sk_json["end_points_undirected"] = skel.end_points_undirected.tolist()
-        if skel.hops_to_root is not None:
-            sk_json["hops_to_root"] = skel.hops_to_root.tolist()
-        if skel.indices_unmasked is not None:
-            sk_json["indices_unmasked"] = skel.indices_unmasked.tolist()
-        if skel.mesh_index is not None:
-            sk_json["mesh_index"] = skel.mesh_index.tolist()
-        if skel.mesh_to_skel_map is not None:
-            sk_json["mesh_to_skel_map"] = skel.mesh_to_skel_map.tolist()
-        if skel.mesh_to_skel_map_base is not None:
-            sk_json["mesh_to_skel_map_base"] = skel.mesh_to_skel_map_base.tolist()
-        if skel.meta is not None:
-            sk_json["meta"] = SkeletonService._skeleton_metadata_to_json(skel.meta)
-        if skel.node_mask is not None:
-            sk_json["node_mask"] = skel.node_mask.tolist()
-        if skel.radius is not None:
-            sk_json["radius"] = skel.radius.tolist()
-        if skel.root is not None:
-            sk_json["root"] = skel.root.tolist()
-        if skel.root_position is not None:
-            sk_json["root_position"] = skel.root_position.tolist()
-        if skel.segment_map is not None:
-            sk_json["segment_map"] = skel.segment_map.tolist()
-        if skel.topo_points is not None:
-            sk_json["topo_points"] = skel.topo_points.tolist()
-        if skel.unmasked_size is not None:
-            sk_json["unmasked_size"] = skel.unmasked_size
-        if skel.vertex_properties is not None:
-            sk_json["vertex_properties"] = skel.vertex_properties
-            for key in skel.vertex_properties.keys():
-                if isinstance(skel.vertex_properties[key], np.ndarray):
-                    sk_json["vertex_properties"][key] = skel.vertex_properties[key].tolist()
+        if versioned_skeleton.skeleton.branch_points is not None:
+            sk_json["branch_points"] = versioned_skeleton.skeleton.branch_points.tolist()
+        if versioned_skeleton.skeleton.branch_points_undirected is not None:
+            sk_json["branch_points_undirected"] = versioned_skeleton.skeleton.branch_points_undirected.tolist()
+        if versioned_skeleton.skeleton.distance_to_root is not None:
+            sk_json["distance_to_root"] = versioned_skeleton.skeleton.distance_to_root.tolist()
+        if versioned_skeleton.skeleton.edges is not None:
+            sk_json["edges"] = versioned_skeleton.skeleton.edges.tolist()
+        if versioned_skeleton.skeleton.end_points is not None:
+            sk_json["end_points"] = versioned_skeleton.skeleton.end_points.tolist()
+        if versioned_skeleton.skeleton.end_points_undirected is not None:
+            sk_json["end_points_undirected"] = versioned_skeleton.skeleton.end_points_undirected.tolist()
+        if versioned_skeleton.skeleton.hops_to_root is not None:
+            sk_json["hops_to_root"] = versioned_skeleton.skeleton.hops_to_root.tolist()
+        if versioned_skeleton.skeleton.indices_unmasked is not None:
+            sk_json["indices_unmasked"] = versioned_skeleton.skeleton.indices_unmasked.tolist()
+        if versioned_skeleton.skeleton.mesh_index is not None:
+            sk_json["mesh_index"] = versioned_skeleton.skeleton.mesh_index.tolist()
+        if versioned_skeleton.skeleton.mesh_to_skel_map is not None:
+            sk_json["mesh_to_skel_map"] = versioned_skeleton.skeleton.mesh_to_skel_map.tolist()
+        if versioned_skeleton.skeleton.mesh_to_skel_map_base is not None:
+            sk_json["mesh_to_skel_map_base"] = versioned_skeleton.skeleton.mesh_to_skel_map_base.tolist()
+        if versioned_skeleton.skeleton.meta is not None:
+            sk_json["meta"] = SkeletonService._skeleton_metadata_to_json(versioned_skeleton.skeleton.meta)
+        if versioned_skeleton.skeleton.node_mask is not None:
+            sk_json["node_mask"] = versioned_skeleton.skeleton.node_mask.tolist()
+        if versioned_skeleton.skeleton.radius is not None:
+            sk_json["radius"] = versioned_skeleton.skeleton.radius.tolist()
+        if versioned_skeleton.skeleton.root is not None:
+            sk_json["root"] = versioned_skeleton.skeleton.root.tolist()
+        if versioned_skeleton.skeleton.root_position is not None:
+            sk_json["root_position"] = versioned_skeleton.skeleton.root_position.tolist()
+        if versioned_skeleton.skeleton.segment_map is not None:
+            sk_json["segment_map"] = versioned_skeleton.skeleton.segment_map.tolist()
+        if versioned_skeleton.skeleton.topo_points is not None:
+            sk_json["topo_points"] = versioned_skeleton.skeleton.topo_points.tolist()
+        if versioned_skeleton.skeleton.unmasked_size is not None:
+            sk_json["unmasked_size"] = versioned_skeleton.skeleton.unmasked_size
+        if versioned_skeleton.skeleton.vertex_properties is not None:
+            sk_json["vertex_properties"] = versioned_skeleton.skeleton.vertex_properties
+            for key in versioned_skeleton.skeleton.vertex_properties.keys():
+                if isinstance(versioned_skeleton.skeleton.vertex_properties[key], np.ndarray):
+                    sk_json["vertex_properties"][key] = versioned_skeleton.skeleton.vertex_properties[key].tolist()
                 else:
-                    sk_json["vertex_properties"][key] = skel.vertex_properties[key]
-        if skel.vertices is not None:
-            sk_json["vertices"] = skel.vertices.tolist()
-        if skel.voxel_scaling is not None:
-            sk_json["voxel_scaling"] = skel.voxel_scaling
+                    sk_json["vertex_properties"][key] = versioned_skeleton.skeleton.vertex_properties[key]
+        if versioned_skeleton.skeleton.vertices is not None:
+            sk_json["vertices"] = versioned_skeleton.skeleton.vertices.tolist()
+        if versioned_skeleton.skeleton.voxel_scaling is not None:
+            sk_json["voxel_scaling"] = versioned_skeleton.skeleton.voxel_scaling
         return sk_json
 
     @staticmethod
-    def _skeleton_to_flatdict(skel, lvl2_ids, skeleton_version):
+    def _skeleton_to_flatdict(versioned_skeleton, lvl2_ids):
         """
         Convert a skeleton object to a FLAT DICT object.
         """
@@ -1064,59 +1114,59 @@ class SkeletonService:
 
         sk_flatdict = {}
         
-        if skel.meta is not None:
-            sk_flatdict["meta"] = SkeletonService._skeleton_metadata_to_json(skel.meta)
+        if versioned_skeleton.skeleton.meta is not None:
+            sk_flatdict["meta"] = SkeletonService._skeleton_metadata_to_json(versioned_skeleton.skeleton.meta)
         else:
             sk_flatdict["meta"] = {}
         sk_flatdict["meta"]["sk_dict_structure_version"] = sk_flatdict_vsn
-        sk_flatdict["meta"]["skeleton_version"] = skeleton_version
+        sk_flatdict["meta"]["skeleton_version"] = versioned_skeleton.version
         
-        # if skel.branch_points is not None:
-        #     sk_flatdict["branch_points"] = skel.branch_points.tolist()
-        # if skel.branch_points_undirected is not None:
-        #     sk_flatdict["branch_points_undirected"] = skel.branch_points_undirected.tolist()
-        # if skel.distance_to_root is not None:
-        #     sk_flatdict["distance_to_root"] = skel.distance_to_root.tolist()
-        if skel.edges is not None:
-            sk_flatdict["edges"] = skel.edges.tolist()
-        # if skel.end_points is not None:
-        #     sk_flatdict["end_points"] = skel.end_points.tolist()
-        # if skel.end_points_undirected is not None:
-        #     sk_flatdict["end_points_undirected"] = skel.end_points_undirected.tolist()
-        # if skel.hops_to_root is not None:
-        #     sk_flatdict["hops_to_root"] = skel.hops_to_root.tolist()
-        # if skel.indices_unmasked is not None:
-        #     sk_flatdict["indices_unmasked"] = skel.indices_unmasked.tolist()
-        # if skel.mesh_index is not None:
-        #     sk_flatdict["mesh_index"] = skel.mesh_index.tolist()
-        if skel.mesh_to_skel_map is not None:
-            sk_flatdict["mesh_to_skel_map"] = skel.mesh_to_skel_map.tolist()
-        # if skel.mesh_to_skel_map_base is not None:
-        #     sk_flatdict["mesh_to_skel_map_base"] = skel.mesh_to_skel_map_base.tolist()
-        # if skel.node_mask is not None:
-        #     sk_flatdict["node_mask"] = skel.node_mask.tolist()
-        if skel.root is not None:
-            sk_flatdict["root"] = skel.root.tolist()
-        # if skel.root_position is not None:
-        #     sk_flatdict["root_position"] = skel.root_position.tolist()
-        # if skel.segment_map is not None:
-        #     sk_flatdict["segment_map"] = skel.segment_map.tolist()
-        # if skel.topo_points is not None:
-        #     sk_flatdict["topo_points"] = skel.topo_points.tolist()
-        # if skel.unmasked_size is not None:
-        #     sk_flatdict["unmasked_size"] = skel.unmasked_size
-        if skel.vertices is not None:
-            sk_flatdict["vertices"] = skel.vertices.tolist()
-        # if skel.voxel_scaling is not None:
-        #     sk_flatdict["voxel_scaling"] = skel.voxel_scaling
+        # if versioned_skeleton.skeleton.branch_points is not None:
+        #     sk_flatdict["branch_points"] = versioned_skeleton.skeleton.branch_points.tolist()
+        # if versioned_skeleton.skeleton.branch_points_undirected is not None:
+        #     sk_flatdict["branch_points_undirected"] = versioned_skeleton.skeleton.branch_points_undirected.tolist()
+        # if versioned_skeleton.skeleton.distance_to_root is not None:
+        #     sk_flatdict["distance_to_root"] = versioned_skeleton.skeleton.distance_to_root.tolist()
+        if versioned_skeleton.skeleton.edges is not None:
+            sk_flatdict["edges"] = versioned_skeleton.skeleton.edges.tolist()
+        # if versioned_skeleton.skeleton.end_points is not None:
+        #     sk_flatdict["end_points"] = versioned_skeleton.skeleton.end_points.tolist()
+        # if versioned_skeleton.skeleton.end_points_undirected is not None:
+        #     sk_flatdict["end_points_undirected"] = versioned_skeleton.skeleton.end_points_undirected.tolist()
+        # if versioned_skeleton.skeleton.hops_to_root is not None:
+        #     sk_flatdict["hops_to_root"] = versioned_skeleton.skeleton.hops_to_root.tolist()
+        # if versioned_skeleton.skeleton.indices_unmasked is not None:
+        #     sk_flatdict["indices_unmasked"] = versioned_skeleton.skeleton.indices_unmasked.tolist()
+        # if versioned_skeleton.skeleton.mesh_index is not None:
+        #     sk_flatdict["mesh_index"] = versioned_skeleton.skeleton.mesh_index.tolist()
+        if versioned_skeleton.skeleton.mesh_to_skel_map is not None:
+            sk_flatdict["mesh_to_skel_map"] = versioned_skeleton.skeleton.mesh_to_skel_map.tolist()
+        # if versioned_skeleton.skeleton.mesh_to_skel_map_base is not None:
+        #     sk_flatdict["mesh_to_skel_map_base"] = versioned_skeleton.skeleton.mesh_to_skel_map_base.tolist()
+        # if versioned_skeleton.skeleton.node_mask is not None:
+        #     sk_flatdict["node_mask"] = versioned_skeleton.skeleton.node_mask.tolist()
+        if versioned_skeleton.skeleton.root is not None:
+            sk_flatdict["root"] = versioned_skeleton.skeleton.root.tolist()
+        # if versioned_skeleton.skeleton.root_position is not None:
+        #     sk_flatdict["root_position"] = versioned_skeleton.skeleton.root_position.tolist()
+        # if versioned_skeleton.skeleton.segment_map is not None:
+        #     sk_flatdict["segment_map"] = versioned_skeleton.skeleton.segment_map.tolist()
+        # if versioned_skeleton.skeleton.topo_points is not None:
+        #     sk_flatdict["topo_points"] = versioned_skeleton.skeleton.topo_points.tolist()
+        # if versioned_skeleton.skeleton.unmasked_size is not None:
+        #     sk_flatdict["unmasked_size"] = versioned_skeleton.skeleton.unmasked_size
+        if versioned_skeleton.skeleton.vertices is not None:
+            sk_flatdict["vertices"] = versioned_skeleton.skeleton.vertices.tolist()
+        # if versioned_skeleton.skeleton.voxel_scaling is not None:
+        #     sk_flatdict["voxel_scaling"] = versioned_skeleton.skeleton.voxel_scaling
         # vertex_properties should provide radius and compartment
-        if skel.vertex_properties is not None:
-            for key in skel.vertex_properties.keys():
+        if versioned_skeleton.skeleton.vertex_properties is not None:
+            for key in versioned_skeleton.skeleton.vertex_properties.keys():
                 assert(key not in sk_flatdict)
-                if isinstance(skel.vertex_properties[key], np.ndarray):
-                    sk_flatdict[key] = skel.vertex_properties[key].tolist()
+                if isinstance(versioned_skeleton.skeleton.vertex_properties[key], np.ndarray):
+                    sk_flatdict[key] = versioned_skeleton.skeleton.vertex_properties[key].tolist()
                 else:
-                    sk_flatdict[key] = skel.vertex_properties[key]
+                    sk_flatdict[key] = versioned_skeleton.skeleton.vertex_properties[key]
         if lvl2_ids is not None:
             if isinstance(lvl2_ids, np.ndarray):
                 sk_flatdict["lvl2_ids"] = lvl2_ids.tolist()
@@ -1131,7 +1181,7 @@ class SkeletonService:
         Convert a JSON description of a skeleton to a skeleton object.
         Most of the skeleton fields can't be populated because they are mere properties, not true member variables, lacking associated setter functions.
         """
-        sk = skeleton.Skeleton(
+        sk = mp_skeleton.Skeleton(
             vertices=np.array(sk_json["vertices"]),
             edges=np.array(sk_json["edges"]),
             root=sk_json["root"],
@@ -1140,7 +1190,7 @@ class SkeletonService:
             vertex_properties=sk_json["vertex_properties"],
             node_mask=np.array(sk_json["node_mask"]),
             voxel_scaling=sk_json["voxel_scaling"] if "voxel_scaling" in sk_json else None,
-            #    meta=skeleton.SkeletonMetadata(sk_json),
+            #    meta=mp_skeleton.SkeletonMetadata(sk_json),
         )
         # sk.branch_points = sk_json['branch_points']
         # sk.branch_points_undirected = sk_json['branch_points_undirected']
@@ -1162,11 +1212,11 @@ class SkeletonService:
         return sk
 
     @staticmethod
-    def _skeleton_to_arrays(skel):
+    def _skeleton_to_arrays(versioned_skeleton):
         """
         Convert a skeleton object to a minimal set of arrays.
         """
-        sk_json = SkeletonService._skeleton_to_json(skel)
+        sk_json = SkeletonService._skeleton_to_json(versioned_skeleton)
         sk_arrays = {
             'vertices': sk_json['vertices'],
             'vertex_properties': sk_json['vertex_properties'],
@@ -1360,7 +1410,7 @@ class SkeletonService:
     def skeletons_exist(
         bucket: str,
         datastack_name: str,
-        skeleton_version: int,
+        skeleton_version: int,  # Deprecated, not used anymore
         rids: Union[List, int],
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0
@@ -1388,6 +1438,10 @@ class SkeletonService:
         
         if debugging_root_id in rids and verbose_level < 1:
             verbose_level = 1
+
+        # All skeletons are cached as V4 (or the whatever the latest version is, if subsequent development renders this comment outdated).
+        # Requests for other versions are converted from V4 at the time of the request.
+        skeleton_version = 4
 
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         
@@ -1535,12 +1589,7 @@ class SkeletonService:
         )
 
         # Resolve various default skeleton version options
-        if skeleton_version == -1:
-            skeleton_version = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
-        elif skeleton_version == 0:
-            skeleton_version = NEUROGLANCER_SKELETON_VERSION
-        elif skeleton_version not in SKELETON_VERSION_PARAMS.keys():
-            raise ValueError(f"Invalid skeleton version: v{skeleton_version}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
+        skeleton_version = SkeletonService.get_version_specific_default_version(skeleton_version)
 
         # materialize_version has been removed but I've left stubs of it throughout this file should the need arise in the future.
         # params = [rid, bucket, datastack_name, materialize_version, root_resolution, collapse_soma, collapse_radius]
@@ -1714,22 +1763,22 @@ class SkeletonService:
         # check for an H5 version before generating a new skeleton, and if found, then use it to build a skeleton object.
         # There is no need to check for an H5 skeleton if the requested format is H5 or None, since both seek an H5 above.
         nrn = None
-        skeleton = None
+        versioned_skeleton = None
         if not skeleton_bytes:
             if output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "swc", "swccompressed", "precomputed"]:
-                skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
+                versioned_skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
             if verbose_level >= 1:
-                SkeletonService.print(f"H5 cache query result: {skeleton}")
+                SkeletonService.print(f"H5 cache query result: {versioned_skeleton}")
 
         # If no H5 skeleton was found, generate a new skeleton.
         # Note that the skeleton for any given set of parameters will only ever be generated once, regardless of the multiple formats offered.
         # H5 will be used to generate all the other formats as needed.
-        generate_new_skeleton = not skeleton and not skeleton_bytes
+        generate_new_skeleton = not versioned_skeleton and not skeleton_bytes
         if generate_new_skeleton:  # No H5 skeleton was found
             # First attempt a debugging retrieval to bypass computing a skeleton from scratch.
             # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
             try:
-                skeleton = SkeletonService._retrieve_skeleton_from_local(
+                versioned_skeleton = SkeletonService._retrieve_skeleton_from_local(
                     params, "h5"
                 )
             except Exception as e:
@@ -1737,24 +1786,26 @@ class SkeletonService:
                 traceback.print_exc()
             
             try:
-                if not skeleton:
+                if not versioned_skeleton:
                     if verbose_level >= 1:
                         SkeletonService.print("No local (debugging) skeleton found. Proceeding to generate a new skeleton.")
                     skeletonization_start_time = default_timer()
                     if skeleton_version == 1:
-                        skeleton = SkeletonService._generate_v1_skeleton(*params, cave_client)
+                        versioned_skeleton = SkeletonService._generate_v1_skeleton(*params, cave_client)
                     elif skeleton_version == 2:
-                        nrn, skeleton = SkeletonService._generate_v2_skeleton(*params, cave_client)
+                        nrn, versioned_skeleton = SkeletonService._generate_v2_skeleton(*params, cave_client)
                     elif skeleton_version == 3:
-                        nrn, skeleton = SkeletonService._generate_v3_skeleton(*params, cave_client)
+                        nrn, versioned_skeleton = SkeletonService._generate_v3_skeleton(*params, cave_client)
                     elif skeleton_version == 4:
-                        nrn, skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(*params, cave_client)
+                        nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(*params, cave_client)
                     skeletonization_end_time = default_timer()
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
                     if verbose_level >= 1:
-                        SkeletonService.print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {skeleton}")
+                        SkeletonService.print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {versioned_skeleton}")
                     try:
-                        SkeletonService._archive_skeletonization_time(bucket, datastack_name, rid, skeleton_version, skeleton.n_vertices, skeleton.n_end_points, skeleton.n_branch_points, skeletonization_elapsed_time)
+                        SkeletonService._archive_skeletonization_time(bucket, datastack_name, rid, skeleton_version,
+                            versioned_skeleton.skeleton.n_vertices, versioned_skeleton.skeleton.n_end_points, versioned_skeleton.skeleton.n_branch_points,
+                            skeletonization_elapsed_time)
                     except Exception as e:
                         # This is a non-critical operation, so don't let it stop the process.
                         SkeletonService.print(f"Exception while archiving skeletonization time: {str(e)}. Traceback:")
@@ -1790,7 +1841,7 @@ class SkeletonService:
                             *params, "h5", False
                         )
                         SkeletonIO.write_skeleton_h5(
-                            skeleton, lvl2_ids, debug_skeleton_cache_loc + file_name
+                            versioned_skeleton.skeleton, lvl2_ids, debug_skeleton_cache_loc + file_name
                         )
             except Exception as e:
                 SkeletonService.print(f"Exception while saving local debugging skeleton for {rid}: {str(e)}. Traceback:")
@@ -1802,14 +1853,21 @@ class SkeletonService:
                     nrn.save_meshwork(nrn_file_content, overwrite=False)
                     nrn_file_content_val = nrn_file_content.getvalue()
                     SkeletonService._cache_meshwork(params, nrn_file_content_val)
-                    nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                    nrn_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
 
                 sk_file_content = BytesIO()
-                SkeletonIO.write_skeleton_h5(skeleton, lvl2_ids, sk_file_content)
+                SkeletonIO.write_skeleton_h5(versioned_skeleton.skeleton, lvl2_ids, sk_file_content)
                 # file_content_sz = file_content.getbuffer().nbytes
                 sk_file_content_val = sk_file_content.getvalue()
                 SkeletonService._cache_skeleton(params, sk_file_content_val, "h5")
-                sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done.
+                sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
+
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    sk_file_content = BytesIO()
+                    SkeletonIO.write_skeleton_h5(versioned_skeleton.skeleton, lvl2_ids, sk_file_content)
+                    sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
 
                 if output_format == "h5":
                     if via_requests and has_request_context():
@@ -1844,12 +1902,16 @@ class SkeletonService:
 
         if output_format == "swc" or output_format == "swccompressed":
             try:
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
                 if not skeleton_bytes:  # There was no SWC in the cache, so we must generate one from the H5
-                    assert skeleton is not None
+                    assert versioned_skeleton is not None
                     file_content = BytesIO()
-                    SkeletonIO.export_to_swc(skeleton, file_content,
-                                             node_labels=np.array(skeleton.vertex_properties['compartment']).astype(int),
-                                             radius=np.array(skeleton.vertex_properties['radius']))
+                    SkeletonIO.export_to_swc(versioned_skeleton.skeleton, file_content,
+                                             node_labels=np.array(versioned_skeleton.skeleton.vertex_properties['compartment']).astype(int),
+                                             radius=np.array(versioned_skeleton.skeleton.vertex_properties['radius']))
                     # file_content_sz = file_content.getbuffer().nbytes
                     file_content_val = file_content.getvalue()
                     SkeletonService._cache_skeleton(params, file_content_val, output_format)
@@ -1885,11 +1947,15 @@ class SkeletonService:
 
         if output_format == "flatdict":
             try:
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
                 if not skeleton_bytes:
-                    assert skeleton is not None
+                    assert versioned_skeleton is not None
                     if verbose_level >= 1:
                         SkeletonService.print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
-                    skeleton_json = SkeletonService._skeleton_to_flatdict(skeleton, lvl2_ids, skeleton_version)
+                    skeleton_json = SkeletonService._skeleton_to_flatdict(versioned_skeleton, lvl2_ids, skeleton_version)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
@@ -1910,7 +1976,11 @@ class SkeletonService:
 
         if output_format == "json":
             try:
-                skeleton_json = SkeletonService._skeleton_to_json(skeleton)
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
+                skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_json, output_format)
                 if DEBUG_MINIMIZE_JSON_SKELETON:  # DEBUG
                     skeleton_json = (
@@ -1930,9 +2000,13 @@ class SkeletonService:
 
         if output_format == "jsoncompressed":
             try:
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
                 if not skeleton_bytes:
-                    assert skeleton is not None
-                    skeleton_json = SkeletonService._skeleton_to_json(skeleton)
+                    assert versioned_skeleton is not None
+                    skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
@@ -1956,7 +2030,11 @@ class SkeletonService:
             # Its purpose is to offer a vastly minimized and simplified representation:
             # Just vertices, edges, and vertex properties.
             try:
-                skeleton_arrays = SkeletonService._skeleton_to_arrays(skeleton)
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
+                skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_arrays, output_format)
                 if via_requests and has_request_context():
                     response = jsonify(skeleton_arrays)
@@ -1973,9 +2051,13 @@ class SkeletonService:
             # Its purpose is to offer a vastly minimized and simplified representation:
             # Just vertices, edges, and vertex properties.
             try:
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
                 if not skeleton_bytes:
-                    assert skeleton is not None
-                    skeleton_arrays = SkeletonService._skeleton_to_arrays(skeleton)
+                    assert versioned_skeleton is not None
+                    skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_arrays)
                     SkeletonService._cache_skeleton(params, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
@@ -1996,11 +2078,15 @@ class SkeletonService:
             # TODO: These multiple levels of indirection involving converting through a series of various skeleton representations feels ugly. Is there a better way to do this?
             # Convert the MeshParty skeleton to a CloudVolume skeleton
             try:
+                # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 3:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+
                 cv_skeleton = cloudvolume.Skeleton(
-                    vertices=skeleton.vertices,
-                    edges=skeleton.edges,
+                    vertices=versioned_skeleton.skeleton.vertices,
+                    edges=versioned_skeleton.skeleton.edges,
                     space="voxel",
-                    radii=skeleton.vertex_properties.get("radius", None),
+                    radii=versioned_skeleton.skeleton.vertex_properties.get("radius", None),
                     # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
                     # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
                     # extra_attributes=[],  # Prevent the defaults from being used
@@ -2013,7 +2099,7 @@ class SkeletonService:
             
             try:
                 for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
-                    cv_skeleton.add_vertex_attribute(item['id'], np.array(skeleton.vertex_properties[item['id']], dtype=item['data_type']))
+                    cv_skeleton.add_vertex_attribute(item['id'], np.array(versioned_skeleton.skeleton.vertex_properties[item['id']], dtype=item['data_type']))
             except Exception as e:
                 SkeletonService.print(f"Exception while creating CloudVolume skeletn for {rid}: {str(e)}. Traceback:")
                 traceback.print_exc()
