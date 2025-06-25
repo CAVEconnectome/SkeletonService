@@ -866,7 +866,7 @@ class SkeletonService:
 
         # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
         # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.float32)
+        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.uint8)
 
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
 
@@ -928,8 +928,6 @@ class SkeletonService:
             collapse_radius,
             cave_client,
         )
-    
-        # skel.vertex_properties['compartment'] = skel.vertex_properties['compartment'].astype(np.uint8)
 
         return nrn, versioned_skeleton, lvl2_ids
     
@@ -1863,8 +1861,12 @@ class SkeletonService:
                 sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
 
                 # Don't perform this conversion until after the H5 skeleton has been cached
-                if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                if skeleton_version == 2 or skeleton_version == 3:
+                    if skeleton_version == 2:
+                        versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    if skeleton_version == 3:
+                        lvl2_ids = None
+
                     sk_file_content = BytesIO()
                     SkeletonIO.write_skeleton_h5(versioned_skeleton.skeleton, lvl2_ids, sk_file_content)
                     sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
@@ -1903,8 +1905,10 @@ class SkeletonService:
         if output_format == "swc" or output_format == "swccompressed":
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 if not skeleton_bytes:  # There was no SWC in the cache, so we must generate one from the H5
                     assert versioned_skeleton is not None
@@ -1948,8 +1952,10 @@ class SkeletonService:
         if output_format == "flatdict":
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 if not skeleton_bytes:
                     assert versioned_skeleton is not None
@@ -1977,8 +1983,10 @@ class SkeletonService:
         if output_format == "json":
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_json, output_format)
@@ -2001,8 +2009,10 @@ class SkeletonService:
         if output_format == "jsoncompressed":
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 if not skeleton_bytes:
                     assert versioned_skeleton is not None
@@ -2031,8 +2041,10 @@ class SkeletonService:
             # Just vertices, edges, and vertex properties.
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
                 SkeletonService._cache_skeleton(params, skeleton_arrays, output_format)
@@ -2052,8 +2064,10 @@ class SkeletonService:
             # Just vertices, edges, and vertex properties.
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 if not skeleton_bytes:
                     assert versioned_skeleton is not None
@@ -2079,8 +2093,10 @@ class SkeletonService:
             # Convert the MeshParty skeleton to a CloudVolume skeleton
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
+                if skeleton_version == 2:
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
                 if skeleton_version == 3:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('uint8')
+                    lvl2_ids = None
 
                 cv_skeleton = cloudvolume.Skeleton(
                     vertices=versioned_skeleton.skeleton.vertices,
