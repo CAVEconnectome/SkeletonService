@@ -1793,9 +1793,9 @@ class SkeletonService:
                     if skeleton_version == 1:
                         versioned_skeleton = SkeletonService._generate_v1_skeleton(*params, cave_client)
                     elif skeleton_version == 2:
-                        nrn, versioned_skeleton = SkeletonService._generate_v2_skeleton(*params, cave_client)
+                        nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v2_skeleton(*params, cave_client)
                     elif skeleton_version == 3:
-                        nrn, versioned_skeleton = SkeletonService._generate_v3_skeleton(*params, cave_client)
+                        nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v3_skeleton(*params, cave_client)
                     elif skeleton_version == 4:
                         nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(*params, cave_client)
                     skeletonization_end_time = default_timer()
