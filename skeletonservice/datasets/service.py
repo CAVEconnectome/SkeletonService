@@ -677,7 +677,7 @@ class SkeletonService:
     def _generate_v1_skeleton(
         rid,
         bucket,
-        skeleton_version,
+        skeleton_version_UNUSED,
         datastack_name,
         root_resolution,
         collapse_soma,
@@ -717,13 +717,13 @@ class SkeletonService:
             collapse_radius=collapse_radius,
         )
 
-        return VersionedSkeleton(skel, skeleton_version)
+        return VersionedSkeleton(skel, 1)
 
     @staticmethod
     def _generate_v4_skeleton(
         rid,
         bucket,
-        skeleton_version,
+        skeleton_version_UNUSED,
         datastack_name,
         root_resolution,
         collapse_soma,
@@ -822,7 +822,7 @@ class SkeletonService:
             skel = SkeletonService._generate_v1_skeleton(
                 rid,
                 bucket,
-                skeleton_version,
+                1,
                 datastack_name,
                 root_resolution,
                 collapse_soma,
@@ -882,13 +882,13 @@ class SkeletonService:
         if verbose_level >= 1:
             SkeletonService.print("_generate_v4_skeleton() rid, len(lvl2_ids):", rid, len(lvl2_ids))
 
-        return nrn, VersionedSkeleton(skel, skeleton_version), lvl2_ids
+        return nrn, VersionedSkeleton(skel, 4), lvl2_ids
 
     @staticmethod
     def _generate_v2_skeleton(
         rid,
         bucket,
-        skeleton_version,
+        skeleton_version_UNUSED,
         datastack_name,
         root_resolution,
         collapse_soma,
@@ -900,7 +900,7 @@ class SkeletonService:
         nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(
             rid,
             bucket,
-            skeleton_version,
+            4,
             datastack_name,
             root_resolution,
             collapse_soma,
@@ -915,7 +915,7 @@ class SkeletonService:
     def _generate_v3_skeleton(
         rid,
         bucket,
-        skeleton_version,
+        skeleton_version_UNUSED,
         datastack_name,
         root_resolution,
         collapse_soma,
@@ -927,7 +927,7 @@ class SkeletonService:
         nrn, versioned_skeleton, lvl2_ids = SkeletonService._generate_v4_skeleton(
             rid,
             bucket,
-            skeleton_version,
+            4,
             datastack_name,
             root_resolution,
             collapse_soma,
