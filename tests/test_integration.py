@@ -301,7 +301,7 @@ class SkeletonsServiceIntegrationTest:
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
                 {'id': 'radius', 'data_type': 'float32', 'num_components': 1},
-                {'id': 'compartment', 'data_type': 'uint8', 'num_components': 1}
+                {'id': 'compartment', 'data_type': 'float32', 'num_components': 1}
             ]
         })
         return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)

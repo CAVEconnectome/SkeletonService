@@ -212,7 +212,7 @@ class SkeletonResource__skeleton_version_info_B(Resource):
     def process(skvn):
         if skvn not in current_app.config['SKELETON_VERSION_ENGINES'].keys():
             raise ValueError(f"Invalid skeleton version: v{skvn}. Valid versions: {SKELETON_DEFAULT_VERSION_PARAMS + list(SKELETON_VERSION_PARAMS.keys())}")
-        if skvn == 2:
+        if skvn == NEUROGLANCER_SKELETON_VERSION:
             # TODO: This hard-coded duplicated code has solved a problem in which the vertex_attributes dictionary received
             # by the client would mysteriously accumulate repetitions of the compartment attribute. copy.deepcopy() didn't
             # work, and I don't know why, so I resorted to this hard-coded solution. The underlying cause needs to be found and solved.
