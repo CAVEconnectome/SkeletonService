@@ -361,17 +361,21 @@ class SkeletonService:
             return None
 
     @staticmethod
-    def _confirm_skeleton_in_cache(params, format):
+    def _confirm_skeleton_in_cache(params, skeleton_file_version, format):
         """
         Confirm that the specified format of the skeleton is in the cache.
         """
         if not CACHE_NON_H5_SKELETONS and format != "h5":
             return False
         
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+        assert skeleton_version == skeleton_file_version, \
+            f"Skeleton version {skeleton_version} does not match the skeleton file version {skeleton_file_version} passed to _cache_skeleton(). This is a bug in the code."
+
         file_name = SkeletonService._get_skeleton_filename(*params, format)
         if verbose_level >= 1:
-            SkeletonService.print("File name being sought in cache:", file_name)
-        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+            SkeletonService.print("File name being sought in cache:", file_name)\
+        
         if skeleton_version != HIGHEST_SKELETON_VERSION:
             if verbose_level >= 1:
                 SkeletonService.print(f"_confirm_skeleton_in_cache() Skeleton version V{skeleton_version} was requested but caching only supports version V{HIGHEST_SKELETON_VERSION}, so that version will be sought.")
@@ -422,10 +426,12 @@ class SkeletonService:
         
         cached_format = format if format != "h5_mpsk" else "h5"
         file_name = SkeletonService._get_skeleton_filename(*params, cached_format)
+        
         if verbose_level >= 1:
             SkeletonService.print("_retrieve_skeleton_from_cache() File name being sought in cache:", file_name)
         if verbose_level >= 1:
             SkeletonService.print(f"_retrieve_skeleton_from_cache() Querying skeleton at {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}{file_name}")
+        
         cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if cf.exists(file_name):
             if format == "flatdict":
@@ -481,24 +487,24 @@ class SkeletonService:
         if not CACHE_NON_H5_SKELETONS and format != 'h5':
             return
         
-        # Note that the skeleton version indicated in the params (the endpoint-requested version) may not be the same as the version generated and passed to this function.
-
-        bucket, datastack_name = params[1], params[3]
+        bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
+        assert skeleton_version == skeleton_file_version, \
+            f"Skeleton version {skeleton_version} does not match the skeleton file version {skeleton_file_version} passed to _cache_skeleton(). This is a bug in the code."
 
         # All skeletons are cached as V4 (or the whatever the latest version is, if subsequent development renders this comment outdated).
         # Requests for other versions are converted from V4 at the time of the request.
-        if skeleton_file_version != HIGHEST_SKELETON_VERSION:
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
             raise ValueError(
-                f"Skeleton version V{skeleton_file_version} was indicated for caching, but only V{HIGHEST_SKELETON_VERSION} is currently supported by caching. This situation should not occur and indicates a bug in the code."
+                f"Skeleton version V{skeleton_version} was indicated for caching, but only V{HIGHEST_SKELETON_VERSION} is currently supported by caching. This situation should not occur and indicates a bug in the code."
             )
 
         file_name = SkeletonService._get_skeleton_filename(
-            *params, format, include_compression=include_compression
+            *params, format, skeleton_file_version=skeleton_version, include_compression=include_compression
         )
 
         if verbose_level >= 1:
-            SkeletonService.print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_file_version)}/{file_name}")
-        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_file_version))
+            SkeletonService.print(f"Caching skeleton to {SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version)}/{file_name}")
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
         if format == "json" or format == "arrays":
             cf.put_json(
                 file_name, skeleton_file_content, COMPRESSION if include_compression else None
@@ -1410,7 +1416,7 @@ class SkeletonService:
     def skeletons_exist(
         bucket: str,
         datastack_name: str,
-        skeleton_version: int,  # Deprecated, not used anymore
+        skeleton_version_UNUSED: int,  # Deprecated, not used anymore
         rids: Union[List, int],
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0
@@ -1429,7 +1435,7 @@ class SkeletonService:
             bucket += "/"
 
         if verbose_level >= 1:
-            SkeletonService.print(f"skeletons_exist() bucket: {bucket}, datastack_name: {datastack_name}, skeleton_version: {skeleton_version}, rids: {rids}")
+            SkeletonService.print(f"skeletons_exist() bucket: {bucket}, datastack_name: {datastack_name}, rids: {rids}")
         
         return_single_value = False
         if not isinstance(rids, list):
@@ -1441,15 +1447,14 @@ class SkeletonService:
 
         # All skeletons are cached as V4 (or the whatever the latest version is, if subsequent development renders this comment outdated).
         # Requests for other versions are converted from V4 at the time of the request.
-        skeleton_version = 4
 
-        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, skeleton_version))
+        cf = CloudFiles(SkeletonService._get_bucket_subdirectory(bucket, datastack_name, HIGHEST_SKELETON_VERSION))
         
         filenames = [
             SkeletonService._get_skeleton_filename(
                 rid,
                 bucket,
-                skeleton_version,
+                HIGHEST_SKELETON_VERSION,
                 datastack_name,
                 [1, 1, 1],
                 True,
@@ -1602,13 +1607,22 @@ class SkeletonService:
             collapse_soma,
             collapse_radius,
         ]
+        params_cached = [
+            rid,
+            bucket,
+            HIGHEST_SKELETON_VERSION,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+        ]
 
         cached_skeleton = None
         cached_meshwork = None
         lvl2_ids = None
         if output_format == "none":
             skel_confirmation = SkeletonService._confirm_skeleton_in_cache(
-                params, "h5"
+                params_cached, "h5"
             )
             if skel_confirmation:
                 # Nothing else to do, so return
@@ -1629,7 +1643,7 @@ class SkeletonService:
         elif output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed",
                                "precomputed", "h5", "swc", "swccompressed"]:
             cached_skeleton = SkeletonService._retrieve_skeleton_from_cache(
-                params, output_format
+                params_cached, output_format
             )
             if verbose_level >= 1:
                 SkeletonService.print(f"Cached skeleton query result: {cached_skeleton is not None}")
@@ -1766,7 +1780,7 @@ class SkeletonService:
         versioned_skeleton = None
         if not skeleton_bytes:
             if output_format in ["flatdict", "json", "jsoncompressed", "arrays", "arrayscompressed", "swc", "swccompressed", "precomputed"]:
-                versioned_skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params, "h5_mpsk")
+                versioned_skeleton, lvl2_ids = SkeletonService._retrieve_skeleton_from_cache(params_cached, "h5_mpsk")
             if verbose_level >= 1:
                 SkeletonService.print(f"H5 cache query result: {versioned_skeleton}")
 
@@ -1779,7 +1793,7 @@ class SkeletonService:
             # On a nonlocal deployment this will simply fail and the skeleton will be generated as normal.
             try:
                 versioned_skeleton = SkeletonService._retrieve_skeleton_from_local(
-                    params, "h5"
+                    params_cached, "h5"
                 )
             except Exception as e:
                 SkeletonService.print(f"Exception while retrieving local debugging skeleton for {rid}: {str(e)}. Traceback:")
@@ -1838,7 +1852,7 @@ class SkeletonService:
                     if os.path.exists(debug_skeleton_cache_loc):
                         # Save the skeleton to a local file to faciliate rapid debugging (no need to regenerate the skeleton again).
                         file_name = SkeletonService._get_skeleton_filename(
-                            *params, "h5", False
+                            *params_cached, "h5", False
                         )
                         SkeletonIO.write_skeleton_h5(
                             versioned_skeleton.skeleton, lvl2_ids, debug_skeleton_cache_loc + file_name
@@ -1859,7 +1873,7 @@ class SkeletonService:
                 SkeletonIO.write_skeleton_h5(versioned_skeleton.skeleton, lvl2_ids, sk_file_content)
                 # file_content_sz = file_content.getbuffer().nbytes
                 sk_file_content_val = sk_file_content.getvalue()
-                SkeletonService._cache_skeleton(params, versioned_skeleton.version, sk_file_content_val, "h5")
+                SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, sk_file_content_val, "h5")
                 sk_file_content.seek(0)  # The attached file won't have a proper header if this isn't done
 
                 # Don't perform this conversion until after the H5 skeleton has been cached
@@ -1876,7 +1890,7 @@ class SkeletonService:
                 if output_format == "h5":
                     if via_requests and has_request_context():
                         file_name = SkeletonService._get_skeleton_filename(
-                            *params, output_format, include_compression=False
+                            *params_cached, output_format, include_compression=False
                         )
                         response = send_file(sk_file_content, "application/x-hdf5", download_name=file_name, as_attachment=True)
                         response = SkeletonService._after_request(response)
@@ -1920,7 +1934,7 @@ class SkeletonService:
                                              radius=np.array(versioned_skeleton.skeleton.vertex_properties['radius']))
                     # file_content_sz = file_content.getbuffer().nbytes
                     file_content_val = file_content.getvalue()
-                    SkeletonService._cache_skeleton(params, versioned_skeleton.version, file_content_val, output_format)
+                    SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, file_content_val, output_format)
                     file_content.seek(0)  # The attached file won't have a proper header if this isn't done
                 else:
                     # There was an SWC in the cache that we can use directly
@@ -1928,7 +1942,7 @@ class SkeletonService:
 
                 if via_requests and has_request_context():
                     file_name = SkeletonService._get_skeleton_filename(
-                        *params, output_format, include_compression=(output_format=="swccompressed")
+                        *params_cached, output_format, include_compression=(output_format=="swccompressed")
                     )
                     if output_format == "swccompressed":
                         file_content = SkeletonService.compressBytes(file_content)
@@ -1965,7 +1979,7 @@ class SkeletonService:
                         SkeletonService.print("Generating flat dict with lvl2_ids of length: ", len(lvl2_ids) if lvl2_ids is not None else 0)
                     skeleton_json = SkeletonService._skeleton_to_flatdict(versioned_skeleton, lvl2_ids)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
-                    SkeletonService._cache_skeleton(params, versioned_skeleton.version, skeleton_bytes, output_format)
+                    SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
                     if verbose_level >= 1:
                         SkeletonService.print(f"Compressed FLAT DICT size: {len(skeleton_bytes)}")
@@ -1991,7 +2005,7 @@ class SkeletonService:
                     lvl2_ids = None
 
                 skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
-                SkeletonService._cache_skeleton(params, versioned_skeleton.version, skeleton_json, output_format)
+                SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, skeleton_json, output_format)
                 if DEBUG_MINIMIZE_JSON_SKELETON:  # DEBUG
                     skeleton_json = (
                         SkeletonService._minimize_json_skeleton_for_easier_debugging(
@@ -2020,7 +2034,7 @@ class SkeletonService:
                     assert versioned_skeleton is not None
                     skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_json)
-                    SkeletonService._cache_skeleton(params, versioned_skeleton.version, skeleton_bytes, output_format)
+                    SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
                     if verbose_level >= 1:
                         SkeletonService.print(f"Compressed JSON size: {len(skeleton_bytes)}")
@@ -2049,7 +2063,7 @@ class SkeletonService:
                     lvl2_ids = None
 
                 skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
-                SkeletonService._cache_skeleton(params, versioned_skeleton.version, skeleton_arrays, output_format)
+                SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, skeleton_arrays, output_format)
                 if via_requests and has_request_context():
                     response = jsonify(skeleton_arrays)
                     response.headers.update(SkeletonService._response_headers())
@@ -2075,7 +2089,7 @@ class SkeletonService:
                     assert versioned_skeleton is not None
                     skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
                     skeleton_bytes = SkeletonService.compressDictToBytes(skeleton_arrays)
-                    SkeletonService._cache_skeleton(params, versioned_skeleton.version, skeleton_bytes, output_format)
+                    SkeletonService._cache_skeleton(params_cached, versioned_skeleton.version, skeleton_bytes, output_format)
                 if via_requests and has_request_context():
                     response = Response(
                         skeleton_bytes, mimetype="application/octet-stream"
@@ -2128,7 +2142,7 @@ class SkeletonService:
             # Cache the precomputed skeleton
             try:
                 SkeletonService._cache_skeleton(
-                    params, versioned_skeleton.version, skeleton_precomputed, output_format
+                    params_cached, versioned_skeleton.version, skeleton_precomputed, output_format
                 )
             except Exception as e:
                 SkeletonService.print(f"Exception while caching {output_format.upper()} skeleton for {rid}: {str(e)}. Traceback:")
@@ -2210,6 +2224,15 @@ class SkeletonService:
                 collapse_soma,
                 collapse_radius,
             ]
+            params_cached = [
+                rid,
+                bucket,
+                HIGHEST_SKELETON_VERSION,
+                datastack_name,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+            ]
 
             # Don't perform the normal validation on the debugging root id.
             # We want it to look like a valid root id so it reaches the skeleton generation code and triggers the dead lettering test.
@@ -2223,12 +2246,12 @@ class SkeletonService:
                     skeletons[rid] = "invalid_rid"
                     continue
             
-            skeleton = SkeletonService._retrieve_skeleton_from_cache(params, output_format)
+            skeleton = SkeletonService._retrieve_skeleton_from_cache(params_cached, output_format)
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
             
             if skeleton is None:  # No JSON or SWC skeleton was found (but the H5 status is unknown at this point)
-                h5_available = SkeletonService._confirm_skeleton_in_cache(params, "h5")
+                h5_available = SkeletonService._confirm_skeleton_in_cache(params_cached, "h5")
                 if verbose_level >= 1:
                     SkeletonService.print(f"H5 availability for rid {rid}: {h5_available}")
                 if h5_available:
