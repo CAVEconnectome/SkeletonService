@@ -729,7 +729,6 @@ class SkeletonService:
         collapse_soma,
         collapse_radius,
         cave_client,
-        prep_for_neuroglancer=False,
     ):
         if verbose_level >= 1:
             SkeletonService.print("_generate_v4_skeleton()", rid)
@@ -906,7 +905,6 @@ class SkeletonService:
             collapse_soma,
             collapse_radius,
             cave_client,
-            True,
         )
 
         return nrn, versioned_skeleton, lvl2_ids
@@ -1877,7 +1875,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2 or skeleton_version == 3:
                     if skeleton_version == 2:
-                        versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                        versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                     if skeleton_version == 3:
                         lvl2_ids = None
 
@@ -1920,7 +1918,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -1967,7 +1965,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -1998,7 +1996,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -2024,7 +2022,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -2056,7 +2054,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -2079,7 +2077,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
@@ -2108,7 +2106,7 @@ class SkeletonService:
             try:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
-                    versioned_skeleton.skeleton.vertex_properties['compartment'] = versioned_skeleton.skeleton.vertex_properties['compartment'].astype('float32')
+                    versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
                 if skeleton_version == 3:
                     lvl2_ids = None
 
