@@ -361,7 +361,7 @@ class SkeletonService:
             return None
 
     @staticmethod
-    def _confirm_skeleton_in_cache(params, skeleton_file_version, format):
+    def _confirm_skeleton_in_cache(params, format):
         """
         Confirm that the specified format of the skeleton is in the cache.
         """
@@ -369,8 +369,6 @@ class SkeletonService:
             return False
         
         bucket, skeleton_version, datastack_name = params[1], params[2], params[3]
-        assert skeleton_version == skeleton_file_version, \
-            f"Skeleton version {skeleton_version} does not match the skeleton file version {skeleton_file_version} passed to _cache_skeleton(). This is a bug in the code."
 
         file_name = SkeletonService._get_skeleton_filename(*params, format)
         if verbose_level >= 1:
