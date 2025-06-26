@@ -238,6 +238,8 @@ class SkeletonsServiceIntegrationTest:
                 if verbose_level >= 2:
                     printer.print("Exists status before/after deletion:", predeletion_exists, cf.exists(filename))
         
+        # IMPORTANT: If you add or remove tests below, you must correspondingly update the TOTAL_NUM_TESTS variable above.
+        
         results = np.array([0, 0, 0, 0])  # Passed, suspicious, failed, skipped
         # results += self.run_test_metadata_1()  # This test isn't too important and likely to cause problems if I forget to update it.
         results += self.run_test_metadata_2()
