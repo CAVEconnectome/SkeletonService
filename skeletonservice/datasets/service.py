@@ -497,7 +497,7 @@ class SkeletonService:
             )
 
         file_name = SkeletonService._get_skeleton_filename(
-            *params, format, skeleton_file_version=skeleton_version, include_compression=include_compression
+            *params, format, include_compression=include_compression
         )
 
         if verbose_level >= 1:
