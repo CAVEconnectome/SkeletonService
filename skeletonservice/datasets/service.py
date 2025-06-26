@@ -90,7 +90,7 @@ SKELETON_VERSION_PARAMS = {
             'num_components': 1,
         },{
             'id': 'compartment',
-            'data_type': 'uint8',
+            'data_type': 'float32',
             'num_components': 1,
         }]},
 }
