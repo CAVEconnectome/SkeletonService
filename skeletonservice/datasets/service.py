@@ -949,10 +949,10 @@ class SkeletonService:
     def _finalize_return_skeleton_version(versioned_skeleton, skeleton_version):
         if skeleton_version == 2:
             versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-            versioned_skeleton.skeleton['meta']['skeleton_version'] = versioned_skeleton.version = skeleton_version
+            versioned_skeleton.version = skeleton_version
         if skeleton_version < 4:
             versioned_skeleton.lvl2_ids = None
-            versioned_skeleton.skeleton['meta']['skeleton_version'] = versioned_skeleton.version = skeleton_version
+            versioned_skeleton.version = skeleton_version
         return versioned_skeleton
     
     @staticmethod
