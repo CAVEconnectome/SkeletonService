@@ -90,12 +90,12 @@ SKELETON_VERSION_PARAMS = {
             'num_components': 1,
         },{
             'id': 'compartment',
-            'data_type': 'float32',
+            'data_type': 'uint8',
             'num_components': 1,
         }]},
 }
 HIGHEST_SKELETON_VERSION = sorted(SKELETON_VERSION_PARAMS.keys())[-1]
-NEUROGLANCER_SKELETON_VERSION = HIGHEST_SKELETON_VERSION  # This is complicated. NG's version is V2 in precomputed format, but V4 is used to create and store all skeletons, as of recent redesign.
+NEUROGLANCER_SKELETON_VERSION = 2  # This is complicated. NG's version is V2 in precomputed format, but V4 is used to create and store all skeletons, as of recent redesign.
 
 class VersionedSkeleton:
     """
