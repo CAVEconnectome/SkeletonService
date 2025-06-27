@@ -64,7 +64,7 @@ PROD_SERVERS = [
 DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
 # DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
-TOTAL_NUM_TESTS = 28
+TOTAL_NUM_TESTS = 29
 
 server = None
 
@@ -239,7 +239,7 @@ class SkeletonsServiceIntegrationTest:
                     printer.print("Exists status before/after deletion:", predeletion_exists, cf.exists(filename))
         
         # IMPORTANT: If you add or remove tests below, you must correspondingly update the TOTAL_NUM_TESTS variable above.
-        
+
         results = np.array([0, 0, 0, 0])  # Passed, suspicious, failed, skipped
         # results += self.run_test_metadata_1()  # This test isn't too important and likely to cause problems if I forget to update it.
         results += self.run_test_metadata_2()
@@ -295,10 +295,26 @@ class SkeletonsServiceIntegrationTest:
     def run_test_metadata_3(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
+        
+        test_result = np.array([0, 0, 0, 0])
+
         precomputed_skeleton_info = self.skclient.get_precomputed_skeleton_info(skvn=self.skvn)
         # if verbose_level >= 2:
             # printer.print(precomputed_skeleton_info)
-        test_result = self.eval_one_test_result(precomputed_skeleton_info == {
+        test_result1 = self.eval_one_test_result(precomputed_skeleton_info == {
+            '@type': 'neuroglancer_skeletons',
+            'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
+            'vertex_attributes': [
+                {'id': 'radius', 'data_type': 'float32', 'num_components': 1},
+                {'id': 'compartment', 'data_type': 'uint8', 'num_components': 1}
+            ]
+        })
+        test_result += (1, 0, 0, 0) if test_result1 else (0, 1, 0, 0)
+
+        precomputed_skeleton_info = self.skclient.get_precomputed_skeleton_info(skvn=2)
+        # if verbose_level >= 2:
+            # printer.print(precomputed_skeleton_info)
+        test_result2 = self.eval_one_test_result(precomputed_skeleton_info == {
             '@type': 'neuroglancer_skeletons',
             'transform': [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0],
             'vertex_attributes': [
@@ -306,7 +322,9 @@ class SkeletonsServiceIntegrationTest:
                 {'id': 'compartment', 'data_type': 'float32', 'num_components': 1}
             ]
         })
-        return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        test_result += (1, 0, 0, 0) if test_result2 else (0, 1, 0, 0)
+        
+        return test_result
 
     #====================================================================================================
     # Cache status tests
