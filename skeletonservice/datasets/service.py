@@ -29,7 +29,7 @@ import cloudvolume
 #     SkeletonSchema,
 # )
 
-__version__ = "0.22.11"
+__version__ = "0.22.12"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
@@ -1876,7 +1876,7 @@ class SkeletonService:
                 if skeleton_version == 2 or skeleton_version == 3:
                     if skeleton_version == 2:
                         versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                    if skeleton_version == 3:
+                    if skeleton_version < 4:
                         lvl2_ids = None
 
                     sk_file_content = BytesIO()
@@ -1919,7 +1919,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 if not skeleton_bytes:  # There was no SWC in the cache, so we must generate one from the H5
@@ -1966,7 +1966,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 if not skeleton_bytes:
@@ -1997,7 +1997,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
@@ -2023,7 +2023,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 if not skeleton_bytes:
@@ -2055,7 +2055,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 skeleton_arrays = SkeletonService._skeleton_to_arrays(versioned_skeleton)
@@ -2078,7 +2078,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 if not skeleton_bytes:
@@ -2107,7 +2107,7 @@ class SkeletonService:
                 # Don't perform this conversion until after the H5 skeleton has been cached
                 if skeleton_version == 2:
                     versioned_skeleton.skeleton.vertex_properties['compartment'] = [float(v) for v in versioned_skeleton.skeleton.vertex_properties['compartment']]
-                if skeleton_version == 3:
+                if skeleton_version < 4:
                     lvl2_ids = None
 
                 cv_skeleton = cloudvolume.Skeleton(
