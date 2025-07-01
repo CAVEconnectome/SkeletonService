@@ -1194,6 +1194,9 @@ class SkeletonService:
         #     sk_flatdict["voxel_scaling"] = versioned_skeleton.skeleton.voxel_scaling
         # vertex_properties should provide radius and compartment
         if versioned_skeleton.skeleton.vertex_properties is not None:
+            if verbose_level >= 1:
+                SkeletonService.print(f"_skeleton_to_flatdict() versioned_skeleton.skeleton.vertex_properties.keys(): {versioned_skeleton.skeleton.vertex_properties.keys()}")
+                SkeletonService.print(f"_skeleton_to_flatdict() versioned_skeleton.skeleton.vertex_properties: {versioned_skeleton.skeleton.vertex_properties}")
             for key in versioned_skeleton.skeleton.vertex_properties.keys():
                 assert(key not in sk_flatdict)
                 if isinstance(versioned_skeleton.skeleton.vertex_properties[key], np.ndarray):
