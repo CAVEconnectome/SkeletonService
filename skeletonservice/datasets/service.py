@@ -702,6 +702,10 @@ class SkeletonService:
         """
         From https://caveconnectome.github.io/pcg_skel/tutorial/
         """
+        if verbose_level >= 1:
+            SkeletonService.print("_generate_v1_skeleton()", rid)
+        if verbose_level >= 1:
+            SkeletonService.print(f"CAVEClient version: {caveclient.__version__}")
         if (datastack_name == "minnie65_public") or (
             datastack_name == "minnie65_phase3_v1"
         ):
@@ -836,9 +840,12 @@ class SkeletonService:
             # del nrn.anno['post_syn']
             skel = nrn.skeleton
             if verbose_level >= 1:
-                SkeletonService.print(f"_generate_v4_skeleton() rid, skel.radius: {rid}, {skel.radius}")
-                SkeletonService.print(f"_generate_v4_skeleton() rid, skel.radius: {rid}, {skel.radius}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.radius: {rid}, {skel.radius}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.vertex_properties: {rid}, {skel.vertex_properties}")
         except np.exceptions.AxisError as e:
+            if verbose_level >= 1:
+                SkeletonService.print("AxisError in _generate_v4_skeleton(). Resorting to v1 skeleton")
+            
             use_default_radii = True
             use_default_compartments = True
 
@@ -904,8 +911,8 @@ class SkeletonService:
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
 
         if verbose_level >= 1:
-            SkeletonService.print(f"_generate_v4_skeleton() rid, radius: {rid}, {skel.radius}")
-            SkeletonService.print(f"_generate_v4_skeleton() rid, radius: {rid}, {skel.vertex_properties}")
+            SkeletonService.print(f"_generate_v4_skeleton() B rid, skel.radius: {rid}, {skel.radius}")
+            SkeletonService.print(f"_generate_v4_skeleton() B rid, skel.vertex_properties: {rid}, {skel.vertex_properties}")
         
         lvl2_df = nrn.anno.lvl2_ids.df
         lvl2_df.sort_values(by='mesh_ind', inplace=True)
