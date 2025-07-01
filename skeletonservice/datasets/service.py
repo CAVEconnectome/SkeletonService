@@ -29,7 +29,7 @@ import cloudvolume
 #     SkeletonSchema,
 # )
 
-__version__ = "0.22.16"
+__version__ = "0.22.17"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
@@ -467,7 +467,7 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"_retrieve_skeleton_from_cache() Not found in cache: {file_name}")
                 
-        return None if format != "h5_mpsk" else (None, None)
+        return None  # if format != "h5_mpsk" else (None, None)
 
     @staticmethod
     def _cache_meshwork(params, nrn_file_content, include_compression=True):
@@ -531,19 +531,24 @@ class SkeletonService:
         TODO: This function does not lock or mutex the file while it alters it (which GCP buckets do not support).
             Multiple skeleton workers could collide here (get1, get2, put1, put2) such that only the last overlapping worker's data is saved.
         """
-        if verbose_level >= 1:
-            SkeletonService.print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
-        
-        cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
-        if cf.exists(SKELETONIZATION_TIMES_FILENAME):
-            skeleton_times = cf.get(SKELETONIZATION_TIMES_FILENAME).decode("utf-8")
-        else:
-            # Initialize a new empty CSV file with a header line
-            skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Datastack_Name,Root_ID,N_Vertices,N_Endpoints,N_Branchpoints,Skeletonization_Time_Secs\n"
-        
-        skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{datastack_name},{skeleton_version},{rid},{n_vertices},{n_end_points},{n_branch_points},{skeletonization_elapsed_time}\n"
-        skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()
-        cf.put(SKELETONIZATION_TIMES_FILENAME, skeleton_times_bytes, compress=True)
+        try:
+            if verbose_level >= 1:
+                SkeletonService.print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
+            
+            cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
+            if cf.exists(SKELETONIZATION_TIMES_FILENAME):
+                skeleton_times = cf.get(SKELETONIZATION_TIMES_FILENAME).decode("utf-8")
+            else:
+                # Initialize a new empty CSV file with a header line
+                skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Datastack_Name,Root_ID,N_Vertices,N_Endpoints,N_Branchpoints,Skeletonization_Time_Secs\n"
+            
+            skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{datastack_name},{skeleton_version},{rid},{n_vertices},{n_end_points},{n_branch_points},{skeletonization_elapsed_time}\n"
+            skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()
+            cf.put(SKELETONIZATION_TIMES_FILENAME, skeleton_times_bytes, compress=True)
+        except Exception as e:
+            # This is a non-critical operation, so don't let it stop the process.
+            SkeletonService.print(f"Exception in _archive_skeletonization_time(): {str(e)}. Traceback:")
+            traceback.print_exc()
     
     @staticmethod
     def _read_refusal_list(bucket):
@@ -768,6 +773,7 @@ class SkeletonService:
         use_default_compartments = False
 
         # Use the above parameters in the meshwork generation and skeletonization:
+        process_synapses = False
         try:
             nrn = pcg_skel.pcg_meshwork(
                 rid,
@@ -782,43 +788,49 @@ class SkeletonService:
                 synapses='all',
                 synapse_table=cave_client.info.get_datastack_info().get('synapse_table'),
             )
-        
-            # Add synapse annotations.
-            # At the time of this writing, this fails. Casey is looking into it.
-            pcg_skel.features.add_is_axon_annotation(
-                nrn,
-                pre_anno='pre_syn',
-                post_anno='post_syn',
-                annotation_name='is_axon',
-                threshold_quality=0.5,
-                extend_to_segment=True,
-                n_times=1
-            )
 
-            # Add volumetric properties
-            pcg_skel.features.add_volumetric_properties(
-                nrn,
-                cave_client,
-                # attributes: list[str] = VOL_PROPERTIES,
-                # l2id_anno_name: str = "lvl2_ids",
-                # l2id_col_name: str = "lvl2_id",
-                # property_name: str = "vol_prop",
-            )
+            synapse_table = cave_client.info.get_datastack_info().get('synapse_table', None)
+            if verbose_level >= 1:
+                SkeletonService.print(f"Synapse table and presence: {synapse_table} ({True if synapse_table else False}) (merely testing for boolean presence, not its content)")
+            if synapse_table:
+                process_synapses = True
 
-            # Add segment properties
-            pcg_skel.features.add_segment_properties(
-                nrn,
-                # segment_property_name: str = "segment_properties",
-                # effective_radius: bool = True,
-                # area_factor: bool = True,
-                # strahler: bool = True,
-                # strahler_by_compartment: bool = False,
-                # volume_property_name: str = "vol_prop",
-                # volume_col_name: str = "size_nm3",
-                # area_col_name: str = "area_nm2",
-                # root_as_sphere: bool = True,
-                # comp_mask: str = "is_axon",
-            )
+                # Add synapse annotations.
+                # At the time of this writing, this fails. Casey is looking into it.
+                pcg_skel.features.add_is_axon_annotation(
+                    nrn,
+                    pre_anno='pre_syn',
+                    post_anno='post_syn',
+                    annotation_name='is_axon',
+                    threshold_quality=0.5,
+                    extend_to_segment=True,
+                    n_times=1
+                )
+
+                # Add volumetric properties
+                pcg_skel.features.add_volumetric_properties(
+                    nrn,
+                    cave_client,
+                    # attributes: list[str] = VOL_PROPERTIES,
+                    # l2id_anno_name: str = "lvl2_ids",
+                    # l2id_col_name: str = "lvl2_id",
+                    # property_name: str = "vol_prop",
+                )
+
+                # Add segment properties
+                pcg_skel.features.add_segment_properties(
+                    nrn,
+                    # segment_property_name: str = "segment_properties",
+                    # effective_radius: bool = True,
+                    # area_factor: bool = True,
+                    # strahler: bool = True,
+                    # strahler_by_compartment: bool = False,
+                    # volume_property_name: str = "vol_prop",
+                    # volume_col_name: str = "size_nm3",
+                    # area_col_name: str = "area_nm2",
+                    # root_as_sphere: bool = True,
+                    # comp_mask: str = "is_axon",
+                )
 
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']
@@ -847,41 +859,42 @@ class SkeletonService:
             traceback.print_exc()
             raise e
 
-        # Assign the radii information to the skeleton
-        if not use_default_radii:
-            radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
-            radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
-        else:
-            radius_sk = np.ones(len(skel.vertices))
-        # nrn.skeleton.radius = radius_sk  # Requires a property setter
-        skel._rooted.radius = radius_sk
-        skel.vertex_properties['radius'] = skel.radius
-        
-        # Assign the axon/dendrite information to the skeleton
-        DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE, SOMA_COMPARTMENT_CODE = 3, 2, 1
-        if not use_default_compartments:
-            # The compartment codes are found in skeleton_plot.plot_tools.py:
-            # Default, Soma, Axon, Basal
-            is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
-            axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
-            if (len(axon_compartment_encoding) != len(skel.vertices)):
-                use_default_compartments = True
+        if process_synapses:
+            # Assign the radii information to the skeleton
+            if not use_default_radii:
+                radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
+                radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+            else:
+                radius_sk = np.ones(len(skel.vertices))
+            # nrn.skeleton.radius = radius_sk  # Requires a property setter
+            skel._rooted.radius = radius_sk
+            skel.vertex_properties['radius'] = skel.radius
+            
+            # Assign the axon/dendrite information to the skeleton
+            DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE, SOMA_COMPARTMENT_CODE = 3, 2, 1
+            if not use_default_compartments:
+                # The compartment codes are found in skeleton_plot.plot_tools.py:
+                # Default, Soma, Axon, Basal
+                is_axon = nrn.mesh_property_to_skeleton(nrn.anno.is_axon.mesh_mask, aggfunc="median")
+                axon_compartment_encoding = np.array([AXON_COMPARTMENT_CODE if v == 1 else DEFAULT_COMPARTMENT_CODE for v in is_axon])
+                if (len(axon_compartment_encoding) != len(skel.vertices)):
+                    use_default_compartments = True
 
-        if skel.root:
-            axon_compartment_encoding[skel.root] = SOMA_COMPARTMENT_CODE
+            if skel.root:
+                axon_compartment_encoding[skel.root] = SOMA_COMPARTMENT_CODE
 
-        if use_default_compartments:  # Don't change this to an "else"
-            axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
-        
-        # Everything above this point is common to V2, V3, and V4 skeletons.
-        # V2 and V3 skeletons diverge at this point. Storing compartments as float is V2 and as unit8 is V3.
-        # Confusingly, V4 was originally built on V3 and therefore used uint8 compartments,
-        # but it has now been changed to use float32 compartments, like V2. Generating V2 and V3 from the new V4
-        # representation is now accomplished by explicitly altering the underlying V4 skeleton.
+            if use_default_compartments:  # Don't change this to an "else"
+                axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
+            
+            # Everything above this point is common to V2, V3, and V4 skeletons.
+            # V2 and V3 skeletons diverge at this point. Storing compartments as float is V2 and as unit8 is V3.
+            # Confusingly, V4 was originally built on V3 and therefore used uint8 compartments,
+            # but it has now been changed to use float32 compartments, like V2. Generating V2 and V3 from the new V4
+            # representation is now accomplished by explicitly altering the underlying V4 skeleton.
 
-        # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
-        # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
-        skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.uint8)
+            # TODO: See two "skeleton/info" routes in api.py, where the compartment encoding is restricted to float32,
+            # due to a Neuroglancer limitation. Therefore, I cast the comparement to a float here for consistency.
+            skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.uint8)
 
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
 
@@ -2463,19 +2476,40 @@ class SkeletonService:
 
             messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
 
-            SkeletonService.publish_skeleton_request(
-                messaging_client,
-                datastack_name,
-                rid,
-                "none",
-                bucket,
-                root_resolution,
-                collapse_soma,
-                collapse_radius,
-                skeleton_version,
-                True,
-                verbose_level_,
-            )
+            if os.environ.get("LIMITER_URI", "None") == "None":
+                # Use the absence of a limiter to detect that we are running on the local machine.
+                # Debugging is much easier if we don't go through the PubSub system, but rather directly drop into the skeletonization function.
+                
+                if verbose_level >= 1:
+                    SkeletonService.print(f'get_skeleton_by_datastack_and_rid_async() LIMITER_URI is {os.environ.get("LIMITER_URI", "None")}, indicating local machine debugging, so PubSub will not be used.')
+
+                skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
+                    datastack_name,
+                    rid,
+                    output_format,
+                    bucket,
+                    root_resolution,
+                    collapse_soma,
+                    collapse_radius,
+                    skeleton_version,
+                    True,
+                    session_timestamp,
+                    verbose_level_,
+                )
+            else:
+                SkeletonService.publish_skeleton_request(
+                    messaging_client,
+                    datastack_name,
+                    rid,
+                    "none",
+                    bucket,
+                    root_resolution,
+                    collapse_soma,
+                    collapse_radius,
+                    skeleton_version,
+                    True,
+                    verbose_level_,
+                )
 
             messaging_client.close()
 
