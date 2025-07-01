@@ -835,6 +835,9 @@ class SkeletonService:
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']
             skel = nrn.skeleton
+            if verbose_level >= 1:
+                SkeletonService.print(f"_generate_v4_skeleton() rid, skel.radius: {rid}, {skel.radius}")
+                SkeletonService.print(f"_generate_v4_skeleton() rid, skel.radius: {rid}, {skel.radius}")
         except np.exceptions.AxisError as e:
             use_default_radii = True
             use_default_compartments = True
@@ -859,6 +862,8 @@ class SkeletonService:
             traceback.print_exc()
             raise e
 
+        if verbose_level >= 1:
+            SkeletonService.print(f"_generate_v4_skeleton() rid, process_synapses: {rid}, {process_synapses}")
         if process_synapses:
             # Assign the radii information to the skeleton
             if not use_default_radii:
@@ -898,6 +903,10 @@ class SkeletonService:
 
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
 
+        if verbose_level >= 1:
+            SkeletonService.print(f"_generate_v4_skeleton() rid, radius: {rid}, {skel.radius}")
+            SkeletonService.print(f"_generate_v4_skeleton() rid, radius: {rid}, {skel.vertex_properties}")
+        
         lvl2_df = nrn.anno.lvl2_ids.df
         lvl2_df.sort_values(by='mesh_ind', inplace=True)
         lvl2_ids = list(lvl2_df['lvl2_id'])
