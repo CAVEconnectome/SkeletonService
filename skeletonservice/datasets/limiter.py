@@ -122,6 +122,17 @@ def limit_get_skeleton_async(request):
         return mock_limiter
     return limit_get_skeleton(request)
 
+# On localhost:5000, the following output is printed:
+    # Initializing Limiter with LIMITER_URI env. var.: 'None_C'
+    # Initializing Limiter with LIMITER_CATEGORIES env. var.: 'LIMITER_CATEGORIES not set'
+    # Initializing Limiter with AUTH_URI env. var.: 'global.daf-apis.com/auth'
+    # Initializing Limiter with SKELETON_CACHE_LOW_PRIORITY_EXCHANGE env. var.: 'ltv5_SKELETON_CACHE_LOW_PRIORITY'
+# On the ltv server, the following output is printed:
+    # Initializing Limiter with LIMITER_URI env. var.: 'LIMITER_URI not set'
+    # Initializing Limiter with LIMITER_CATEGORIES env. var.: 'LIMITER_CATEGORIES not set'
+    # Initializing Limiter with AUTH_URI env. var.: 'global.daf-apis.com/auth'
+    # Initializing Limiter with SKELETON_CACHE_LOW_PRIORITY_EXCHANGE env. var.: 'ltv5_SKELETON_CACHE_LOW_PRIORITY'
+
 # Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_gen_skeletons_bulk_async(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))

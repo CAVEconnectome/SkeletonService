@@ -1555,7 +1555,11 @@ class SkeletonService:
             None)
         if verbose_level >= 1:
             SkeletonService.print(f"publish_skeleton_request() Sending payload for rid {rid} to exchange {exchange}")
-        messaging_client.publish(exchange, payload, attributes)
+        try:
+            messaging_client.publish(exchange, payload, attributes)
+        except Exception as e:
+            SkeletonService.print(f"publish_skeleton_request() Exception while publishing {rid} to exchange {exchange}: {str(e)}. Traceback:")
+            traceback.print_exc()
 
         if verbose_level_ >= 1:
             SkeletonService.print(f"Message has been dispatched to {exchange}: {datastack_name} {rid} output_format: {output_format} skvn:{skeleton_version} {bucket}")

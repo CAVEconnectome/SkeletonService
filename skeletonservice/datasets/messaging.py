@@ -102,6 +102,7 @@ try:
                         skeletoncache_high_priority_queue,
                         skeletoncache_dead_letter_queue],
                         callback)
+    print("Skeleton Cache messaging client registered callback successfully (barring any exceptions that are trapped inside MessagingClientConsumer).")
 except Exception as e:
     print("Skeleton Cache messaging client failed to register callback: ", repr(e))
     tb.print_exc()
