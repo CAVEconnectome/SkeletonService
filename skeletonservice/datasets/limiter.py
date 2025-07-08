@@ -125,7 +125,11 @@ def limit_get_skeleton_async(request):
 # Placeholder: the endpoint in api.py that would use this limiter simply replies on limit_by_category() instead.
 # def limit_gen_skeletons_bulk_async(request):
 #     return apply_rate_limit(get_rate_limit_from_config("get_skeletons_bulk_async"))
-print(f'Initializing Limiter with LIMITER_URI env. var.: {os.environ.get("LIMITER_URI", "LIMITER_URI not set")}')
+print(f'Initializing Limiter with LIMITER_URI env. var.: \'{os.environ.get("LIMITER_URI", "LIMITER_URI not set")}\'')
+
+print(f'Initializing Limiter with LIMITER_CATEGORIES env. var.: \'{os.environ.get("LIMITER_CATEGORIES", "LIMITER_CATEGORIES not set")}\'')
+print(f'Initializing Limiter with AUTH_URI env. var.: \'{os.environ.get("AUTH_URI", "AUTH_URI not set")}\'')
+print(f'Initializing Limiter with SKELETON_CACHE_LOW_PRIORITY_EXCHANGE env. var.: \'{os.environ.get("SKELETON_CACHE_LOW_PRIORITY_EXCHANGE", "SKELETON_CACHE_LOW_PRIORITY_EXCHANGE not set")}\'')
 
 limiter = Limiter(
     get_remote_address,
