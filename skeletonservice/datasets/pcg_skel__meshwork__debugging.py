@@ -401,7 +401,7 @@ try:
 except:
     KDTree = spatial.cKDTree
 from tqdm import tqdm
-from skeletonservice.datasets.skeleton_from_meshparty import Skeleton
+from skeletonservice.datasets.skeleton_from_meshparty import Skeleton, SkeletonTest2
 
 import fastremap
 import logging
@@ -685,6 +685,18 @@ def skeletonize_mesh(
         meta=sk_params,
     )
     print("skeletonize_mesh() skt.vertex_properties: ", skt.vertex_properties)
+
+    skt2 = SkeletonTest2(
+        new_v,
+        new_e,
+        mesh_to_skel_map=skel_map_full_mesh,
+        mesh_index=props.get("mesh_index", None),
+        radius=props.get("rs", None),
+        root=root_ind,
+        remove_zero_length_edges=remove_zero_length_edges,
+        meta=sk_params,
+    )
+    print("skeletonize_mesh() skt2.vertex_properties: ", skt2.vertex_properties)
 
     sk = Skeleton(
         new_v,

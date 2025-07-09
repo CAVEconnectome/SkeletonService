@@ -357,6 +357,27 @@ class StaticSkeleton:
         return np.array(path)
 
 
+class SkeletonTest2:
+    def __init__(
+        self,
+        vertices,
+        edges,
+        root=None,
+        radius=None,
+        mesh_to_skel_map=None,
+        mesh_index=None,
+        vertex_properties={},
+        node_mask=None,
+        voxel_scaling=None,
+        remove_zero_length_edges=True,
+        skeleton_index=None,
+        meta={},
+    ):
+        print("SkeletonTest2().__init__(): vertex_properties:", vertex_properties)
+        self.vertex_properties = vertex_properties
+        print("SkeletonTest2().__init__(): self.vertex_properties:", self.vertex_properties)
+
+
 class Skeleton:
     def __init__(
         self,
