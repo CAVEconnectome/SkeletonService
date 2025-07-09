@@ -19,6 +19,7 @@ from .skeleton_io_from_meshparty import SkeletonIO
 from meshparty import skeleton as mp_skeleton
 import caveclient
 import pcg_skel
+from skeletonservice.datasets import pcg_skel__meshwork__debugging
 from cloudfiles import CloudFiles, compression
 import cloudvolume
 
@@ -779,7 +780,7 @@ class SkeletonService:
         # Use the above parameters in the meshwork generation and skeletonization:
         process_synapses = False
         try:
-            nrn = pcg_skel.pcg_meshwork(
+            nrn = pcg_skel__meshwork__debugging.pcg_meshwork(
                 rid,
                 datastack_name,
                 cave_client,
