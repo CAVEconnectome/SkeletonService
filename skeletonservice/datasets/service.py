@@ -840,7 +840,12 @@ class SkeletonService:
             # del nrn.anno['post_syn']
             skel = nrn.skeleton
             if verbose_level >= 1:
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.vertices: {rid}, {len(skel.vertices)}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.radius: {rid}, {len(skel.radius) if skel.radius else 'N/A'}")
                 SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.radius: {rid}, {skel.radius}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.vertex_properties keys: {rid}, {skel.vertex_properties.keys() if skel.vertex_properties else 'N/A'}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.vertex_properties radii: {rid}, {len(skel.vertex_properties['radius']) if skel.vertex_properties and 'radius' in skel.vertex_properties else 'N/A'}")
+                SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.vertex_properties compartments: {rid}, {len(skel.vertex_properties['compartment']) if skel.vertex_properties and 'compartment' in skel.vertex_properties else 'N/A'}")
                 SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.vertex_properties: {rid}, {skel.vertex_properties}")
         except np.exceptions.AxisError as e:
             if verbose_level >= 1:
@@ -2499,7 +2504,9 @@ class SkeletonService:
 
             messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
 
-            if os.environ.get("LIMITER_URI", "None") == "None":
+            limit_uri = os.environ.get("LIMITER_URI", "LIMITER_URI not set")
+            DEBUG = (limit_uri == "LIMITER_URI not set" or "None" in limit_uri)
+            if DEBUG:
                 # Use the absence of a limiter to detect that we are running on the local machine.
                 # Debugging is much easier if we don't go through the PubSub system, but rather directly drop into the skeletonization function.
                 

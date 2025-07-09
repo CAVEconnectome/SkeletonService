@@ -22,7 +22,7 @@ class EmptyContextManager:
 
 mock_limiter = EmptyContextManager()
 limit_uri = os.environ.get("LIMITER_URI", "LIMITER_URI not set")
-DEBUG = (limit_uri == "LIMITER_URI not set" or limit_uri == "None")
+DEBUG = (limit_uri == "LIMITER_URI not set" or "None" in limit_uri)
 
 def get_rate_limit_from_config(category=None):
     if not category:
