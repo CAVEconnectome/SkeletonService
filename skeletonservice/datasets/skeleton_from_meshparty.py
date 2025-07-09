@@ -374,8 +374,62 @@ class SkeletonTest2:
         meta={},
     ):
         print("SkeletonTest2().__init__(): vertex_properties:", vertex_properties)
+
+        if remove_zero_length_edges:
+            zlsk = utils.collapse_zero_length_edges(
+                vertices,
+                edges,
+                root,
+                radius,
+                mesh_to_skel_map,
+                mesh_index,
+                node_mask,
+                vertex_properties,
+            )
+            (
+                vertices,
+                edges,
+                root,
+                radius,
+                mesh_to_skel_map,
+                mesh_index,
+                node_mask,
+                vertex_properties,
+            ) = zlsk
+
+        self._rooted = StaticSkeleton(
+            vertices,
+            edges,
+            radius=radius,
+            mesh_to_skel_map=mesh_to_skel_map,
+            mesh_index=mesh_index,
+            vertex_properties=vertex_properties,
+            root=root,
+            voxel_scaling=voxel_scaling,
+        )
+        print("SkeletonTest2().__init__(): self._rooted.vertex_properties:", self._rooted.vertex_properties)
+
+        self._node_mask = np.full(self._rooted.n_vertices, True)
+        self._edges = None
+        self._SkeletonIndex = skeleton_index
+
+        # Derived properties of the filtered graph
+        self._csgraph_filtered = None
+        self._cover_paths = None
+        self._segments = None
+        self._segment_map = None
+        self._kdtree = None
+        self._pykdtree = None
+        self._reset_derived_properties_filtered()
         self.vertex_properties = vertex_properties
         print("SkeletonTest2().__init__(): self.vertex_properties:", self.vertex_properties)
+
+        if isinstance(meta, SkeletonMetadata):
+            self._meta = meta
+        else:
+            self._meta = SkeletonMetadata(**meta)
+        if node_mask is not None:
+            self.apply_mask(node_mask, in_place=True)
 
 
 class Skeleton:
