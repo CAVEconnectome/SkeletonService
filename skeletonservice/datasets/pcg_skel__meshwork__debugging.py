@@ -407,6 +407,27 @@ import fastremap
 import logging
 
 
+
+class SkeletonTest:
+    def __init__(
+        self,
+        vertices,
+        edges,
+        root=None,
+        radius=None,
+        mesh_to_skel_map=None,
+        mesh_index=None,
+        vertex_properties={},
+        node_mask=None,
+        voxel_scaling=None,
+        remove_zero_length_edges=True,
+        skeleton_index=None,
+        meta={},
+    ):
+        print("SkeletonTest().__init__(): vertex_properties:", vertex_properties)
+
+
+
 def skeletonize_mesh(
     mesh,
     soma_pt=None,
@@ -652,6 +673,18 @@ def skeletonize_mesh(
     }
     sk_params.update(meta)
 
+    skt = SkeletonTest(
+        new_v,
+        new_e,
+        mesh_to_skel_map=skel_map_full_mesh,
+        mesh_index=props.get("mesh_index", None),
+        radius=props.get("rs", None),
+        root=root_ind,
+        remove_zero_length_edges=remove_zero_length_edges,
+        meta=sk_params,
+    )
+    print("skeletonize_mesh() skt.vertex_properties: ", skt.vertex_properties)
+    
     sk = Skeleton(
         new_v,
         new_e,

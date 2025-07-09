@@ -373,7 +373,7 @@ class Skeleton:
         skeleton_index=None,
         meta={},
     ):
-        print("Skeleton(): vertex_properties:", vertex_properties)
+        print("Skeleton().__init__(): vertex_properties:", vertex_properties)
 
         if remove_zero_length_edges:
             zlsk = utils.collapse_zero_length_edges(
@@ -407,7 +407,7 @@ class Skeleton:
             root=root,
             voxel_scaling=voxel_scaling,
         )
-        print("Skeleton(): self._rooted.vertex_properties:", self._rooted.vertex_properties)
+        print("Skeleton().__init__(): self._rooted.vertex_properties:", self._rooted.vertex_properties)
 
         self._node_mask = np.full(self._rooted.n_vertices, True)
         self._edges = None
@@ -422,7 +422,7 @@ class Skeleton:
         self._pykdtree = None
         self._reset_derived_properties_filtered()
         self.vertex_properties = vertex_properties
-        print("Skeleton(): self.vertex_properties:", self.vertex_properties)
+        print("Skeleton().__init__(): self.vertex_properties:", self.vertex_properties)
 
         if isinstance(meta, SkeletonMetadata):
             self._meta = meta
