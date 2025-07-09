@@ -425,7 +425,8 @@ class SkeletonTest:
         meta={},
     ):
         print("SkeletonTest().__init__(): vertex_properties:", vertex_properties)
-
+        self.vertex_properties = vertex_properties
+        print("SkeletonTest().__init__(): self.vertex_properties:", self.vertex_properties)
 
 
 def skeletonize_mesh(
@@ -684,7 +685,7 @@ def skeletonize_mesh(
         meta=sk_params,
     )
     print("skeletonize_mesh() skt.vertex_properties: ", skt.vertex_properties)
-    
+
     sk = Skeleton(
         new_v,
         new_e,
