@@ -401,7 +401,7 @@ try:
 except:
     KDTree = spatial.cKDTree
 from tqdm import tqdm
-from meshparty.skeleton import Skeleton
+from skeletonservice.datasets.skeleton_from_meshparty import Skeleton
 
 import fastremap
 import logging
