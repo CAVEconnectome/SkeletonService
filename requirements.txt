@@ -99,8 +99,9 @@ executing==2.0.1
     # via stack-data
 fasteners==0.19
     # via cloud-files
-fastremap==1.14.1
+fastremap==1.17.1
     # via
+    #   -r requirements.in
     #   cloud-volume
     #   pcg-skel
 flask==2.3.3
@@ -303,7 +304,6 @@ numpy==2.2.6
     #   numexpr
     #   pandas
     #   pcg-skel
-    #   pyarrow
     #   pycollada
     #   scikit-learn
     #   scipy
@@ -387,8 +387,10 @@ py-cpuinfo==9.0.0
     # via
     #   blosc2
     #   tables
-pyarrow==11.0.0
-    # via caveclient
+pyarrow==20.0.0
+    # via
+    #   -r requirements.in
+    #   caveclient
 pyasn1==0.6.0
     # via
     #   pyasn1-modules
