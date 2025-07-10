@@ -6,7 +6,7 @@ import neuroglancer
 
 mod_datasets = Blueprint("datasets", __name__, url_prefix="/datasets")
 
-__version__ = "0.22.29"
+__version__ = "0.22.30"
 
 
 @mod_datasets.route("/")
