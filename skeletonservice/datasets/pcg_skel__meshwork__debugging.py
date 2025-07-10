@@ -401,10 +401,12 @@ try:
 except:
     KDTree = spatial.cKDTree
 from tqdm import tqdm
-from skeletonservice.datasets.skeleton_from_meshparty import Skeleton, SkeletonTest2
+from skeletonservice.datasets.skeleton_from_meshparty import Skeleton, SkeletonTest2, SkeletonTest3, SkeletonTest4
 
 import fastremap
 import logging
+
+
 
 
 
@@ -427,6 +429,10 @@ class SkeletonTest:
         print("SkeletonTest().__init__(): vertex_properties:", vertex_properties)
         self.vertex_properties = vertex_properties
         print("SkeletonTest().__init__(): self.vertex_properties:", self.vertex_properties)
+
+
+
+
 
 
 def skeletonize_mesh(
@@ -697,6 +703,30 @@ def skeletonize_mesh(
         meta=sk_params,
     )
     print("skeletonize_mesh() skt2.vertex_properties: ", skt2.vertex_properties)
+
+    skt3 = SkeletonTest3(
+        new_v,
+        new_e,
+        mesh_to_skel_map=skel_map_full_mesh,
+        mesh_index=props.get("mesh_index", None),
+        radius=props.get("rs", None),
+        root=root_ind,
+        remove_zero_length_edges=remove_zero_length_edges,
+        meta=sk_params,
+    )
+    print("skeletonize_mesh() skt3.vertex_properties: ", skt3.vertex_properties)
+
+    skt4 = SkeletonTest4(
+        new_v,
+        new_e,
+        mesh_to_skel_map=skel_map_full_mesh,
+        mesh_index=props.get("mesh_index", None),
+        radius=props.get("rs", None),
+        root=root_ind,
+        remove_zero_length_edges=remove_zero_length_edges,
+        meta=sk_params,
+    )
+    print("skeletonize_mesh() skt4.vertex_properties: ", skt4.vertex_properties)
 
     sk = Skeleton(
         new_v,
