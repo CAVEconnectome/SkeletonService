@@ -2,6 +2,8 @@
 #    uv pip compile requirements.in -o requirements.txt
 aniso8601==9.0.1
     # via flask-restx
+anyio==4.9.0
+    # via httpx
 asttokens==2.4.1
     # via stack-data
 async-timeout==5.0.1
@@ -13,7 +15,7 @@ attrs==23.2.0
     #   referencing
 blinker==1.9.0
     # via flask
-blosc==1.11.1
+blosc==1.11.3
     # via meshparty
 blosc2==2.5.1
     # via tables
@@ -35,15 +37,22 @@ cachetools==5.3.2
     #   google-auth
     #   middle-auth-client
 caveclient==7.7.4
-    # via pcg-skel
+    # via
+    #   -r requirements.in
+    #   pcg-skel
 certifi==2024.2.2
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
 chardet==5.2.0
     # via
     #   cloud-files
     #   cloud-volume
 charset-normalizer==3.3.2
-    # via requests
+    # via
+    #   requests
+    #   trimesh
 click==8.1.7
     # via
     #   cloud-files
@@ -51,21 +60,20 @@ click==8.1.7
     #   flask
     #   microviewer
 cloud-files==5.1.0
-    # via cloud-volume
+    # via
+    #   -r requirements.in
+    #   cloud-volume
 cloud-volume==11.2.0
     # via
+    #   -r requirements.in
     #   meshparty
     #   pcg-skel
+colorlog==6.9.0
+    # via trimesh
 compressed-segmentation==2.3.2
     # via cloud-volume
-contourpy==1.2.1
-    # via matplotlib
 crc32c==2.4
     # via cloud-files
-cycler==0.12.1
-    # via matplotlib
-dataclasses==0.6
-    # via meshparty
 decorator==5.1.1
     # via ipython
 deflate==0.6.0
@@ -84,6 +92,7 @@ dracopy==1.3.0
     # via cloud-volume
 exceptiongroup==1.2.0
     # via
+    #   anyio
     #   ipython
     #   pytest
 executing==2.0.1
@@ -96,17 +105,21 @@ fastremap==1.14.1
     #   pcg-skel
 flask==2.3.3
     # via
+    #   -r requirements.in
     #   flask-cors
     #   flask-limiter
     #   flask-restx
     #   middle-auth-client
 flask-accepts==0.18.4
+    # via -r requirements.in
 flask-cors==4.0.1
+    # via -r requirements.in
 flask-limiter==3.11.0
+    # via -r requirements.in
 flask-restx==1.3.0
-    # via flask-accepts
-fonttools==4.51.0
-    # via matplotlib
+    # via
+    #   -r requirements.in
+    #   flask-accepts
 furl==2.1.3
     # via middle-auth-client
 gevent==24.2.1
@@ -141,6 +154,7 @@ google-cloud-core==2.4.1
     #   google-cloud-logging
     #   google-cloud-storage
 google-cloud-logging==3.12.1
+    # via -r requirements.in
 google-cloud-pubsub==2.21.3
     # via messagingclient
 google-cloud-storage==2.16.0
@@ -177,21 +191,23 @@ grpcio-status==1.62.2
     # via
     #   google-api-core
     #   google-cloud-pubsub
+h11==0.16.0
+    # via httpcore
 h5py==3.11.0
     # via meshparty
+httpcore==1.0.9
+    # via httpx
+httpx==0.28.1
+    # via trimesh
 idna==3.6
-    # via requests
-imageio==2.34.1
-    # via meshparty
+    # via
+    #   anyio
+    #   httpx
+    #   requests
 importlib-metadata==7.0.1
-    # via
-    #   flask
-    #   markdown
-    #   opentelemetry-api
+    # via opentelemetry-api
 importlib-resources==6.1.1
-    # via
-    #   flask-restx
-    #   matplotlib
+    # via flask-restx
 inflection==0.5.1
     # via python-jsonschema-objects
 iniconfig==2.0.0
@@ -218,12 +234,17 @@ jsonschema==4.21.1
     #   cloud-volume
     #   flask-restx
     #   python-jsonschema-objects
+    #   trimesh
 jsonschema-specifications==2023.12.1
     # via jsonschema
-kiwisolver==1.4.5
-    # via matplotlib
 limits==4.2
     # via flask-limiter
+lxml==6.0.0
+    # via trimesh
+manifold3d==3.1.1
+    # via trimesh
+mapbox-earcut==1.0.3
+    # via trimesh
 markdown==3.6
     # via python-jsonschema-objects
 markdown-it-py==3.0.0
@@ -234,20 +255,20 @@ markupsafe==2.1.5
     #   werkzeug
 marshmallow==3.21.3
     # via flask-accepts
-matplotlib==3.8.4
-    # via
-    #   pyvista
-    #   vtk
 matplotlib-inline==0.1.6
     # via ipython
 mdurl==0.1.2
     # via markdown-it-py
-meshparty==1.18.2
-    # via pcg-skel
+meshparty==2.0.2
+    # via
+    #   -r requirements.in
+    #   pcg-skel
 messagingclient==0.3.0
+    # via -r requirements.in
 microviewer==1.11.0
     # via cloud-volume
 middle-auth-client==3.16.2
+    # via -r requirements.in
 msgpack==1.0.8
     # via blosc2
 multiprocess==0.70.16
@@ -261,19 +282,20 @@ networkx==2.8.8
     #   caveclient
     #   cloud-volume
     #   meshparty
+    #   trimesh
 numexpr==2.10.0
     # via tables
-numpy==1.26.4
+numpy==2.2.6
     # via
+    #   -r requirements.in
     #   blosc2
     #   caveclient
     #   cloud-volume
     #   compressed-segmentation
-    #   contourpy
     #   fastremap
     #   h5py
-    #   imageio
-    #   matplotlib
+    #   manifold3d
+    #   mapbox-earcut
     #   meshparty
     #   messagingclient
     #   microviewer
@@ -281,16 +303,15 @@ numpy==1.26.4
     #   numexpr
     #   pandas
     #   pcg-skel
-    #   plyfile
     #   pyarrow
-    #   pymeshfix
-    #   pyvista
+    #   pycollada
     #   scikit-learn
     #   scipy
     #   shapely
     #   simplejpeg
     #   tables
     #   trimesh
+    #   vhacdx
 opentelemetry-api==1.32.1
     # via google-cloud-logging
 ordered-set==4.1.0
@@ -307,12 +328,11 @@ packaging==24.2
     #   caveclient
     #   limits
     #   marshmallow
-    #   matplotlib
-    #   pooch
     #   pytest
     #   tables
-pandas==2.2.0
+pandas==2.3.1
     # via
+    #   -r requirements.in
     #   caveclient
     #   meshparty
     #   pcg-skel
@@ -323,21 +343,13 @@ pathos==0.3.2
     #   cloud-files
     #   cloud-volume
 pcg-skel==1.3.1
+    # via -r requirements.in
 pexpect==4.9.0
     # via ipython
 pillow==10.3.0
-    # via
-    #   imageio
-    #   matplotlib
-    #   pyvista
-platformdirs==4.2.1
-    # via pooch
+    # via trimesh
 pluggy==1.5.0
     # via pytest
-plyfile==1.0.3
-    # via meshparty
-pooch==1.8.1
-    # via pyvista
 posix-ipc==1.1.1
     # via cloud-volume
 pox==0.3.4
@@ -383,14 +395,12 @@ pyasn1==0.6.0
     #   rsa
 pyasn1-modules==0.4.0
     # via google-auth
+pycollada==0.9.2
+    # via trimesh
 pygments==2.17.2
     # via
     #   ipython
     #   rich
-pymeshfix==0.16.3
-    # via meshparty
-pyparsing==3.1.2
-    # via matplotlib
 pysimdjson==6.0.2
     # via cloud-volume
 pytest==8.2.0
@@ -399,16 +409,14 @@ python-dateutil==2.8.2
     # via
     #   botocore
     #   cloud-volume
-    #   matplotlib
     #   pandas
+    #   pycollada
 python-jsonschema-objects==0.5.4
     # via cloud-volume
 pytz==2024.1
     # via
     #   flask-restx
     #   pandas
-pyvista==0.43.6
-    # via pymeshfix
 pyyaml==6.0.2
     # via responses
 redis==5.2.1
@@ -425,9 +433,9 @@ requests==2.31.0
     #   google-api-core
     #   google-cloud-storage
     #   middle-auth-client
-    #   pooch
     #   responses
 responses==0.25.6
+    # via -r requirements.in
 rich==13.9.4
     # via flask-limiter
 rpds-py==0.18.0
@@ -439,7 +447,7 @@ rsa==4.9
     #   cloud-files
     #   google-auth
 rtree==1.2.0
-    # via meshparty
+    # via trimesh
 s3transfer==0.1.13
     # via boto3
 scikit-learn==1.4.2
@@ -449,14 +457,13 @@ scipy==1.13.0
     #   meshparty
     #   pcg-skel
     #   scikit-learn
-scooby==0.9.2
-    # via pyvista
+    #   trimesh
 setuptools==77.0.3
     # via
     #   zope-event
     #   zope-interface
 shapely==2.0.4
-    # via meshparty
+    # via trimesh
 simplejpeg==1.7.2
     # via cloud-volume
 six==1.16.0
@@ -468,10 +475,14 @@ six==1.16.0
     #   orderedmultidict
     #   python-dateutil
     #   python-jsonschema-objects
+sniffio==1.3.1
+    # via anyio
 sqlitedict==2.1.0
     # via pcg-skel
 stack-data==0.6.3
     # via ipython
+svg-path==7.0
+    # via trimesh
 tables==3.9.2
     # via meshparty
 tenacity==8.2.3
@@ -490,14 +501,14 @@ traitlets==5.14.1
     # via
     #   ipython
     #   matplotlib-inline
-trimesh==4.3.1
+trimesh==4.7.0
     # via
     #   meshparty
     #   pcg-skel
 typing-extensions==4.9.0
     # via
+    #   anyio
     #   flask-limiter
-    #   ipython
     #   limits
     #   rich
 tzdata==2024.1
@@ -509,10 +520,8 @@ urllib3==2.2.1
     #   cloud-volume
     #   requests
     #   responses
-vtk==9.3.0
-    # via
-    #   meshparty
-    #   pyvista
+vhacdx==0.0.8.post2
+    # via trimesh
 wcwidth==0.2.13
     # via prompt-toolkit
 werkzeug==3.1.3
@@ -522,10 +531,10 @@ werkzeug==3.1.3
     #   flask-restx
 wrapt==1.17.2
     # via deprecated
+xxhash==3.5.0
+    # via trimesh
 zipp==3.17.0
-    # via
-    #   importlib-metadata
-    #   importlib-resources
+    # via importlib-metadata
 zope-event==5.0
     # via gevent
 zope-interface==6.3

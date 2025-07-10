@@ -1612,7 +1612,7 @@ class Skeleton:
         radius=None,
         mesh_to_skel_map=None,
         mesh_index=None,
-        vertex_properties={},
+        vertex_properties=None,
         node_mask=None,
         voxel_scaling=None,
         remove_zero_length_edges=True,
@@ -1620,6 +1620,9 @@ class Skeleton:
         meta={},
     ):
         print("Skeleton().__init__(): vertex_properties:", vertex_properties)
+
+        if vertex_properties is None:
+            vertex_properties = {}
 
         if remove_zero_length_edges:
             zlsk = utils.collapse_zero_length_edges(
