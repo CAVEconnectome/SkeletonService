@@ -429,7 +429,7 @@ class SkeletonTest2:
         self._segment_map = None
         self._kdtree = None
         self._pykdtree = None
-        self._reset_derived_properties_filtered()
+        # self._reset_derived_properties_filtered()
         self.vertex_properties = vertex_properties
         print("SkeletonTest2().__init__(): self.vertex_properties:", self.vertex_properties)
 
@@ -514,7 +514,7 @@ class SkeletonTest3:
         self._segment_map = None
         self._kdtree = None
         self._pykdtree = None
-        self._reset_derived_properties_filtered()
+        # self._reset_derived_properties_filtered()
         self.vertex_properties = vertex_properties
         print("SkeletonTest3().__init__(): self.vertex_properties:", self.vertex_properties)
 
@@ -574,7 +574,7 @@ class SkeletonTest3:
             new_mask = all_false
 
         sk._node_mask = new_mask
-        sk._reset_derived_properties_filtered()
+        # sk._reset_derived_properties_filtered()
 
         if in_place is False:
             return sk
