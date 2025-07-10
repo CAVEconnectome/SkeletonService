@@ -259,7 +259,7 @@ matplotlib-inline==0.1.6
     # via ipython
 mdurl==0.1.2
     # via markdown-it-py
-meshparty==2.0.2
+meshparty==2.0.3
     # via
     #   -r requirements.in
     #   pcg-skel
