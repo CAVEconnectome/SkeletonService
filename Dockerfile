@@ -1,4 +1,4 @@
-FROM tiangolo/uwsgi-nginx-flask:python3.10
+FROM tiangolo/uwsgi-nginx-flask:python3.9
 
 COPY requirements.txt /app/.
 RUN python -m pip install --upgrade pip
