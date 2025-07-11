@@ -841,7 +841,9 @@ class SkeletonService:
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']
             skel = nrn.skeleton
-            if verbose_level >= 1:
+            if verbose_level >= 2:
+                # Confirm that the MeshParty bug fixed in MeshParty v1.18.3 and v2.0.3 is no longer in effect.
+                # TODO: Build a unit/integration test around this and clean up this logging output. For the time being, I have pushed it to verbose level 2.
                 SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.vertices: {rid}, {len(skel.vertices)}")
                 SkeletonService.print(f"_generate_v4_skeleton() A rid, #skel.radius: {rid}, {len(skel.radius) if skel.radius else 'N/A'}")
                 SkeletonService.print(f"_generate_v4_skeleton() A rid, skel.radius: {rid}, {skel.radius}")
@@ -916,10 +918,6 @@ class SkeletonService:
             skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.uint8)
 
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
-
-        if verbose_level >= 1:
-            SkeletonService.print(f"_generate_v4_skeleton() B rid, skel.radius: {rid}, {skel.radius}")
-            SkeletonService.print(f"_generate_v4_skeleton() B rid, skel.vertex_properties: {rid}, {skel.vertex_properties}")
         
         lvl2_df = nrn.anno.lvl2_ids.df
         lvl2_df.sort_values(by='mesh_ind', inplace=True)

@@ -186,6 +186,28 @@ class TestSkeletonsService:
         #     As such, it would be more of an integration test than a unit test.
         assert True
 
+    # I made partial progress designing this test,
+    # but it involved mocking so many components that it began to feel like it wasn't actually testing anything anymore.
+    # I've put it on hold until I can rethink my approach here.
+    # @responses.activate
+    # def test_get_v4_skeleton(self, test_app,
+    #         caveclient_mock, cloudvolume_mock, cloudfiles_mock):
+    #     patch.object(SkeletonService, "_get_root_soma", return_value=(None, None, None)).start()
+    #     patch.object(pcg_skel, "pcg_meshwork", return_value=None).start()
+    #     patch.object(caveclient_mock.info, "get_datastack_info", return_value={'synapse_table': None}).start()
+        
+    #     nrn, versioned_skeleton = SkeletonService._generate_v4_skeleton(
+    #         rid=1,
+    #         bucket="gs://test_bucket",
+    #         skeleton_version_UNUSED=None,
+    #         datastack_name="datastack_name",
+    #         root_resolution=[1, 1, 1],
+    #         collapse_soma=True,
+    #         collapse_radius=7500,
+    #         cave_client=caveclient_mock,
+    #     )
+    #     assert nrn is not None
+
     @responses.activate
     def test_get_skeleton_by_datastack_and_rid(self, test_app,
             caveclient_mock, cloudvolume_mock, cloudfiles_mock):
@@ -222,7 +244,7 @@ class TestSkeletonsService:
         )
 
         # This test will return a None skeleton both because the requested output format is "none"
-        # and because the cache lookup will return False.
+        # and because the cache lookup will return False (which when using "none" output format returns nothing).
         assert sk is None
 
     @responses.activate

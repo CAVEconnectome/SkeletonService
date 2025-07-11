@@ -14,3 +14,6 @@ cloud-files>=5.0.3
 cloud-volume>=11.2.0
 Flask-Limiter[redis]
 google.cloud.logging
+
+# To run Flask in a VS Code debugger on a local machine, you will also need the following:
+# pyopenssl

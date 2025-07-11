@@ -199,8 +199,7 @@ class SkeletonsServiceIntegrationTest:
         if self.datastack_config["single_vertex_rid"]:
             self.valid_rids.append(self.datastack_config["single_vertex_rid"])
         self.larger_bulk_rids = self.datastack_config["bulk_rids"] * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
-        self.sample_invalid_node_rid = 864691135687000000
-
+        
         # Delete the test rid files from the bucket so we can test regenerating them from scratch
 
         # TODO: Move the bucket into the datastack_config so it can be set by the caller.
@@ -452,13 +451,16 @@ class SkeletonsServiceIntegrationTest:
     def run_test_invalid_request_2(self):
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
+        if not self.datastack_config["invalid_node_rid"]:
+            self.eval_one_test_result(False, skipped=True)
+            return (0, 0, 0, 1)
         try:
-            sk = self.skclient.get_skeleton(self.sample_invalid_node_rid, self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
+            sk = self.skclient.get_skeleton(self.datastack_config["invalid_node_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
             self.test_failed()
         except ValueError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
-            test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.sample_invalid_node_rid) + ' (perhaps it doesn\'t exist; the error is unclear)')
+            test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.datastack_config["invalid_node_rid"]) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
         return (0, 0, 1, 0)
 
@@ -482,6 +484,9 @@ class SkeletonsServiceIntegrationTest:
     # Skeleton request tests
 
     def run_test_retrieval_1(self):
+        '''
+        Confirm that 'dict' skeletonization of an initially uncached skeleton returns the correct type and takes the expected turnaround time.
+        '''
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
@@ -499,6 +504,9 @@ class SkeletonsServiceIntegrationTest:
         return test_result
 
     def run_test_retrieval_2(self):
+        '''
+        Repeat the previous test and confirm that the turnaround time is much faster now that the skeleton is (or ought to be) in the cache.
+        '''
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
@@ -516,6 +524,9 @@ class SkeletonsServiceIntegrationTest:
         return test_result
 
     def run_test_retrieval_3(self):
+        '''
+        Confirm that 'swc' skeletonization of a cached skeleton returns the correct type and runs quickly.
+        '''
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         start_time = default_timer()
@@ -533,6 +544,9 @@ class SkeletonsServiceIntegrationTest:
         return test_result
 
     def run_test_retrieval_4(self):
+        '''
+        Confirm that skeletonization of a single-vertex-root-id returns the correct type and runs in the expected time.
+        '''
         if verbose_level >= 1:
             printer.print(inspect.stack()[0][3])
         if not self.datastack_config["single_vertex_rid"]:
