@@ -813,30 +813,30 @@ class SkeletonService:
                     n_times=1
                 )
 
-                # Add volumetric properties
-                pcg_skel.features.add_volumetric_properties(
-                    nrn,
-                    cave_client,
-                    # attributes: list[str] = VOL_PROPERTIES,
-                    # l2id_anno_name: str = "lvl2_ids",
-                    # l2id_col_name: str = "lvl2_id",
-                    # property_name: str = "vol_prop",
-                )
+            # Add volumetric properties
+            pcg_skel.features.add_volumetric_properties(
+                nrn,
+                cave_client,
+                # attributes: list[str] = VOL_PROPERTIES,
+                # l2id_anno_name: str = "lvl2_ids",
+                # l2id_col_name: str = "lvl2_id",
+                # property_name: str = "vol_prop",
+            )
 
-                # Add segment properties
-                pcg_skel.features.add_segment_properties(
-                    nrn,
-                    # segment_property_name: str = "segment_properties",
-                    # effective_radius: bool = True,
-                    # area_factor: bool = True,
-                    # strahler: bool = True,
-                    # strahler_by_compartment: bool = False,
-                    # volume_property_name: str = "vol_prop",
-                    # volume_col_name: str = "size_nm3",
-                    # area_col_name: str = "area_nm2",
-                    # root_as_sphere: bool = True,
-                    # comp_mask: str = "is_axon",
-                )
+            # Add segment properties
+            pcg_skel.features.add_segment_properties(
+                nrn,
+                # segment_property_name: str = "segment_properties",
+                # effective_radius: bool = True,
+                # area_factor: bool = True,
+                # strahler: bool = True,
+                # strahler_by_compartment: bool = False,
+                # volume_property_name: str = "vol_prop",
+                # volume_col_name: str = "size_nm3",
+                # area_col_name: str = "area_nm2",
+                # root_as_sphere: bool = True,
+                # comp_mask: str = "is_axon",
+            )
 
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']
@@ -878,19 +878,19 @@ class SkeletonService:
             traceback.print_exc()
             raise e
 
+        # Assign the radii information to the skeleton
+        if not use_default_radii:
+            radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
+            radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
+        else:
+            radius_sk = np.ones(len(skel.vertices))
+        # nrn.skeleton.radius = radius_sk  # Requires a property setter
+        skel._rooted.radius = radius_sk
+        skel.vertex_properties['radius'] = skel.radius
+            
         if verbose_level >= 1:
             SkeletonService.print(f"_generate_v4_skeleton() rid, process_synapses: {rid}, {process_synapses}")
         if process_synapses:
-            # Assign the radii information to the skeleton
-            if not use_default_radii:
-                radius = nrn.anno.segment_properties.df.sort_values(by='mesh_ind')['r_eff'].values
-                radius_sk = nrn.mesh_property_to_skeleton(radius, aggfunc="mean")
-            else:
-                radius_sk = np.ones(len(skel.vertices))
-            # nrn.skeleton.radius = radius_sk  # Requires a property setter
-            skel._rooted.radius = radius_sk
-            skel.vertex_properties['radius'] = skel.radius
-            
             # Assign the axon/dendrite information to the skeleton
             DEFAULT_COMPARTMENT_CODE, AXON_COMPARTMENT_CODE, SOMA_COMPARTMENT_CODE = 3, 2, 1
             if not use_default_compartments:
@@ -918,7 +918,7 @@ class SkeletonService:
             skel.vertex_properties['compartment'] = axon_compartment_encoding.astype(np.uint8)
 
         # V4 skeletons are indicated at this point by the addition of level 2 IDs.
-        
+
         lvl2_df = nrn.anno.lvl2_ids.df
         lvl2_df.sort_values(by='mesh_ind', inplace=True)
         lvl2_ids = list(lvl2_df['lvl2_id'])
