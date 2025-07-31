@@ -20,7 +20,7 @@ from werkzeug.routing import BaseConverter
 from werkzeug.middleware.proxy_fix import ProxyFix
 from middle_auth_client import auth_required
 
-__version__ = "0.22.36"
+__version__ = "0.22.37"
 
 google.cloud.logging.Client().setup_logging()
 
