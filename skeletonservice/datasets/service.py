@@ -1,3 +1,4 @@
+import copy
 from io import BytesIO
 import binascii
 import google.cloud.logging
@@ -2152,7 +2153,7 @@ class SkeletonService:
                     # Passing extra_attributes into the ctor is partially redundant with the calls to add_vertex_attribute() below
                     # extra_attributes=[ {"id": k, "data_type": "float32", "num_components": 1} for k in skeleton.vertex_properties.keys() ],
                     # extra_attributes=[],  # Prevent the defaults from being used
-                    extra_attributes=SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'],
+                    extra_attributes=copy.deepcopy(SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes'])
                 )
             except Exception as e:
                 SkeletonService.print(f"Exception while creating CloudVolume skeleton for {rid}: {str(e)}. Traceback:")
@@ -2160,7 +2161,7 @@ class SkeletonService:
                 raise e
             
             try:
-                for item in SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']:
+                for item in copy.deepcopy(SKELETON_VERSION_PARAMS[skeleton_version]['vertex_attributes']):
                     cv_skeleton.add_vertex_attribute(item['id'], np.array(versioned_skeleton.skeleton.vertex_properties[item['id']], dtype=item['data_type']))
             except Exception as e:
                 SkeletonService.print(f"Exception while creating CloudVolume skeletn for {rid}: {str(e)}. Traceback:")
