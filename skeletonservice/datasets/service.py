@@ -1,3 +1,4 @@
+import ast
 import copy
 from io import BytesIO
 import binascii
@@ -43,11 +44,7 @@ DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immedia
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 PUBSUB_BATCH_SIZE = 100
-DATASTACK_NAME_REMAPPING = {
-    'minnie65_public': 'minnie65_phase3_v1',
-    'v1dd_public': 'v1dd',
-    'flywire_fafb_public': 'flywire_fafb_production',
-}
+DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}"))
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
