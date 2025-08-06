@@ -46,7 +46,9 @@ MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 PUBSUB_BATCH_SIZE = 100
 try:
     # DEBUG, DELETE
-    DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}"))
+    DATASTACK_NAME_REMAPPING_STR = os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')
+    DATASTACK_NAME_REMAPPING_STR = DATASTACK_NAME_REMAPPING_STR.replace("\\", "")
+    DATASTACK_NAME_REMAPPING = ast.literal_eval(DATASTACK_NAME_REMAPPING_STR)
 except Exception as e:
     print(f"Traceback for DATASTACK_NAME_REMAPPING error: {str(e)}")
     traceback.print_exc()
@@ -1392,7 +1394,7 @@ class SkeletonService:
         
         # DEBUG, DELETE
         if verbose_level >= 1:
-            SkeletonService.print(f"DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
+            SkeletonService.print(f"get_cache_contents() DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
 
         if bucket[-1] != "/":
             bucket += "/"
