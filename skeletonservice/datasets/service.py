@@ -44,7 +44,13 @@ DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immedia
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 PUBSUB_BATCH_SIZE = 100
-DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}"))
+try:
+    # DEBUG, DELETE
+    DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}"))
+except Exception as e:
+    print(f"Traceback for VersionedSkeleton initialization error: {str(e)}")
+    traceback.print_exc()
+    DATASTACK_NAME_REMAPPING = {}
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
@@ -1382,6 +1388,10 @@ class SkeletonService:
             verbose_level = verbose_level_
         if debugging_root_id in rid_prefixes and verbose_level < 1:
             verbose_level = 1
+        
+        # DEBUG, DELETE
+        if verbose_level >= 1:
+            SkeletonService.print(f"DATASTACK_NAME_REMAPPING_STR: {os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}")}")
 
         if bucket[-1] != "/":
             bucket += "/"
