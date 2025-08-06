@@ -50,7 +50,7 @@ try:
 except Exception as e:
     print(f"Traceback for DATASTACK_NAME_REMAPPING error: {str(e)}")
     traceback.print_exc()
-    print("DATASTACK_NAME_REMAPPING", os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "Not set"))
+    print(f"DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
     DATASTACK_NAME_REMAPPING = {}
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
@@ -1392,7 +1392,7 @@ class SkeletonService:
         
         # DEBUG, DELETE
         if verbose_level >= 1:
-            SkeletonService.print(f"DATASTACK_NAME_REMAPPING_STR: {os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}")
+            SkeletonService.print(f"DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
 
         if bucket[-1] != "/":
             bucket += "/"
