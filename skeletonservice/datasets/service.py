@@ -45,6 +45,7 @@ MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 PUBSUB_BATCH_SIZE = 100
 DATASTACK_NAME_REMAPPING = {
     'minnie65_public': 'minnie65_phase3_v1',
+    'v1dd_public': 'v1dd',
     'flywire_fafb_public': 'flywire_fafb_production',
 }
 MESHWORK_VERSION = 1
@@ -304,7 +305,8 @@ class SkeletonService:
     def _get_bucket_subdirectory(bucket, datastack_name, skeleton_version):
         if bucket[-1] != "/":
             bucket += "/"
-        return f"{bucket}{datastack_name}/{skeleton_version}/"
+        datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
+        return f"{bucket}{datastack_name_remapped}/{skeleton_version}/"
 
     @staticmethod
     def _retrieve_skeleton_from_local(params, format):
