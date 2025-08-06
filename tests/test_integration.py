@@ -205,16 +205,16 @@ class SkeletonsServiceIntegrationTest:
         # TODO: Move the bucket into the datastack_config so it can be set by the caller.
         bucket = None
         if "localhost" in server_address or "ltv" in server_address:
-            bucket = f"gs://minnie65_skeletons/ltv/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://minnie65_skeletons/ltv/{self.remapped_datastack_name}/{self.skvn}"
         elif "minnie" in server_address:
-            bucket = f"gs://minnie65_skeletons/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://minnie65_skeletons/{self.remapped_datastack_name}/{self.skvn}"
         elif "api" in server_address:
-            bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://v1dd_pcg/pcg_skeletons/{self.remapped_datastack_name}/{self.skvn}"
         elif "fanc" in server_address:
-            bucket = f"gs://fanc-fly_chunkedgraph/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://fanc-fly_chunkedgraph/pcg_skeletons/{self.remapped_datastack_name}/{self.skvn}"
         elif "flywire" in server_address:  # aka prod or prodv5
-            bucket = f"gs://seunglab2/drosophila_v0/ws_190410_FAFB_v02_ws_size_threshold_200/pcg_skeletons/{self.datastack_config['name']}/{self.skvn}"
-        # bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.datastack_config['name']}/{self.skvn}"
+            bucket = f"gs://seunglab2/drosophila_v0/ws_190410_FAFB_v02_ws_size_threshold_200/pcg_skeletons/{self.remapped_datastack_name}/{self.skvn}"
+        # bucket = f"gs://{SKELETON_CACHE_BUCKET}/{self.remapped_datastack_name}/{self.skvn}"
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
 
