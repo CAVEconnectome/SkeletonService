@@ -44,18 +44,8 @@ DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immedia
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
 PUBSUB_BATCH_SIZE = 100
-try:
-    # DEBUG, DELETE
-    print(f"service.py DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
-    DATASTACK_NAME_REMAPPING_STR = os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')
-    DATASTACK_NAME_REMAPPING_STR = DATASTACK_NAME_REMAPPING_STR.replace("\\", "")
-    DATASTACK_NAME_REMAPPING = ast.literal_eval(DATASTACK_NAME_REMAPPING_STR)
-    print(f"Assigned DATASTACK_NAME_REMAPPING: {DATASTACK_NAME_REMAPPING}")
-except Exception as e:
-    print(f"Traceback for DATASTACK_NAME_REMAPPING error: {str(e)}")
-    traceback.print_exc()
-    print(f"service.py Exception DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
-    DATASTACK_NAME_REMAPPING = {}
+# We have to clean up escape characters in DATASTACK_NAME_REMAPPING because the curly brackets of the inner dictionary are escaped when bash-serializing in the PrinceAllenCAVE scripts
+DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', '{}').replace("\\", ""))
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
@@ -1394,10 +1384,6 @@ class SkeletonService:
         if debugging_root_id in rid_prefixes and verbose_level < 1:
             verbose_level = 1
         
-        # DEBUG, DELETE
-        if verbose_level >= 1:
-            SkeletonService.print(f"get_cache_contents() DATASTACK_NAME_REMAPPING STR: `{os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', 'Not set')}`")
-
         if bucket[-1] != "/":
             bucket += "/"
 
