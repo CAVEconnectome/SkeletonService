@@ -1391,7 +1391,7 @@ class SkeletonService:
         
         # DEBUG, DELETE
         if verbose_level >= 1:
-            SkeletonService.print(f"DATASTACK_NAME_REMAPPING_STR: {os.environ.get("SKELETON_DATASTACK_NAME_REMAPPING", "{}")}")
+            SkeletonService.print(f"DATASTACK_NAME_REMAPPING_STR: {os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', '{}')}")
 
         if bucket[-1] != "/":
             bucket += "/"
