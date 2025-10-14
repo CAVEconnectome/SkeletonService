@@ -781,6 +781,11 @@ class SkeletonService:
         # Use the above parameters in the meshwork generation and skeletonization:
         process_synapses = False
         try:
+            synapse_table = cave_client.info.get_datastack_info().get('synapse_table')
+            process_synapses = synapse_table is not None
+            if verbose_level >= 1:
+                SkeletonService.print(f"Synapse table's presence and name: {process_synapses} ({synapse_table})")
+            
             nrn = pcg_skel.pcg_meshwork(
             # nrn = pcg_skel__meshwork__debugging.pcg_meshwork(
                 rid,
@@ -793,15 +798,10 @@ class SkeletonService:
                 timestamp=root_ts,
                 require_complete=True,
                 synapses='all',
-                synapse_table=cave_client.info.get_datastack_info().get('synapse_table'),
+                synapse_table=synapse_table,
             )
 
-            synapse_table = cave_client.info.get_datastack_info().get('synapse_table', None)
-            if verbose_level >= 1:
-                SkeletonService.print(f"Synapse table and presence: {synapse_table} ({True if synapse_table else False}) (merely testing for boolean presence, not its content)")
-            if synapse_table:
-                process_synapses = True
-
+            if process_synapses:
                 # Add synapse annotations.
                 # At the time of this writing, this fails. Casey is looking into it.
                 pcg_skel.features.add_is_axon_annotation(
@@ -905,7 +905,7 @@ class SkeletonService:
             if skel.root:
                 axon_compartment_encoding[skel.root] = SOMA_COMPARTMENT_CODE
 
-            if use_default_compartments:  # Don't change this to an "else"
+            if use_default_compartments:  # Don't change this to an "else" since it might be reassigned in the conditional block just above
                 axon_compartment_encoding = np.ones(len(skel.vertices)) * DEFAULT_COMPARTMENT_CODE
             
             # Everything above this point is common to V2, V3, and V4 skeletons.
