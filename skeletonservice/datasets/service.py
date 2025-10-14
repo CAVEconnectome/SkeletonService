@@ -32,7 +32,7 @@ import cloudvolume
 #     SkeletonSchema,
 # )
 
-__version__ = "0.22.48"
+__version__ = "0.22.49"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
