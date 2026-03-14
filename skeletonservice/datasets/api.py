@@ -13,7 +13,7 @@ from meshparty import skeleton
 from skeletonservice.datasets import schemas
 from skeletonservice.datasets import limiter
 from skeletonservice.datasets.limiter import *
-from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService
+from skeletonservice.datasets.service import NEUROGLANCER_SKELETON_VERSION, SKELETON_DEFAULT_VERSION_PARAMS, SKELETON_VERSION_PARAMS, SkeletonService, MAX_BULK_CACHED_SKELETONS
 
 from middle_auth_client import (
     auth_required,
@@ -909,5 +909,86 @@ class SkeletonResource__gen_skeletons_bulk_async_C(Resource):
         t1_et = t1 - t0
         t2_et = t2 - t1
         SkeletonService.print(f"SkeletonResource__gen_skeletons_bulk_async_C() Elapsed times: {t1_et:.3f}s {t2_et:.3f}s")
-        
+
         return response
+
+
+@api_bp.route("/<string:datastack_name>/bulk/get_cached_skeletons/<int(signed=True):skvn>/<string:output_format>")
+class SkeletonResource__get_cached_skeletons_bulk(Resource):
+    """Retrieve only already-cached skeletons in bulk, up to MAX_BULK_CACHED_SKELETONS at a time.
+    Unlike get_skeletons_bulk, this endpoint skips per-RID CAVEclient validation and never blocks
+    on skeleton generation. Returns skeletons that exist, plus lists of missing and async-queued RIDs."""
+    method_decorators = [
+        limit_by_category("get_cached_skeletons_bulk"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, output_format: str, rids: list, generate_missing: bool, verbose_level: int = 0):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        return SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name,
+            rids=rids,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            output_format=output_format,
+            generate_missing_skeletons=generate_missing,
+            session_timestamp_=SkeletonService.get_session_timestamp(),
+            verbose_level_=verbose_level,
+        )
+
+    @api_bp.doc("SkeletonResource__get_cached_skeletons_bulk", security="apikey")
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    def post(self, datastack_name: str, skvn: int, output_format: str):
+        data = request.json
+        rids = data["root_ids"]
+        generate_missing = bool(data.get("generate_missing", False))
+        verbose_level = int(data.get("verbose_level", 0))
+        verbose_level = max(int(request.args.get("verbose_level", 0)), verbose_level)
+        return self.process(datastack_name, skvn, output_format, rids, generate_missing, verbose_level)
+
+
+@api_bp.route("/<string:datastack_name>/bulk/get_skeleton_token/<int(signed=True):skvn>")
+class SkeletonResource__get_skeleton_token(Resource):
+    """Generate a short-lived downscoped GCS access token for direct skeleton downloads.
+    The token is scoped to read-only access on the skeleton bucket prefix for the given
+    datastack and skeleton version. The response includes GCS object paths for each
+    requested RID that exists in the cache, so the client can download files directly
+    without going through this service."""
+    method_decorators = [
+        limit_by_category("get_skeleton_token_bulk"),
+        auth_requires_permission("view", table_arg="datastack_name"),
+    ]
+
+    @staticmethod
+    def process(datastack_name: str, skvn: int, rids: list, expiration_minutes: int, verbose_level: int = 0):
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        return SkelClassVsn.get_skeleton_token_by_datastack_and_rids(
+            datastack_name,
+            rids=rids,
+            bucket=current_app.config["SKELETON_CACHE_BUCKET"],
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            expiration_minutes=expiration_minutes,
+            session_timestamp_=SkeletonService.get_session_timestamp(),
+            verbose_level_=verbose_level,
+        )
+
+    @api_bp.doc("SkeletonResource__get_skeleton_token", security="apikey")
+    @auth_required
+    @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
+    def post(self, datastack_name: str, skvn: int):
+        data = request.json
+        rids = data["root_ids"]
+        expiration_minutes = int(data.get("expiration_minutes", 60))
+        verbose_level = int(data.get("verbose_level", 0))
+        verbose_level = max(int(request.args.get("verbose_level", 0)), verbose_level)
+        return self.process(datastack_name, skvn, rids, expiration_minutes, verbose_level)
