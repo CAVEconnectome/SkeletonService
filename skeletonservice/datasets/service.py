@@ -2598,6 +2598,7 @@ class SkeletonService:
             "token_type": "Bearer",
             "expiry": expiry_str,
             "bucket": bucket_name,
+            "skeleton_version": skeleton_version,
             "object_paths": {str(rid): path for rid, path in object_paths.items()},
             "missing": missing,
         }
