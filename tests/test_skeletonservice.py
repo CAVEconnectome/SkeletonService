@@ -353,6 +353,99 @@ class TestSkeletonsService:
 
         assert et == 60
 
+    def test_get_cached_skeletons_bulk_cache_hit(self, test_app, cloudfiles_mock):
+        """Test that cache-hit RIDs are returned and missing RIDs are reported."""
+        skvn = 4
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        cached_data = b"fake_skeleton_data"
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+
+        # Mock _retrieve_skeleton_from_cache to return data for rid 1, None for rid 2
+        def mock_retrieve(params, fmt):
+            if params[0] == 1:
+                return cached_data
+            return None
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", side_effect=mock_retrieve).start()
+
+        # Mock _confirm_skeleton_in_cache to return False for rid 2 (no H5 either)
+        def mock_confirm(params, fmt):
+            return False
+        patch.object(SkeletonService, "_confirm_skeleton_in_cache", side_effect=mock_confirm).start()
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=[1, 2],
+            bucket="gs://test_bucket/",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            output_format="flatdict",
+        )
+
+        # RID 1 should be in skeletons with string key, RID 2 should be missing
+        assert "1" in result["skeletons"]
+        assert 2 in result["missing"]
+        assert len(result["async_queued"]) == 0
+
+    def test_get_cached_skeletons_bulk_rid_truncation(self, test_app):
+        """Test that RID lists exceeding MAX_BULK_CACHED_SKELETONS are truncated."""
+        from skeletonservice.datasets.service import MAX_BULK_CACHED_SKELETONS
+
+        skvn = 4
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=None).start()
+        patch.object(SkeletonService, "_confirm_skeleton_in_cache", return_value=False).start()
+
+        oversized_rids = list(range(1, MAX_BULK_CACHED_SKELETONS + 100))
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=oversized_rids,
+            bucket="gs://test_bucket/",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            output_format="flatdict",
+        )
+
+        # All processed RIDs should end up in missing (since cache returns None)
+        # But only MAX_BULK_CACHED_SKELETONS should be processed
+        assert len(result["missing"]) == MAX_BULK_CACHED_SKELETONS
+        assert len(result["skeletons"]) == 0
+
+    def test_get_cached_skeletons_bulk_string_keys(self, test_app):
+        """Test that skeleton dict keys are strings for JSON consistency."""
+        skvn = 4
+        SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
+
+        cached_data = b"fake_skeleton_data"
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=cached_data).start()
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=[123, 456],
+            bucket="gs://test_bucket/",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=skvn,
+            output_format="flatdict",
+        )
+
+        # Keys should be strings, not integers
+        for key in result["skeletons"]:
+            assert isinstance(key, str)
+        assert "123" in result["skeletons"]
+        assert "456" in result["skeletons"]
+
     def test_generate_skeletons_bulk_by_datastack_and_rids_async(self, test_app, caveclient_mock, cloudvolume_mock):
         responses.add(responses.GET, url=info_url, json=test_info, status=200)
         

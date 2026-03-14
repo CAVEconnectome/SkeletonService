@@ -2422,19 +2422,22 @@ class SkeletonService:
                 if verbose_level >= 1:
                     SkeletonService.print(f"H5 availability for rid {rid}: {h5_available}")
                 if h5_available:
-                    skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
-                        datastack_name,
-                        rid,
-                        output_format,
-                        bucket,
-                        root_resolution,
-                        collapse_soma,
-                        collapse_radius,
-                        skeleton_version,
-                        False,
-                        session_timestamp,
-                        verbose_level_,
-                    )
+                    # Fast-path: retrieve the cached H5 and convert locally, bypassing
+                    # per-RID CAVEclient validation in get_skeleton_by_datastack_and_rid().
+                    versioned_skeleton = SkeletonService._retrieve_skeleton_from_cache(params_cached, "h5_mpsk")
+                    if versioned_skeleton is not None:
+                        versioned_skeleton = SkeletonService._finalize_return_skeleton_version(versioned_skeleton, skeleton_version)
+                        if output_format == "flatdict":
+                            skeleton_json = SkeletonService._skeleton_to_flatdict(versioned_skeleton)
+                            skeleton = SkeletonService.compressDictToBytes(skeleton_json)
+                        elif output_format == "jsoncompressed":
+                            skeleton_json = SkeletonService._skeleton_to_json(versioned_skeleton)
+                            skeleton = SkeletonService.compressDictToBytes(skeleton_json)
+                        elif output_format == "swccompressed":
+                            skeleton = BytesIO()
+                            SkeletonIO.export_to_swc(versioned_skeleton.skeleton, skeleton,
+                                                     node_labels=np.array(versioned_skeleton.skeleton.vertex_properties['compartment']).astype(int),
+                                                     radius=np.array(versioned_skeleton.skeleton.vertex_properties['radius']))
                 if not h5_available:
                     if generate_missing_skeletons:
                         SkeletonService.publish_skeleton_request(
@@ -2456,11 +2459,11 @@ class SkeletonService:
                     continue
 
             if output_format == "flatdict":
-                skeletons[rid] = binascii.hexlify(skeleton).decode('ascii')
+                skeletons[str(rid)] = binascii.hexlify(skeleton).decode('ascii')
             elif output_format == "jsoncompressed":
-                skeletons[rid] = binascii.hexlify(skeleton).decode('ascii')
+                skeletons[str(rid)] = binascii.hexlify(skeleton).decode('ascii')
             elif output_format == "swccompressed":
-                skeletons[rid] = binascii.hexlify(skeleton.getvalue()).decode('ascii')
+                skeletons[str(rid)] = binascii.hexlify(skeleton.getvalue()).decode('ascii')
 
         if messaging_client is not None:
             messaging_client.close()
@@ -2476,7 +2479,6 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,
-        expiration_minutes: int = 60,
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
@@ -2488,6 +2490,10 @@ class SkeletonService:
         given datastack and skeleton version. The response includes the object paths for
         all requested RIDs that exist in the cache, so the client can construct GCS
         download URLs without needing to know the file naming convention.
+
+        Note: This endpoint always targets the cached highest skeleton version
+        (V{HIGHEST_SKELETON_VERSION}). If a different skeleton_version is requested,
+        it will be overridden to HIGHEST_SKELETON_VERSION.
 
         Returns a dict:
           "token":        short-lived Bearer token
@@ -2507,10 +2513,23 @@ class SkeletonService:
         if bucket[-1] != "/":
             bucket += "/"
 
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            if verbose_level >= 1:
+                SkeletonService.print(
+                    f"get_skeleton_token_by_datastack_and_rids() Requested skeleton_version V{skeleton_version} "
+                    f"but this endpoint always targets V{HIGHEST_SKELETON_VERSION}. Overriding."
+                )
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
         if verbose_level >= 1:
             SkeletonService.print(
-                f"get_skeleton_token_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}, expiration_minutes: {expiration_minutes}",
+                f"get_skeleton_token_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
             )
+
+        if len(rids) > MAX_BULK_CACHED_SKELETONS:
+            rids = rids[:MAX_BULK_CACHED_SKELETONS]
+            if verbose_level >= 1:
+                SkeletonService.print(f"get_skeleton_token_by_datastack_and_rids() Truncating rids to {MAX_BULK_CACHED_SKELETONS}")
 
         # Parse "gs://bucket-name/" or "gs://bucket-name/extra/prefix/" into components
         bucket_without_scheme = bucket.removeprefix("gs://").rstrip("/")
@@ -2550,7 +2569,11 @@ class SkeletonService:
             else:
                 missing.append(rid)
 
-        # Generate a downscoped access token scoped to the skeleton prefix in this bucket
+        # Generate a downscoped access token scoped to the skeleton prefix in this bucket.
+        # Note: roles/storage.objectViewer is the narrowest built-in GCS role available for
+        # Credential Access Boundaries (which require the inRole: prefix). It grants
+        # storage.objects.get and storage.objects.list. The availability_condition further
+        # restricts access to only objects under the skeleton prefix for this datastack.
         credentials, _ = google.auth.default()
         availability_condition = google.auth.downscoped.AvailabilityCondition(
             expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
