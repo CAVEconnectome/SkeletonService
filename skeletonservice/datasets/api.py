@@ -966,7 +966,7 @@ class SkeletonResource__get_skeleton_token(Resource):
     ]
 
     @staticmethod
-    def process(datastack_name: str, skvn: int, rids: list, verbose_level: int = 0):
+    def process(datastack_name: str, skvn: int, rids: list, expiration_minutes: int = 60, verbose_level: int = 0):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
         return SkelClassVsn.get_skeleton_token_by_datastack_and_rids(
@@ -977,6 +977,7 @@ class SkeletonResource__get_skeleton_token(Resource):
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
+            expiration_minutes=expiration_minutes,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
@@ -991,4 +992,5 @@ class SkeletonResource__get_skeleton_token(Resource):
             rids = rids[:MAX_BULK_CACHED_SKELETONS]
         verbose_level = int(data.get("verbose_level", 0))
         verbose_level = max(int(request.args.get("verbose_level", 0)), verbose_level)
-        return self.process(datastack_name, skvn, rids, verbose_level)
+        expiration_minutes = int(current_app.config.get("SKELETON_TOKEN_EXPIRATION_MINUTES", 60))
+        return self.process(datastack_name, skvn, rids, expiration_minutes, verbose_level)
