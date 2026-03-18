@@ -43,6 +43,10 @@ class BaseConfig(object):
     LIMITER_CATEGORIES = "CONFIGURE_ME"
     LIMITER_URI = "CONFIGURE_ME"
 
+    # Lifetime of downscoped GCS tokens issued by the skeleton token endpoint (in minutes).
+    # Clients should treat tokens as expired after this many minutes. Defaults to 1 hour.
+    SKELETON_TOKEN_EXPIRATION_MINUTES = 60
+
     NEUROGLANCER_URL = "https://neuroglancer-demo.appspot.com"
     if os.environ.get("DAF_CREDENTIALS", None) is not None:
         with open(os.environ.get("DAF_CREDENTIALS"), "r") as f:

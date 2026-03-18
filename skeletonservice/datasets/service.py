@@ -2479,6 +2479,7 @@ class SkeletonService:
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,
+        expiration_minutes: int = 60,
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
@@ -2495,11 +2496,14 @@ class SkeletonService:
         (V{HIGHEST_SKELETON_VERSION}). If a different skeleton_version is requested,
         it will be overridden to HIGHEST_SKELETON_VERSION.
 
+        The token lifetime is capped at expiration_minutes (server-side config, default 60).
+
         Returns a dict:
           "token":        short-lived Bearer token
           "token_type":   "Bearer"
           "expiry":       ISO-8601 expiry datetime string
           "bucket":       GCS bucket name (without gs:// scheme)
+          "skeleton_version": skeleton version used (always HIGHEST_SKELETON_VERSION)
           "object_paths": {rid: GCS object path within the bucket}
           "missing":      [rids not found in cache]
         """
@@ -2591,7 +2595,18 @@ class SkeletonService:
         )
         downscoped_creds.refresh(google.auth.transport.requests.Request())
 
-        expiry_str = downscoped_creds.expiry.isoformat() if downscoped_creds.expiry else None
+        # Cap the reported expiry to the server-configured expiration_minutes.
+        # Clients should treat the token as invalid after this time.
+        max_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=expiration_minutes)
+        if downscoped_creds.expiry is not None:
+            cred_expiry = downscoped_creds.expiry
+            # google-auth returns naive UTC datetimes; make timezone-aware for comparison
+            if cred_expiry.tzinfo is None:
+                cred_expiry = cred_expiry.replace(tzinfo=datetime.timezone.utc)
+            effective_expiry = min(cred_expiry, max_expiry)
+        else:
+            effective_expiry = max_expiry
+        expiry_str = effective_expiry.isoformat()
 
         return {
             "token": downscoped_creds.token,
