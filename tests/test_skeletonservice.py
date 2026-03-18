@@ -1,8 +1,10 @@
+import binascii
 import io
-from unittest.mock import patch
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
 import responses
 import pandas as pd
-from skeletonservice.datasets.service import SkeletonService
+from skeletonservice.datasets.service import MAX_BULK_CACHED_SKELETONS, SkeletonService
 from cloudfiles import CloudFiles
 from messagingclient import MessagingClientPublisher
 from caveclient import CAVEclient, endpoints
@@ -352,6 +354,197 @@ class TestSkeletonsService:
         )
 
         assert et == 60
+
+    # ------------------------------------------------------------------ #
+    # Tests for get_cached_skeletons_bulk_by_datastack_and_rids           #
+    # ------------------------------------------------------------------ #
+
+    def test_get_cached_skeletons_bulk_cache_hit(self, test_app):
+        """Cache hit: skeleton already stored in the requested format is returned hex-encoded."""
+        fake_bytes = b"fake_compressed_skeleton_data"
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=fake_bytes).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=[1],
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+            output_format="flatdict",
+        )
+
+        assert 1 in result
+        assert result[1] == binascii.hexlify(fake_bytes).decode("ascii")
+
+    def test_get_cached_skeletons_bulk_cache_miss(self, test_app):
+        """Cache miss with no H5 available: RID is absent from the returned dict."""
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=None).start()
+        patch.object(SkeletonService, "_confirm_skeleton_in_cache", return_value=False).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=[1],
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+            output_format="flatdict",
+            generate_missing_skeletons=False,
+        )
+
+        assert result == {}
+
+    def test_get_cached_skeletons_bulk_rid_truncation(self, test_app):
+        """RIDs beyond MAX_BULK_CACHED_SKELETONS are silently truncated."""
+        fake_bytes = b"fake_compressed_skeleton_data"
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", return_value=False).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=fake_bytes).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        oversized_rids = list(range(MAX_BULK_CACHED_SKELETONS + 10))
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=oversized_rids,
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+            output_format="flatdict",
+        )
+
+        assert len(result) == MAX_BULK_CACHED_SKELETONS
+        assert (MAX_BULK_CACHED_SKELETONS + 9) not in result
+
+    def test_get_cached_skeletons_bulk_refusal_list(self, test_app):
+        """RIDs on the refusal list are excluded from the returned dict."""
+        def refusal_side_effect(bucket, datastack_name, rid):
+            return rid == 1
+
+        patch.object(SkeletonService, "_check_root_id_against_refusal_list", side_effect=refusal_side_effect).start()
+        patch.object(SkeletonService, "_retrieve_skeleton_from_cache", return_value=b"data").start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_cached_skeletons_bulk_by_datastack_and_rids(
+            datastack_name=datastack_dict["datastack_name"],
+            rids=[1, 2],
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+            output_format="flatdict",
+        )
+
+        assert 1 not in result
+        assert 2 in result
+
+    # ------------------------------------------------------------------ #
+    # Tests for get_skeleton_token_by_datastack                           #
+    # ------------------------------------------------------------------ #
+
+    def test_get_skeleton_token_returns_expected_keys(self, test_app):
+        """Token response contains all required keys."""
+        fake_token = "fake-access-token-abc123"
+        fake_expiry = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+        mock_downscoped_creds = MagicMock()
+        mock_downscoped_creds.token = fake_token
+        mock_downscoped_creds.expiry = fake_expiry
+
+        patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
+        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
+        patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
+        patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_skeleton_token_by_datastack(
+            datastack_name=datastack_dict["datastack_name"],
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+        )
+
+        assert "token" in result
+        assert "token_type" in result
+        assert "expiry" in result
+        assert "bucket" in result
+        assert "path_template" in result
+        assert result["token"] == fake_token
+        assert result["token_type"] == "Bearer"
+        assert result["expiry"] == fake_expiry.isoformat()
+
+    def test_get_skeleton_token_path_template_contains_rid_placeholder(self, test_app):
+        """path_template must include a {rid} placeholder for client-side path construction."""
+        mock_downscoped_creds = MagicMock()
+        mock_downscoped_creds.token = "tok"
+        mock_downscoped_creds.expiry = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+        patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
+        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
+        patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
+        patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_skeleton_token_by_datastack(
+            datastack_name=datastack_dict["datastack_name"],
+            bucket="gs://test_bucket",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+        )
+
+        assert "{rid}" in result["path_template"]
+
+    def test_get_skeleton_token_bucket_name_strips_scheme(self, test_app):
+        """Returned bucket key contains only the bare bucket name, not the gs:// scheme."""
+        mock_downscoped_creds = MagicMock()
+        mock_downscoped_creds.token = "tok"
+        mock_downscoped_creds.expiry = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+        patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
+        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
+        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
+        patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
+        patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
+
+        SkelClassVsn = SkeletonService.get_version_specific_handler(4)
+
+        result = SkelClassVsn.get_skeleton_token_by_datastack(
+            datastack_name=datastack_dict["datastack_name"],
+            bucket="gs://my-bucket-name",
+            root_resolution=[1, 1, 1],
+            collapse_soma=True,
+            collapse_radius=7500,
+            skeleton_version=4,
+        )
+
+        assert result["bucket"] == "my-bucket-name"
+        assert not result["bucket"].startswith("gs://")
 
     def test_generate_skeletons_bulk_by_datastack_and_rids_async(self, test_app, caveclient_mock, cloudvolume_mock):
         responses.add(responses.GET, url=info_url, json=test_info, status=200)
