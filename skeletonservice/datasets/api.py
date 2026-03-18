@@ -957,27 +957,25 @@ class SkeletonResource__get_cached_skeletons_bulk(Resource):
 class SkeletonResource__get_skeleton_token(Resource):
     """Generate a short-lived downscoped GCS access token for direct skeleton downloads.
     The token is scoped to read-only access on the skeleton bucket prefix for the given
-    datastack and skeleton version. The response includes GCS object paths for each
-    requested RID that exists in the cache, so the client can download files directly
-    without going through this service."""
+    datastack and skeleton version (60-minute lifetime, the GCP IAM maximum). The response
+    includes a path_template with a {rid} placeholder so the client can construct per-file
+    object paths without knowing the server-side naming convention."""
     method_decorators = [
         limit_by_category("get_skeleton_token_bulk"),
         auth_requires_permission("view", table_arg="datastack_name"),
     ]
 
     @staticmethod
-    def process(datastack_name: str, skvn: int, rids: list, expiration_minutes: int, verbose_level: int = 0):
+    def process(datastack_name: str, skvn: int, verbose_level: int = 0):
         SkelClassVsn = SkeletonService.get_version_specific_handler(skvn)
 
-        return SkelClassVsn.get_skeleton_token_by_datastack_and_rids(
+        return SkelClassVsn.get_skeleton_token_by_datastack(
             datastack_name,
-            rids=rids,
             bucket=current_app.config["SKELETON_CACHE_BUCKET"],
             root_resolution=[1, 1, 1],
             collapse_soma=True,
             collapse_radius=7500,
             skeleton_version=skvn,
-            expiration_minutes=expiration_minutes,
             session_timestamp_=SkeletonService.get_session_timestamp(),
             verbose_level_=verbose_level,
         )
@@ -986,9 +984,7 @@ class SkeletonResource__get_skeleton_token(Resource):
     @auth_required
     @auth_requires_permission("view", table_arg="datastack_name", resource_namespace="datastack")
     def post(self, datastack_name: str, skvn: int):
-        data = request.json
-        rids = data["root_ids"]
-        expiration_minutes = int(data.get("expiration_minutes", 60))
+        data = request.json or {}
         verbose_level = int(data.get("verbose_level", 0))
         verbose_level = max(int(request.args.get("verbose_level", 0)), verbose_level)
-        return self.process(datastack_name, skvn, rids, expiration_minutes, verbose_level)
+        return self.process(datastack_name, skvn, verbose_level)

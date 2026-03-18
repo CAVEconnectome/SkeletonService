@@ -2465,18 +2465,16 @@ class SkeletonService:
         if messaging_client is not None:
             messaging_client.close()
 
-        return {"skeletons": skeletons, "missing": missing, "async_queued": async_queued}
+        return skeletons
 
     @staticmethod
-    def get_skeleton_token_by_datastack_and_rids(
+    def get_skeleton_token_by_datastack(
         datastack_name: str,
-        rids: List,
         bucket: str,
         root_resolution: List,
         collapse_soma: bool,
         collapse_radius: int,
         skeleton_version: int = 0,
-        expiration_minutes: int = 60,
         session_timestamp_: str = "not_provided",
         verbose_level_: int = 0,
     ):
@@ -2484,18 +2482,18 @@ class SkeletonService:
         Generate a short-lived downscoped GCS access token that authorizes the caller to
         download skeleton H5 files directly from the GCS bucket, bypassing this service.
 
-        The token is scoped to read-only access on the specific bucket prefix for the
-        given datastack and skeleton version. The response includes the object paths for
-        all requested RIDs that exist in the cache, so the client can construct GCS
-        download URLs without needing to know the file naming convention.
+        The token is scoped to read-only access on the skeleton prefix for the given
+        datastack and skeleton version (60-minute lifetime, the GCP IAM maximum).
+
+        Also returns a path_template with a {rid} placeholder so the client can construct
+        per-file object paths without needing to know the server-side naming convention.
 
         Returns a dict:
-          "token":        short-lived Bearer token
-          "token_type":   "Bearer"
-          "expiry":       ISO-8601 expiry datetime string
-          "bucket":       GCS bucket name (without gs:// scheme)
-          "object_paths": {rid: GCS object path within the bucket}
-          "missing":      [rids not found in cache]
+          "token":         short-lived Bearer token
+          "token_type":    "Bearer"
+          "expiry":        ISO-8601 expiry datetime string
+          "bucket":        GCS bucket name (without gs:// scheme)
+          "path_template": GCS object path with {rid} placeholder
         """
         global session_timestamp, verbose_level
 
@@ -2509,7 +2507,7 @@ class SkeletonService:
 
         if verbose_level >= 1:
             SkeletonService.print(
-                f"get_skeleton_token_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}, expiration_minutes: {expiration_minutes}",
+                f"get_skeleton_token_by_datastack() datastack_name: {datastack_name}, bucket: {bucket}, skeleton_version: {skeleton_version}",
             )
 
         # Parse "gs://bucket-name/" or "gs://bucket-name/extra/prefix/" into components
@@ -2521,34 +2519,18 @@ class SkeletonService:
         datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
         skvn_prefix = f"{bucket_extra_prefix}{datastack_name_remapped}/{HIGHEST_SKELETON_VERSION}/"
 
-        # Check which requested RIDs exist in the cache
-        object_paths = {}
-        missing = []
-
-        for rid in rids:
-            params_cached = [
-                rid,
-                bucket,
-                HIGHEST_SKELETON_VERSION,
-                datastack_name,
-                root_resolution,
-                collapse_soma,
-                collapse_radius,
-            ]
-
-            if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
-                missing.append(rid)
-                continue
-
-            h5_available = SkeletonService._confirm_skeleton_in_cache(params_cached, "h5")
-            if verbose_level >= 1:
-                SkeletonService.print(f"get_skeleton_token_by_datastack_and_rids() H5 availability for rid {rid}: {h5_available}")
-
-            if h5_available:
-                file_name = SkeletonService._get_skeleton_filename(*params_cached, "h5")
-                object_paths[rid] = skvn_prefix + file_name
-            else:
-                missing.append(rid)
+        # Build path template: client substitutes {rid} for each root ID
+        template_params = [
+            "{rid}",
+            bucket,
+            HIGHEST_SKELETON_VERSION,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+        ]
+        file_name_template = SkeletonService._get_skeleton_filename(*template_params, "h5")
+        path_template = skvn_prefix + file_name_template
 
         # Generate a downscoped access token scoped to the skeleton prefix in this bucket
         credentials, _ = google.auth.default()
@@ -2575,8 +2557,7 @@ class SkeletonService:
             "token_type": "Bearer",
             "expiry": expiry_str,
             "bucket": bucket_name,
-            "object_paths": {str(rid): path for rid, path in object_paths.items()},
-            "missing": missing,
+            "path_template": path_template,
         }
 
     @staticmethod
