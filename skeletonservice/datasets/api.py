@@ -947,6 +947,8 @@ class SkeletonResource__get_cached_skeletons_bulk(Resource):
     def post(self, datastack_name: str, skvn: int, output_format: str):
         data = request.json
         rids = data["root_ids"]
+        if len(rids) > MAX_BULK_CACHED_SKELETONS:
+            return {"Error": f"Too many root IDs requested: {len(rids)}. Maximum allowed is {MAX_BULK_CACHED_SKELETONS}."}, 400
         generate_missing = bool(data.get("generate_missing", False))
         verbose_level = int(data.get("verbose_level", 0))
         verbose_level = max(int(request.args.get("verbose_level", 0)), verbose_level)
