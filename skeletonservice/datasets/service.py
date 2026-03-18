@@ -2516,14 +2516,21 @@ class SkeletonService:
         bucket_name = parts[0]
         bucket_extra_prefix = (parts[1] + "/") if len(parts) > 1 else ""
 
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            if verbose_level >= 1:
+                SkeletonService.print(
+                    f"get_skeleton_token_by_datastack() Skeleton version V{skeleton_version} was requested but caching only supports version V{HIGHEST_SKELETON_VERSION}, so that version will be used."
+                )
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
         datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
-        skvn_prefix = f"{bucket_extra_prefix}{datastack_name_remapped}/{HIGHEST_SKELETON_VERSION}/"
+        skvn_prefix = f"{bucket_extra_prefix}{datastack_name_remapped}/{skeleton_version}/"
 
         # Build path template: client substitutes {rid} for each root ID
         template_params = [
             "{rid}",
             bucket,
-            HIGHEST_SKELETON_VERSION,
+            skeleton_version,
             datastack_name,
             root_resolution,
             collapse_soma,
