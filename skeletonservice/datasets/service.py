@@ -2,6 +2,9 @@ import ast
 import copy
 from io import BytesIO
 import binascii
+import google.auth
+import google.auth.downscoped
+import google.auth.transport.requests
 import google.cloud.logging
 import logging
 import math
@@ -43,6 +46,7 @@ DEBUG_MINIMIZE_JSON_SKELETON = False  # DEBUG: See _minimize_json_skeleton_for_e
 DEBUG_DEAD_LETTER_TEST_RID = 102030405060708090  # This root will always immediately trigger an exception when skeletonizing, which will send it to the dead letter queue
 COMPRESSION = "gzip"  # Valid values mirror cloudfiles.CloudFiles.put() and put_json(): None, 'gzip', 'br' (brotli), 'zstd'
 MAX_BULK_SYNCHRONOUS_SKELETONS = 10
+MAX_BULK_CACHED_SKELETONS = 500  # Higher limit: only reading from cache, not generating
 PUBSUB_BATCH_SIZE = 100
 # We have to clean up escape characters in DATASTACK_NAME_REMAPPING because the curly brackets of the inner dictionary are escaped when bash-serializing in the PrinceAllenCAVE scripts
 DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get('SKELETON_DATASTACK_NAME_REMAPPING', '{}').replace("\\", ""))
@@ -2338,7 +2342,231 @@ class SkeletonService:
         messaging_client.close()
 
         return skeletons
-    
+
+    @staticmethod
+    def get_cached_skeletons_bulk_by_datastack_and_rids(
+        datastack_name: str,
+        rids: List,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = 0,
+        output_format: str = "flatdict",
+        generate_missing_skeletons: bool = False,
+        session_timestamp_: str = "not_provided",
+        verbose_level_: int = 0,
+    ):
+        """
+        Retrieve only already-cached skeletons in bulk, with a higher RID limit than
+        get_skeletons_bulk_by_datastack_and_rids(). Skips per-RID CAVEclient validation
+        to avoid blocking on chunkedgraph network calls.
+
+        Returns a dict with three keys:
+          "skeletons": {rid: hex-encoded compressed skeleton data}
+          "missing":   [rids not found in cache and not queued]
+          "async_queued": [rids not in cache that were queued for async generation]
+        """
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+
+        if bucket[-1] != "/":
+            bucket += "/"
+
+        if verbose_level >= 1:
+            SkeletonService.print(
+                f"get_cached_skeletons_bulk_by_datastack_and_rids() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}, skeleton_version: {skeleton_version}",
+                f" root_resolution: {root_resolution}, collapse_soma: {collapse_soma}, collapse_radius: {collapse_radius}, output_format: {output_format}, generate_missing_skeletons: {generate_missing_skeletons}",
+            )
+
+        assert (output_format == "flatdict" or output_format == "json" or output_format == "swc" or output_format == "jsoncompressed" or output_format == "swccompressed")
+        if (output_format == "json" or output_format == "swc"):
+            output_format += "compressed"
+
+        if len(rids) > MAX_BULK_CACHED_SKELETONS:
+            rids = rids[:MAX_BULK_CACHED_SKELETONS]
+            if verbose_level >= 1:
+                SkeletonService.print(f"get_cached_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_CACHED_SKELETONS}")
+
+        messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE) if generate_missing_skeletons else None
+
+        skeletons = {}
+        missing = []
+        async_queued = []
+
+        for rid in rids:
+            params_cached = [
+                rid,
+                bucket,
+                HIGHEST_SKELETON_VERSION,
+                datastack_name,
+                root_resolution,
+                collapse_soma,
+                collapse_radius,
+            ]
+
+            if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
+                missing.append(rid)
+                continue
+
+            skeleton = SkeletonService._retrieve_skeleton_from_cache(params_cached, output_format)
+            if verbose_level >= 1:
+                SkeletonService.print(f"get_cached_skeletons_bulk_by_datastack_and_rids() Cache query result for {output_format} rid {rid}: {skeleton is not None}")
+
+            if skeleton is None:
+                h5_available = SkeletonService._confirm_skeleton_in_cache(params_cached, "h5")
+                if verbose_level >= 1:
+                    SkeletonService.print(f"H5 availability for rid {rid}: {h5_available}")
+                if h5_available:
+                    skeleton = SkeletonService.get_skeleton_by_datastack_and_rid(
+                        datastack_name,
+                        rid,
+                        output_format,
+                        bucket,
+                        root_resolution,
+                        collapse_soma,
+                        collapse_radius,
+                        skeleton_version,
+                        False,
+                        session_timestamp,
+                        verbose_level_,
+                    )
+                if not h5_available:
+                    if generate_missing_skeletons:
+                        SkeletonService.publish_skeleton_request(
+                            messaging_client,
+                            datastack_name,
+                            rid,
+                            "none",
+                            bucket,
+                            root_resolution,
+                            collapse_soma,
+                            collapse_radius,
+                            skeleton_version,
+                            True,
+                            verbose_level_,
+                        )
+                        async_queued.append(rid)
+                    else:
+                        missing.append(rid)
+                    continue
+
+            if output_format == "flatdict":
+                skeletons[rid] = binascii.hexlify(skeleton).decode('ascii')
+            elif output_format == "jsoncompressed":
+                skeletons[rid] = binascii.hexlify(skeleton).decode('ascii')
+            elif output_format == "swccompressed":
+                skeletons[rid] = binascii.hexlify(skeleton.getvalue()).decode('ascii')
+
+        if messaging_client is not None:
+            messaging_client.close()
+
+        return skeletons
+
+    @staticmethod
+    def get_skeleton_token_by_datastack(
+        datastack_name: str,
+        bucket: str,
+        root_resolution: List,
+        collapse_soma: bool,
+        collapse_radius: int,
+        skeleton_version: int = 0,
+        session_timestamp_: str = "not_provided",
+        verbose_level_: int = 0,
+    ):
+        """
+        Generate a short-lived downscoped GCS access token that authorizes the caller to
+        download skeleton H5 files directly from the GCS bucket, bypassing this service.
+
+        The token is scoped to read-only access on the skeleton prefix for the given
+        datastack and skeleton version (60-minute lifetime, the GCP IAM maximum).
+
+        Also returns a path_template with a {rid} placeholder so the client can construct
+        per-file object paths without needing to know the server-side naming convention.
+
+        Returns a dict:
+          "token":         short-lived Bearer token
+          "token_type":    "Bearer"
+          "expiry":        ISO-8601 expiry datetime string
+          "bucket":        GCS bucket name (without gs:// scheme)
+          "path_template": GCS object path with {rid} placeholder
+        """
+        global session_timestamp, verbose_level
+
+        session_timestamp = session_timestamp_
+
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+
+        if bucket[-1] != "/":
+            bucket += "/"
+
+        if verbose_level >= 1:
+            SkeletonService.print(
+                f"get_skeleton_token_by_datastack() datastack_name: {datastack_name}, bucket: {bucket}, skeleton_version: {skeleton_version}",
+            )
+
+        # Parse "gs://bucket-name/" or "gs://bucket-name/extra/prefix/" into components
+        bucket_without_scheme = bucket.removeprefix("gs://").rstrip("/")
+        parts = bucket_without_scheme.split("/", 1)
+        bucket_name = parts[0]
+        bucket_extra_prefix = (parts[1] + "/") if len(parts) > 1 else ""
+
+        if skeleton_version != HIGHEST_SKELETON_VERSION:
+            if verbose_level >= 1:
+                SkeletonService.print(
+                    f"get_skeleton_token_by_datastack() Skeleton version V{skeleton_version} was requested but caching only supports version V{HIGHEST_SKELETON_VERSION}, so that version will be used."
+                )
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
+        datastack_name_remapped = DATASTACK_NAME_REMAPPING[datastack_name] if datastack_name in DATASTACK_NAME_REMAPPING else datastack_name
+        skvn_prefix = f"{bucket_extra_prefix}{datastack_name_remapped}/{skeleton_version}/"
+
+        # Build path template: client substitutes {rid} for each root ID
+        template_params = [
+            "{rid}",
+            bucket,
+            skeleton_version,
+            datastack_name,
+            root_resolution,
+            collapse_soma,
+            collapse_radius,
+        ]
+        file_name_template = SkeletonService._get_skeleton_filename(*template_params, "h5")
+        path_template = skvn_prefix + file_name_template
+
+        # Generate a downscoped access token scoped to the skeleton prefix in this bucket
+        credentials, _ = google.auth.default()
+        availability_condition = google.auth.downscoped.AvailabilityCondition(
+            expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
+        )
+        access_boundary = google.auth.downscoped.AccessBoundary([
+            google.auth.downscoped.AccessBoundaryRule(
+                available_resource=f'//storage.googleapis.com/projects/_/buckets/{bucket_name}',
+                available_permissions=['inRole:roles/storage.objectViewer'],
+                availability_condition=availability_condition,
+            )
+        ])
+        downscoped_creds = google.auth.downscoped.Credentials(
+            source_credentials=credentials,
+            access_boundary=access_boundary,
+        )
+        downscoped_creds.refresh(google.auth.transport.requests.Request())
+
+        expiry_str = downscoped_creds.expiry.isoformat() if downscoped_creds.expiry else None
+
+        return {
+            "token": downscoped_creds.token,
+            "token_type": "Bearer",
+            "expiry": expiry_str,
+            "bucket": bucket_name,
+            "path_template": path_template,
+        }
+
     @staticmethod
     def get_meshwork_by_datastack_and_rid_async(
         datastack_name: str,
