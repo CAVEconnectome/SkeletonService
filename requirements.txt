@@ -34,7 +34,7 @@ cachetools==5.3.2
     #   caveclient
     #   google-auth
     #   middle-auth-client
-caveclient==7.11.1
+caveclient==8.2.0
     # via
     #   -r requirements.in
     #   pcg-skel
@@ -190,7 +190,9 @@ grpcio-status==1.62.2
     #   google-api-core
     #   google-cloud-pubsub
 h5py==3.11.0
-    # via meshparty
+    # via
+    #   caveclient
+    #   meshparty
 idna==3.6
     # via requests
 imageio==2.34.1
