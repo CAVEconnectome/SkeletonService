@@ -6,6 +6,7 @@ I need to add a token or a secret or something, but I don't want to simply add s
 I haven't solved this problem yet. As such, these tests don't currectly work.
 But, you can run the notebook version of these tests manually and they should work since you will have the necessary token and secret files on your local machine.
 Ultimately, the script needs to be automatically called in a container on a pod whenever a new tag is deployed to the server.
+Whiiich, was eventually implemented. There is, in fact, a pod that detects new tags and runs these tests automatically. The results are sent to Keith Wiley's personal Slack direct message channel.
 '''
 
 # SkeletonService integration tests
@@ -64,7 +65,7 @@ PROD_SERVERS = [
 DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
 # DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
-TOTAL_NUM_TESTS = 29
+TOTAL_NUM_TESTS = 31
 
 server = None
 
@@ -200,7 +201,8 @@ class SkeletonsServiceIntegrationTest:
             self.valid_rids.append(self.datastack_config["single_vertex_rid"])
         self.larger_bulk_rids = self.datastack_config["bulk_rids"] * 6  # Twelve rids will exceed the ten-rid limit of get_bulk_skeletons()
         
-        # Delete the test rid files from the bucket so we can test regenerating them from scratch
+        # Prepare to delete the test rid files from the bucket so we can test regenerating them from scratch.
+        # Preparation consists of assigning the bucket based on the server_address.
 
         # TODO: Move the bucket into the datastack_config so it can be set by the caller.
         bucket = None
@@ -218,6 +220,7 @@ class SkeletonsServiceIntegrationTest:
         if verbose_level >= 1:
             printer.print(f"Testing bucket: {bucket}")
 
+        # Print out the existence status of the test rid files in the bucket before we delete them
         cf = CloudFiles(bucket)
         # for rid in self.valid_rids:
         #     for output_format in ["h5", "flatdict", "swccompressed"]:
@@ -226,6 +229,7 @@ class SkeletonsServiceIntegrationTest:
         #             printer.print(filename)
         #             printer.print("Exists status:", cf.exists(filename))
 
+        # Here's where we actually delete the files from the bucket, as explained above
         for rid in self.valid_rids:
             for output_format in ["h5", "flatdict", "swccompressed"]:
                 filename = f"skeleton__v{self.skvn}__rid-{rid}__ds-{self.remapped_datastack_name}__res-1x1x1__cs-True__cr-7500.{output_format}.gz"
@@ -262,6 +266,8 @@ class SkeletonsServiceIntegrationTest:
         results += self.run_test_bulk_retrieval_1()
         results += self.run_test_bulk_retrieval_2()
         results += self.run_test_bulk_retrieval_3()
+        results += self.run_test_bulk_fetch_1()
+        results += self.run_test_bulk_fetch_2()
         results += self.run_test_bulk_async_request_1()
         results += self.run_test_bulk_async_request_2()
         results += self.run_test_bulk_async_request_3()
@@ -415,7 +421,7 @@ class SkeletonsServiceIntegrationTest:
         return (1, 0, 0, 0)
 
     #====================================================================================================
-    # Refusal list tests
+    # Refusal list retrieval tests
 
     def run_test_refusal_list_1(self):
         if verbose_level >= 1:
@@ -654,6 +660,30 @@ might complete between the time when the cache is cleared at the beginning of th
         test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
         return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
 
+    # Large bulk skeleton retrieval
+    ## This routine returns large numbers of skeletons, ignoring root ids for which skeletons don't already exist
+
+    def run_test_bulk_fetch_1(self):
+        if verbose_level >= 1:
+            printer.print(inspect.stack()[0][3])
+        result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"])
+        if verbose_level >= 2:
+            printer.print(type(result), result)
+        test_result = self.eval_one_test_result(sorted(list(result.keys())) == self.datastack_config["bulk_rids"])
+        return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+
+    def run_test_bulk_fetch_2(self):
+        if verbose_level >= 1:
+            printer.print(inspect.stack()[0][3])
+        result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, verbose_level=1)
+        if verbose_level >= 2:
+            printer.print(type(result), result)
+        if not self.fast_run:
+            test_result = self.eval_one_test_result(result == 60.0)
+        else:
+            test_result = self.eval_one_test_result(result == 0.0)
+        return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
     ### The estimated job time depends on the number of parallel workers available on the server with each skeleton allocated 60s for estimation purposes.
@@ -695,6 +725,8 @@ might complete between the time when the cache is cleared at the beginning of th
         else:
             test_result = self.eval_one_test_result(result == 0.0)
         return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+
+    # End individual test routines.
 
     def test_integration(self, server_address, fast_run=False):
         # DEBUG, I'm trying to figure out how the loop above waits for the version to stabilize but then it reverts by the time the code reachs approximately line 216!
