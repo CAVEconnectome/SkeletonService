@@ -22,7 +22,7 @@ from middle_auth_client import (
 
 from typing import List
 
-__version__ = "0.23.4"
+__version__ = "0.23.5"
 
 google.cloud.logging.Client().setup_logging()
 
