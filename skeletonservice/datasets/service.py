@@ -2540,32 +2540,38 @@ class SkeletonService:
         path_template = skvn_prefix + file_name_template
 
         # Generate a downscoped access token scoped to the skeleton prefix in this bucket
-        credentials, _ = google.auth.default()
-        availability_condition = google.auth.downscoped.AvailabilityCondition(
-            expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
-        )
-        access_boundary = google.auth.downscoped.AccessBoundary([
-            google.auth.downscoped.AccessBoundaryRule(
-                available_resource=f'//storage.googleapis.com/projects/_/buckets/{bucket_name}',
-                available_permissions=['inRole:roles/storage.objectViewer'],
-                availability_condition=availability_condition,
+        try:
+            credentials, _ = google.auth.default()
+            availability_condition = google.auth.downscoped.AvailabilityCondition(
+                expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
             )
-        ])
-        downscoped_creds = google.auth.downscoped.Credentials(
-            source_credentials=credentials,
-            access_boundary=access_boundary,
-        )
-        downscoped_creds.refresh(google.auth.transport.requests.Request())
+            access_boundary = google.auth.downscoped.AccessBoundary([
+                google.auth.downscoped.AccessBoundaryRule(
+                    available_resource=f'//storage.googleapis.com/projects/_/buckets/{bucket_name}',
+                    available_permissions=['inRole:roles/storage.objectViewer'],
+                    availability_condition=availability_condition,
+                )
+            ])
+            downscoped_creds = google.auth.downscoped.Credentials(
+                source_credentials=credentials,
+                access_boundary=access_boundary,
+            )
+            downscoped_creds.refresh(google.auth.transport.requests.Request())
 
-        expiry_str = downscoped_creds.expiry.isoformat() if downscoped_creds.expiry else None
+            expiry_str = downscoped_creds.expiry.isoformat() if downscoped_creds.expiry else None
 
-        return {
-            "token": downscoped_creds.token,
-            "token_type": "Bearer",
-            "expiry": expiry_str,
-            "bucket": bucket_name,
-            "path_template": path_template,
-        }
+            return {
+                "token": downscoped_creds.token,
+                "token_type": "Bearer",
+                "expiry": expiry_str,
+                "bucket": bucket_name,
+                "path_template": path_template,
+            }
+        except Exception as e:
+            error_msg = f"Failed to generate downscoped GCS token for datastack '{datastack_name}' (version {skeleton_version}): {str(e)}"
+            SkeletonService.print(error_msg)
+            logging.error(error_msg)
+            raise ValueError(error_msg) from e
 
     @staticmethod
     def get_meshwork_by_datastack_and_rid_async(

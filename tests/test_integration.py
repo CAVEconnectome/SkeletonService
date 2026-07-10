@@ -65,7 +65,7 @@ PROD_SERVERS = [
 DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08KJ36BJAF/DfcLRvJzizvCaozpMugAnu38"  # Keith Wiley's Slack direct messages in the Connectome org
 # DEFAULT_SLACK_WEBHOOK_ID = "T0CL3AB5X/B08P52E7A05/iXHgqifbk8MtpDw4adoSh5pW"  # deployment-hour-alerts channel in the Connectome org
 
-TOTAL_NUM_TESTS = 31
+TOTAL_NUM_TESTS = 32
 
 server = None
 
@@ -268,6 +268,7 @@ class SkeletonsServiceIntegrationTest:
         results += self.run_test_bulk_retrieval_3()
         results += self.run_test_bulk_fetch_1()
         results += self.run_test_bulk_fetch_2()
+        results += self.run_test_bulk_fetch_3()
         results += self.run_test_bulk_async_request_1()
         results += self.run_test_bulk_async_request_2()
         results += self.run_test_bulk_async_request_3()
@@ -684,6 +685,18 @@ might complete between the time when the cache is cleared at the beginning of th
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
         return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+
+    def run_test_bulk_fetch_3(self):
+        if verbose_level >= 1:
+            printer.print(inspect.stack()[0][3])
+        try:
+            result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"], method="gcs")
+            if verbose_level >= 2:
+                printer.print(type(result), result)
+            test_result = self.eval_one_test_result(result is not None)
+            return (1, 0, 0, 0)
+        except Exception as e:
+            return (0, 0, 1, 0)
 
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
