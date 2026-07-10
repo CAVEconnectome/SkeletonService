@@ -2543,7 +2543,7 @@ class SkeletonService:
         try:
             credentials, _ = google.auth.default()
             availability_condition = google.auth.downscoped.AvailabilityCondition(
-                expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
+                expression=f"resource.name.startsWith('projects/_/buckets/{bucket_name}/objects/{skvn_prefix}')",
             )
             credential_access_boundary = google.auth.downscoped.CredentialAccessBoundary([
                 google.auth.downscoped.AccessBoundaryRule(
