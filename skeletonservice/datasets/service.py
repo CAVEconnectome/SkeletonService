@@ -2545,7 +2545,7 @@ class SkeletonService:
             availability_condition = google.auth.downscoped.AvailabilityCondition(
                 expression=f'resource.name.startsWith("projects/_/buckets/{bucket_name}/objects/{skvn_prefix}")',
             )
-            access_boundary = google.auth.downscoped.CredentialAccessBoundary([
+            credential_access_boundary = google.auth.downscoped.CredentialAccessBoundary([
                 google.auth.downscoped.AccessBoundaryRule(
                     available_resource=f'//storage.googleapis.com/projects/_/buckets/{bucket_name}',
                     available_permissions=['inRole:roles/storage.objectViewer'],
@@ -2554,7 +2554,7 @@ class SkeletonService:
             ])
             downscoped_creds = google.auth.downscoped.Credentials(
                 source_credentials=credentials,
-                access_boundary=access_boundary,
+                credential_access_boundary=credential_access_boundary,
             )
             downscoped_creds.refresh(google.auth.transport.requests.Request())
 
