@@ -695,6 +695,7 @@ might complete between the time when the cache is cleared at the beginning of th
                 printer.print(type(result), result)
             test_result = self.eval_one_test_result(result is not None)
         except Exception as e:
+            printer.print(f"Error running test_bulk_fetch_3: {e}")
             test_result = self.eval_one_test_result(False)
         return (0, 0, 1, 0) if test_result else (0, 0, 1, 0)
 
