@@ -2541,7 +2541,9 @@ class SkeletonService:
 
         # Generate a downscoped access token scoped to the skeleton prefix in this bucket
         try:
-            credentials, _ = google.auth.default()
+            credentials, _ = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
             availability_condition = google.auth.downscoped.AvailabilityCondition(
                 expression=f"resource.name.startsWith('projects/_/buckets/{bucket_name}/objects/{skvn_prefix}')",
             )
