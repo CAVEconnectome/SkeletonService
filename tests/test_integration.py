@@ -694,9 +694,9 @@ might complete between the time when the cache is cleared at the beginning of th
             if verbose_level >= 2:
                 printer.print(type(result), result)
             test_result = self.eval_one_test_result(result is not None)
-            return (1, 0, 0, 0)
         except Exception as e:
-            return (0, 0, 1, 0)
+            test_result = self.eval_one_test_result(False)
+        return (0, 0, 1, 0) if test_result else (0, 0, 1, 0)
 
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
