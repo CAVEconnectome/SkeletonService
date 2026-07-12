@@ -346,6 +346,7 @@ class SkeletonsServiceIntegrationTest:
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     def run_test_cache_status_1_2(self):
@@ -359,6 +360,7 @@ class SkeletonsServiceIntegrationTest:
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     def run_test_cache_status_1_3(self):
@@ -373,6 +375,7 @@ class SkeletonsServiceIntegrationTest:
                 valid_rid: False for valid_rid in self.valid_rids
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     #====================================================================================================
@@ -390,6 +393,7 @@ class SkeletonsServiceIntegrationTest:
                 "files": []
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     def run_test_cache_contents_2(self):
@@ -404,6 +408,7 @@ class SkeletonsServiceIntegrationTest:
                 "files": []
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     def run_test_cache_contents_3(self):
@@ -419,6 +424,7 @@ class SkeletonsServiceIntegrationTest:
                 "files": []
             })
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     #====================================================================================================
@@ -430,10 +436,15 @@ class SkeletonsServiceIntegrationTest:
         try:
             refusal_list = self.skclient.get_refusal_list(self.datastack_config["name"], verbose_level=1)
             # print(refusal_list)
+            self.test_passed()
             return (1, 0, 0, 0)
         except requests.HTTPError as e:
             if verbose_level >= 2:
-                printer.print(e.args[0])
+                printer.print("HTTPError:" + str(e) + e.args[0])
+        except Exception as e:
+            if verbose_level >= 2:
+                printer.print("Exception:" + str(e) + e.args[0])
+        self.test_failed()
         return (0, 0, 1, 0)
 
     #====================================================================================================
@@ -447,12 +458,15 @@ class SkeletonsServiceIntegrationTest:
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["refusal_list_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
-            self.test_failed()
         except requests.HTTPError as e:
             if verbose_level >= 2:
-                printer.print(e.args[0])
+                printer.print("HTTPError:" + str(e) + e.args[0])
             test_result = self.eval_one_test_result('"Error": "Problematic root id: ' + str(self.datastack_config["refusal_list_rid"]) + ' is in the refusal list"' in e.args[0])
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        except Exception as e:
+            if verbose_level >= 2:
+                printer.print("Exception:" + str(e) + e.args[0])
+        self.test_failed()
         return (0, 0, 1, 0)
 
     def run_test_invalid_request_2(self):
@@ -463,12 +477,15 @@ class SkeletonsServiceIntegrationTest:
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["invalid_node_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
-            self.test_failed()
         except ValueError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
             test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.datastack_config["invalid_node_rid"]) + ' (perhaps it doesn\'t exist; the error is unclear)')
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        except Exception as e:
+            if verbose_level >= 2:
+                printer.print("Exception:" + str(e) + e.args[0])
+        self.test_failed()
         return (0, 0, 1, 0)
 
     def run_test_invalid_request_3(self):
@@ -479,12 +496,15 @@ class SkeletonsServiceIntegrationTest:
             return (0, 0, 0, 1)
         try:
             sk = self.skclient.get_skeleton(self.datastack_config["supervoxel_rid"], self.datastack_config["name"], skeleton_version=self.skvn, output_format='dict', verbose_level=1)
-            self.test_failed()
         except ValueError as e:
             if verbose_level >= 2:
                 printer.print(e.args[0])
             test_result = self.eval_one_test_result(e.args[0] == 'Invalid root id: ' + str(self.datastack_config["supervoxel_rid"]) + ' (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)')
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        except Exception as e:
+            if verbose_level >= 2:
+                printer.print("Exception:" + str(e) + e.args[0])
+        self.test_failed()
         return (0, 0, 1, 0)
 
     #====================================================================================================
@@ -600,6 +620,7 @@ class SkeletonsServiceIntegrationTest:
 warning_fmt_begin + "NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
 might complete between the time when the cache is cleared at the beginning of this run and the time this test is run." + fmt_end)
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     def run_test_cache_status_2_2(self):
@@ -629,6 +650,7 @@ might complete between the time when the cache is cleared at the beginning of th
 warning_fmt_begin + "NOTE: This test might erroneously fail if the test suite is run multiple times in close succession since the asynchronous skeletonizations initiated by the earlier run \
 might complete between the time when the cache is cleared at the beginning of this run and the time this test is run." + fmt_end)
             return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
+        self.test_passed()
         return (1, 0, 0, 0)
 
     # Small bulk skeleton request tests
@@ -669,7 +691,7 @@ might complete between the time when the cache is cleared at the beginning of th
             printer.print(inspect.stack()[0][3])
         result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"])
         if verbose_level >= 2:
-            printer.print(type(result), result)
+            printer.print(type(result), result.keys() if isinstance(result, dict) else result)
         # We can't test(both root ids because only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
@@ -680,7 +702,7 @@ might complete between the time when the cache is cleared at the beginning of th
             printer.print(inspect.stack()[0][3])
         result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"], skeleton_version=self.skvn, verbose_level=1)
         if verbose_level >= 2:
-            printer.print(type(result), result)
+            printer.print(type(result), result.keys() if isinstance(result, dict) else result)
         # We can't test(both root ids because only one was generated by the previous tests above.
         # The other root id will be asyncronously triggered by this test but won't be available for 20-60 seconds afterwards.
         test_result = self.eval_one_test_result(str(self.datastack_config["bulk_rids"][0]) in result.keys())
@@ -692,12 +714,12 @@ might complete between the time when the cache is cleared at the beginning of th
         try:
             result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"], method="gcs")
             if verbose_level >= 2:
-                printer.print(type(result), result)
+                printer.print(type(result), result.keys() if isinstance(result, dict) else result)
             test_result = self.eval_one_test_result(result)
         except Exception as e:
             printer.print(f"Error running test_bulk_fetch_3: {e}")
-            test_result = self.eval_one_test_result(False)
-        return (0, 0, 1, 0) if test_result else (0, 0, 1, 0)
+            self.test_failed()
+        return (1, 0, 0, 0) if test_result else (0, 0, 1, 0)
 
     # Asynchronous bulk skeleton request tests
     ## This routine submits a large number of requests and returns only the estimated time to complete the job; it doesn't return any skeletons.
@@ -764,8 +786,7 @@ might complete between the time when the cache is cleared at the beginning of th
             if e.args[0] == 401 or "UNAUTHORIZED" in str(e) or "Token is Invalid or Expired" in str(e):
                 print("Please manually authenticate the test using the provided URL:", e)
 
-            # Run an artificial failed test to generate a failure message
-            self.eval_one_test_result(False)
+            self.test_failed()
 
             client = cc.CAVEclient(self.datastack_config["name"], server_address=CAVE_CLIENT_SERVER)
             client.materialize.version = self.datastack_config["materialization_version"]
