@@ -693,7 +693,7 @@ might complete between the time when the cache is cleared at the beginning of th
             result = self.skclient.fetch_skeletons(self.datastack_config["bulk_rids"], method="gcs")
             if verbose_level >= 2:
                 printer.print(type(result), result)
-            test_result = self.eval_one_test_result(result is not None)
+            test_result = self.eval_one_test_result(result)
         except Exception as e:
             printer.print(f"Error running test_bulk_fetch_3: {e}")
             test_result = self.eval_one_test_result(False)
