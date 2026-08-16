@@ -5,7 +5,6 @@ import binascii
 import google.auth
 import google.auth.downscoped
 import google.auth.transport.requests
-import google.cloud.logging
 import logging
 import math
 import time
@@ -127,7 +126,6 @@ class VersionedSkeleton:
     def __repr__(self):
         return self.__str__()
 
-google.cloud.logging.Client().setup_logging()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
@@ -142,6 +140,12 @@ verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
 # Enable verbose debugging for one root id, e.g., a problematic id that has been encountered by a user
 debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
+
+# Opt-in archival of per-skeleton timings to SKELETONIZATION_TIMES_FILENAME. Off by default:
+# _archive_skeletonization_time() rewrites that entire object on every skeleton, so its cost grows
+# with the number of skeletons ever produced and every worker contends for the same key.
+# See the note on _archive_skeletonization_time() before turning this back on.
+archive_skeletonization_times = os.environ.get('ARCHIVE_SKELETONIZATION_TIMES', "false").lower() == "true"
 class SkeletonService:
     @staticmethod
     def get_session_timestamp():
@@ -534,19 +538,41 @@ class SkeletonService:
     def _archive_skeletonization_time(bucket, datastack_name, rid, skeleton_version, n_vertices, n_end_points, n_branch_points, skeletonization_elapsed_time):
         """
         Archive the skeletonization time for a given root id.
+
+        Disabled unless ARCHIVE_SKELETONIZATION_TIMES=true, because this is a full
+        read-modify-write of one fixed object at the bucket root, performed once per generated
+        skeleton by every worker:
+
+            GET the whole CSV -> append one row -> gzip and PUT the whole CSV
+
+        The object is never rotated, so it grows by a row per skeleton forever and the per-skeleton
+        cost grows with it. Measured on minniev7 2026-08-16 it had reached 85,309 rows / 8.10 MB
+        uncompressed (1.45 MB gzipped), which every one of 200 workers downloaded and re-uploaded
+        for each skeleton. Workers sat at 1-6 millicores of a 100m request with ~9,000 messages
+        backlogged: blocked on this, not on CPU. GCS also allows only about one write per second to
+        a single object, so the workers additionally contend and retry.
+
         TODO: This function does not lock or mutex the file while it alters it (which GCP buckets do not support).
             Multiple skeleton workers could collide here (get1, get2, put1, put2) such that only the last overlapping worker's data is saved.
+        Re-enabling this as-is reintroduces both problems. A sharded design (one small object per
+        skeleton under a prefix, aggregated offline) would avoid the read, the rewrite and the race.
         """
+        if not archive_skeletonization_times:
+            return
+
         try:
             if verbose_level >= 1:
                 SkeletonService.print(f"Archiving skeletonization time for rid {rid} and skeleton version {skeleton_version}: {skeletonization_elapsed_time} seconds")
-            
+
             cf = CloudFiles(f"{bucket}")  # Don't bother entering a skeleton version subdirectory
             if cf.exists(SKELETONIZATION_TIMES_FILENAME):
                 skeleton_times = cf.get(SKELETONIZATION_TIMES_FILENAME).decode("utf-8")
             else:
-                # Initialize a new empty CSV file with a header line
-                skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Skeleton_Version,Datastack_Name,Root_ID,N_Vertices,N_Endpoints,N_Branchpoints,Skeletonization_Time_Secs\n"
+                # Initialize a new empty CSV file with a header line.
+                # Column order must match the row appended below (Datastack_Name before
+                # Skeleton_Version); they disagreed previously, so a from-scratch recreation of the
+                # file would have mislabelled every column.
+                skeleton_times = "Timestamp,SkeletonService_version,CAVEclient_version,Datastack_Name,Skeleton_Version,Root_ID,N_Vertices,N_Endpoints,N_Branchpoints,Skeletonization_Time_Secs\n"
             
             skeleton_times += f"{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')},{__version__},{caveclient.__version__},{datastack_name},{skeleton_version},{rid},{n_vertices},{n_end_points},{n_branch_points},{skeletonization_elapsed_time}\n"
             skeleton_times_bytes = BytesIO(skeleton_times.encode("utf-8")).getvalue()

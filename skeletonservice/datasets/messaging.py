@@ -1,12 +1,20 @@
 import os
 import traceback as tb
-import google.cloud.logging
 import logging
 from messagingclient import MessagingClientConsumer
 from .service import SkeletonService
 
-google.cloud.logging.Client().setup_logging()
-logging.basicConfig(level=logging.INFO)
+# messagingclient logs one line per received message with the bare `logging` module, i.e. on the
+# ROOT logger, not on a 'messagingclient' logger (see messagingclient/client.py, _consume_round_robin).
+# Setting the named logger below therefore does nothing to it; the root level is what governs. At
+# INFO that produced one "Received message ... b''." line per message from every worker. (The empty
+# body is expected -- the producer puts everything in message attributes -- so it carries no
+# information.) Default the root logger to WARNING and let LOG_LEVEL raise it for debugging.
+logging.basicConfig(level=getattr(logging, os.environ.get('LOG_LEVEL', 'WARNING').upper(), logging.WARNING))
+
+# Never let a logging handler failure surface as application noise or interrupt message processing.
+logging.raiseExceptions = False
+
 logger = logging.getLogger('messagingclient')
 logger.setLevel(logging.INFO)
 

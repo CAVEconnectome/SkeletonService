@@ -1,6 +1,5 @@
 import copy
 import logging
-import google.cloud.logging
 import os
 from timeit import default_timer
 # Import flask dependencies
@@ -24,7 +23,12 @@ from typing import List
 
 __version__ = "0.23.11"
 
-google.cloud.logging.Client().setup_logging()
+# Cloud Logging handler intentionally not installed: GKE already ships container stdout to
+# Cloud Logging, so installing a second shipping path was redundant -- and it was done from
+# four modules, attaching several handlers to the root logger. On minniev7 every emit then
+# failed with
+#   PermissionDenied: 403 Permission 'logging.logEntries.create' denied on .../logs/python
+# once per handler per record. Log to stdout instead.
 
 authorizations = {
     "apikey": {"type": "apiKey", "in": "query", "name": "middle_auth_token"}
