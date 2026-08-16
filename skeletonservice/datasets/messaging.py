@@ -1,6 +1,8 @@
 import os
+import json
 import traceback as tb
 import logging
+from timeit import default_timer
 from messagingclient import MessagingClientConsumer
 from .service import SkeletonService
 
@@ -20,7 +22,15 @@ logger.setLevel(logging.INFO)
 
 env_verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
+# Mirror of service.log_phase_timings; see _PhaseTimer there.
+log_phase_timings = os.environ.get('LOG_PHASE_TIMINGS', "false").lower() == "true"
+
 def callback(payload):
+    # Wall time for the whole message, emitted on every path including failures. The service-level
+    # PHASE_TIMINGS line only covers the preamble and generation; this bounds the rest (pull-to-ack
+    # overhead, cache writes, serialization) so the two can be subtracted. Gated by LOG_PHASE_TIMINGS.
+    message_start = default_timer()
+    message_outcome = "ok"
     try:
         session_timestamp = payload.attributes["session_timestamp"]
 
@@ -96,8 +106,18 @@ def callback(payload):
                 SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp_=session_timestamp)
                 raise e
     except Exception as e:
+        message_outcome = f"error:{type(e).__name__}"
         print("Skeleton Cache messaging message-processor suffered a failure that was not caught at lower granularity: ", repr(e))
         tb.print_exc()
+    finally:
+        if log_phase_timings:
+            try:
+                print("MESSAGE_TIMING " + json.dumps({
+                    "outcome": message_outcome,
+                    "total_s": round(default_timer() - message_start, 3),
+                }), flush=True)
+            except Exception:
+                pass  # instrumentation must never affect message handling
 
 try:
     c = MessagingClientConsumer()

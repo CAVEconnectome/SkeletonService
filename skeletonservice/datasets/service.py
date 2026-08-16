@@ -146,6 +146,49 @@ debugging_root_id = int(os.environ.get('DEBUG_ROOT_ID', "0"))
 # with the number of skeletons ever produced and every worker contends for the same key.
 # See the note on _archive_skeletonization_time() before turning this back on.
 archive_skeletonization_times = os.environ.get('ARCHIVE_SKELETONIZATION_TIMES', "false").lower() == "true"
+
+# Emit one PHASE_TIMINGS line per message with the wall time of each step of the worker preamble.
+# Off by default. The preamble runs on EVERY message -- including the majority that turn out to be
+# cache hits -- because the cache check happens after it, so this is where to look when generation
+# time (median ~2s, per skeletonization_times_v2.csv) does not explain observed throughput.
+log_phase_timings = os.environ.get('LOG_PHASE_TIMINGS', "false").lower() == "true"
+
+
+class _PhaseTimer:
+    """Accumulate per-phase wall times and emit them as one structured line.
+
+    Deliberately cheap: a default_timer() call per mark and one print per message, only when
+    LOG_PHASE_TIMINGS is set. Emitting a single line keeps the phases of one message together,
+    which per-phase log lines would not when 200 workers interleave.
+    """
+
+    def __init__(self, rid):
+        self._rid = rid
+        self._t0 = default_timer()
+        self._last = self._t0
+        self._phases = {}
+        self._emitted = False
+
+    def mark(self, name):
+        if not log_phase_timings:
+            return
+        now = default_timer()
+        self._phases[name] = round(now - self._last, 3)
+        self._last = now
+
+    def emit(self, outcome):
+        if not log_phase_timings or self._emitted:
+            return
+        self._emitted = True
+        try:
+            SkeletonService.print("PHASE_TIMINGS " + json.dumps({
+                "rid": str(self._rid),
+                "outcome": outcome,
+                "total_s": round(default_timer() - self._t0, 3),
+                **self._phases,
+            }))
+        except Exception:
+            pass  # instrumentation must never affect the request
 class SkeletonService:
     @staticmethod
     def get_session_timestamp():
@@ -1646,31 +1689,43 @@ class SkeletonService:
         if rid == DEBUG_DEAD_LETTER_TEST_RID:
             raise Exception("Test exception for PubSub dead-lettering")
         
+        # Every message pays this whole preamble before we know whether any work is needed --
+        # the cache check happens further below. Time each step so the cost is attributable.
+        # See _PhaseTimer; enable with LOG_PHASE_TIMINGS=true.
+        phases = _PhaseTimer(rid)
+
         # Confirm that the rid isn't in the refusal list
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid() rid {rid} is in the refusal list and therefore won't be skeletonized.")
+            phases.emit("refused")
             return
-        
+        phases.mark("refusal_list")
+
         # Confirm the rid validity in a few ways
         cave_client = caveclient.CAVEclient(
             datastack_name,
             server_address=CAVE_CLIENT_SERVER,
         )
-        
+        phases.mark("caveclient_init")
+
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
         cv = cave_client.info.segmentation_cloudvolume()
+        phases.mark("segmentation_cloudvolume")
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid() Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
+            phases.emit("not_a_root_id")
             return
 
         # Confirm that the rid exists
         if not cave_client.chunkedgraph.is_valid_nodes(rid):
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeleton_by_datastack_and_rid() Invalid root id: {rid} (perhaps it doesn't exist; the error is unclear)")
+            phases.emit("invalid_root_id")
             return
-        
+        phases.mark("is_valid_nodes")
+
         if not output_format:
             output_format = "none"
 
@@ -1709,10 +1764,12 @@ class SkeletonService:
             skel_confirmation = SkeletonService._confirm_skeleton_in_cache(
                 params_cached, "h5"
             )
+            phases.mark("cache_check")
             if skel_confirmation:
                 # Nothing else to do, so return
                 if verbose_level >= 1:
                     SkeletonService.print(f"Skeleton is already in cache: {rid}")
+                phases.emit("cache_hit")
                 return
             # At this point, fall through with cached_skeleton set to None to trigger generating a new skeleton.
         elif output_format == "meshwork_none":
@@ -1899,6 +1956,7 @@ class SkeletonService:
                         nrn, versioned_skeleton = SkeletonService._generate_v4_skeleton(*params, cave_client)
                     skeletonization_end_time = default_timer()
                     skeletonization_elapsed_time = skeletonization_end_time - skeletonization_start_time
+                    phases.mark("generation")
                     if verbose_level >= 1:
                         SkeletonService.print(f"Skeleton successfully generated in {skeletonization_elapsed_time} seconds: {versioned_skeleton}")
                     try:

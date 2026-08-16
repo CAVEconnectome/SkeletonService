@@ -110,3 +110,55 @@ class TestNoCloudLoggingHandler:
         names = [type(h).__name__ for h in logging.getLogger().handlers]
         assert "CloudLoggingHandler" not in names, names
         assert "StructuredLogHandler" not in names, names
+
+
+class TestPhaseTimer:
+    """_PhaseTimer instruments the worker preamble, which runs on every message."""
+
+    def test_disabled_by_default_emits_nothing(self, service, monkeypatch, capsys):
+        monkeypatch.delenv("LOG_PHASE_TIMINGS", raising=False)
+        svc = service()
+
+        assert svc.log_phase_timings is False
+        t = svc._PhaseTimer(864691135528193883)
+        t.mark("refusal_list")
+        t.emit("cache_hit")
+        assert "PHASE_TIMINGS" not in capsys.readouterr().out
+
+    def test_enabled_emits_one_parseable_line(self, service, capsys):
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        t = svc._PhaseTimer(864691135528193883)
+        t.mark("refusal_list")
+        t.mark("caveclient_init")
+        t.emit("cache_hit")
+
+        out = [l for l in capsys.readouterr().out.splitlines() if "PHASE_TIMINGS" in l]
+        assert len(out) == 1, out
+        import json as _json
+        payload = _json.loads(out[0].split("PHASE_TIMINGS ", 1)[1])
+        assert payload["rid"] == "864691135528193883"
+        assert payload["outcome"] == "cache_hit"
+        assert {"refusal_list", "caveclient_init", "total_s"} <= set(payload)
+        assert all(isinstance(payload[k], (int, float)) for k in ("refusal_list", "total_s"))
+
+    def test_emits_at_most_once_per_message(self, service, capsys):
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        t = svc._PhaseTimer(1)
+        t.emit("cache_hit")
+        t.emit("generated")
+
+        assert len([l for l in capsys.readouterr().out.splitlines() if "PHASE_TIMINGS" in l]) == 1
+
+    def test_never_raises(self, service):
+        """Instrumentation must not be able to fail a message."""
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        class Unserializable:
+            def __str__(self):
+                raise ValueError("nope")
+
+        t = svc._PhaseTimer(Unserializable())
+        t.mark("x")
+        t.emit("ok")  # must not raise
