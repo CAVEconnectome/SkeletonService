@@ -260,7 +260,7 @@ meshparty==1.18.3
     # via
     #   -r requirements.in
     #   pcg-skel
-messagingclient==0.3.0
+messagingclient==0.6.0
     # via -r requirements.in
 microviewer==1.11.0
     # via cloud-volume
