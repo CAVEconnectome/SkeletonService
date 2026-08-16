@@ -89,24 +89,43 @@ class TestArchiveKillSwitch:
 
 
 class TestNoCloudLoggingHandler:
+    """The worker must not install a Cloud Logging handler.
+
+    GKE already ships container stdout to Cloud Logging, so a handler only duplicated the
+    shipping -- and setup_logging() was called from four modules, attaching several handlers to
+    the ROOT logger. Every emit then failed with a 403 because the worker credentials lack
+    logging.logEntries.create.
+    """
+
     MODULES = [
         "skeletonservice",
         "skeletonservice.datasets.service",
         "skeletonservice.datasets.api",
         "skeletonservice.datasets.messaging",
     ]
+    SOURCES = [
+        "skeletonservice/__init__.py",
+        "skeletonservice/datasets/service.py",
+        "skeletonservice/datasets/api.py",
+        "skeletonservice/datasets/messaging.py",
+    ]
+
+    @pytest.mark.parametrize("source", SOURCES)
+    def test_source_has_no_setup_logging_call(self, source):
+        from pathlib import Path
+
+        text = Path(source).read_text()
+        assert "google.cloud.logging.Client()" not in text
+        assert "setup_logging()" not in text
 
     @pytest.mark.parametrize("module", MODULES)
-    def test_module_does_not_install_a_cloud_logging_handler(self, module):
-        """setup_logging() attaches to the ROOT logger, so importing must not add one."""
-        with mock.patch("google.cloud.logging.Client") as client:
-            try:
-                importlib.reload(importlib.import_module(module))
-            except Exception as exc:  # import may fail for unrelated env reasons; the assert below still holds
-                pytest.skip(f"{module} not importable in this environment: {exc!r}")
-        client.assert_not_called()
+    def test_imports_without_google_cloud_logging_installed(self, module):
+        """The strongest form of the assertion: the package must not need the dependency."""
+        importlib.import_module(module)  # must not raise
 
     def test_root_logger_has_no_cloud_logging_handler(self):
+        for module in self.MODULES:
+            importlib.import_module(module)
         names = [type(h).__name__ for h in logging.getLogger().handlers]
         assert "CloudLoggingHandler" not in names, names
         assert "StructuredLogHandler" not in names, names

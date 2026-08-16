@@ -4,6 +4,7 @@ import traceback as tb
 import logging
 from timeit import default_timer
 from messagingclient import MessagingClientConsumer
+from messagingclient import RetryableError
 from .service import SkeletonService
 
 # messagingclient logs one line per received message with the bare `logging` module, i.e. on the
@@ -24,6 +25,36 @@ env_verbose_level = int(os.environ.get('VERBOSE_LEVEL', "0"))
 
 # Mirror of service.log_phase_timings; see _PhaseTimer there.
 log_phase_timings = os.environ.get('LOG_PHASE_TIMINGS', "false").lower() == "true"
+
+# Statuses worth returning to the subscription rather than dropping the work. All are conditions
+# that a later delivery can plausibly succeed at; anything else stays fatal.
+_RETRYABLE_HTTP = {
+    429: "Too Many Requests",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+    504: "Gateway Timeout",
+}
+
+
+def _retryable_status(exc):
+    """Return the HTTP status this exception should be retried on, else None.
+
+    The response status alone is not enough. The materialization service surfaces its rate
+    limiter through a 500, so the exception observed in production reads:
+
+        500 Server Error: 429 Too Many Requests: 800 per 1 minute for url: .../query
+
+    i.e. the transport status is 500 while the actionable status is in the reason. Check the
+    response first, then look for a standard reason phrase in the message.
+    """
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status in _RETRYABLE_HTTP:
+        return status
+    text = str(exc)
+    for code, reason in _RETRYABLE_HTTP.items():
+        if f"{code} {reason}" in text:
+            return code
+    return None
 
 def callback(payload):
     # Wall time for the whole message, emitted on every path including failures. The service-level
@@ -84,6 +115,15 @@ def callback(payload):
                 if verbose_level >= 1:
                     SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor returned from SkeletonService.get_skeleton_by_datastack_and_rid() with result: ", result, session_timestamp_=session_timestamp)
             except Exception as e:
+                status = _retryable_status(e)
+                if status is not None:
+                    # Don't dump a traceback for these -- under a rate limit they are routine and
+                    # the volume is exactly what made the real errors unreadable.
+                    SkeletonService.print_with_session_timestamp(
+                        f"Skeleton Cache message-processor got a retryable HTTP {status} from "
+                        f"SkeletonService.get_skeleton_by_datastack_and_rid(); returning the message "
+                        f"for redelivery.", session_timestamp_=session_timestamp)
+                    raise RetryableError(f"HTTP {status}") from e
                 SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e), session_timestamp_=session_timestamp)
                 SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp_=session_timestamp)
                 raise e
@@ -105,6 +145,14 @@ def callback(payload):
                 SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received error from SkeletonService.add_rid_to_refusal_list(): ", repr(e), session_timestamp_=session_timestamp)
                 SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp_=session_timestamp)
                 raise e
+    except RetryableError:
+        # Transient downstream failure (see _retryable_status). Let it reach the consumer, which
+        # nacks the message so Pub/Sub redelivers it, and keeps this worker consuming. Without
+        # this the catch-all below would swallow it, the message would be acked, and the work
+        # would be lost -- which is what was happening to ~35% of messages under the
+        # materialization rate limit.
+        message_outcome = "retryable"
+        raise
     except Exception as e:
         message_outcome = f"error:{type(e).__name__}"
         print("Skeleton Cache messaging message-processor suffered a failure that was not caught at lower granularity: ", repr(e))
