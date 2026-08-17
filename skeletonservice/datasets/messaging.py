@@ -36,6 +36,27 @@ _RETRYABLE_HTTP = {
 }
 
 
+try:
+    from pcg_skel.chunk_tools import CompleteDataException
+except ImportError:  # pcg_skel restructured; fall back to matching by name below.
+    CompleteDataException = None
+
+
+def _is_incomplete_l2_cache(exc):
+    """True when the skeleton failed only because the l2 cache is not yet populated.
+
+    pcg_skel raises CompleteDataException from dense_spatial_lookup when any level 2 id in the
+    root lacks rep_coord_nm (require_complete=True). Requesting those ids is itself what makes
+    pcgl2cache enqueue them for computation, so the work becomes possible a short time later --
+    this is a wait, not a failure, and the message should come back rather than be dropped.
+
+    Observed on minniev7: one missing id out of 13,065 fails the whole skeleton.
+    """
+    if CompleteDataException is not None and isinstance(exc, CompleteDataException):
+        return True
+    return type(exc).__name__ == "CompleteDataException"
+
+
 def _retryable_status(exc):
     """Return the HTTP status this exception should be retried on, else None.
 
@@ -124,6 +145,16 @@ def callback(payload):
                         f"SkeletonService.get_skeleton_by_datastack_and_rid(); returning the message "
                         f"for redelivery.", session_timestamp_=session_timestamp)
                     raise RetryableError(f"HTTP {status}") from e
+                if _is_incomplete_l2_cache(e):
+                    # The read that just failed is also what queues the missing ids for
+                    # computation, so redelivery is the retry. No traceback: this is an expected
+                    # wait, and it was ~30% of messages while the trigger was broken.
+                    SkeletonService.print_with_session_timestamp(
+                        "Skeleton Cache message-processor hit an incomplete l2 cache for rid "
+                        f"{payload.attributes['skeleton_params_rid']}; returning the message for "
+                        "redelivery so pcgl2cache has time to compute the missing ids.",
+                        session_timestamp_=session_timestamp)
+                    raise RetryableError("incomplete l2 cache") from e
                 SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor received error from SkeletonService.get_skeleton_by_datastack_and_rid(): ", repr(e), session_timestamp_=session_timestamp)
                 SkeletonService.print_with_session_timestamp(tb.format_exc(), session_timestamp_=session_timestamp)
                 raise e
