@@ -169,6 +169,9 @@ def callback(payload):
                     payload.attributes["skeleton_params_datastack_name"],
                     int(payload.attributes["skeleton_params_rid"]),
                     int(payload.attributes["verbose_level"]),
+                    # Carried on the message by retry_refusal_list. Absent for ordinary requests,
+                    # so a first-time refusal records 0 and stays eligible for one retry.
+                    retry_count=int(payload.attributes.get("refusal_retry_count", 0)),
                 )
                 if verbose_level >= 1:
                     SkeletonService.print_with_session_timestamp("Skeleton Cache message-processor returned from SkeletonService.add_rid_to_refusal_list() with result: ", result, session_timestamp_=session_timestamp)

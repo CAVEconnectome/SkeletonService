@@ -53,6 +53,10 @@ DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get('SKELETON_DATASTACK_N
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
+# Number of times a refused root has been re-attempted. Refused roots are not necessarily
+# permanently unskeletonizable -- an incomplete l2 cache used to dead-letter them -- so each
+# is given a bounded number of second chances rather than being blacklisted forever.
+REFUSAL_RETRY_COUNT_COLUMN = "RETRY_COUNT"
 SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neuroglancer version
 SKELETON_VERSION_PARAMS = {
     # V1: Basic skeletons
@@ -673,15 +677,22 @@ class SkeletonService:
             skeletonization_refusal_root_ids_csv = cf.get(SKELETONIZATION_REFUSAL_LIST_FILENAME).decode("utf-8")
             refusal_df = pd.read_csv(BytesIO(skeletonization_refusal_root_ids_csv.encode("utf-8")))
             # refusal_df['ROOT_ID'] = refusal_df['ROOT_ID'].astype(np.int64)
+            if REFUSAL_RETRY_COUNT_COLUMN not in refusal_df.columns:
+                # Files written before retries existed have no count; treat them as never retried.
+                refusal_df[REFUSAL_RETRY_COUNT_COLUMN] = 0
+            refusal_df[REFUSAL_RETRY_COUNT_COLUMN] = (
+                refusal_df[REFUSAL_RETRY_COUNT_COLUMN].fillna(0).astype(int))
             return refusal_df
         SkeletonService.print(f"Refusal list ({SKELETONIZATION_REFUSAL_LIST_FILENAME}) not found in bucket {bucket}. Returning empty DataFrame.")
-        return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID"])
+        return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID", REFUSAL_RETRY_COUNT_COLUMN])
     
     @staticmethod
     def _read_refusal_list_without_timestamps(bucket):
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
-        return skeletonization_refusal_root_ids_df_without_timestamps
+        # Select the identity columns rather than dropping TIMESTAMP: the caller compares this
+        # frame positionally against [datastack_name, rid], so any extra column (RETRY_COUNT)
+        # would silently make every refusal check return False.
+        return skeletonization_refusal_root_ids_df[["DATASTACK_NAME", "ROOT_ID"]]
     
     @staticmethod
     def _check_root_id_against_refusal_list(bucket, datastack_name, rid):
@@ -709,7 +720,7 @@ class SkeletonService:
         return value < min_int64 or value > max_int64
     
     @staticmethod
-    def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0):
+    def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0, retry_count=0):
         """
         Add the root id to the list of root ids for which skeletonization should be refused.
         """
@@ -742,8 +753,12 @@ class SkeletonService:
         mask = (skeletonization_refusal_root_ids_df['DATASTACK_NAME'] == datastack_name) & (skeletonization_refusal_root_ids_df['ROOT_ID'] == rid)
         if mask.sum() == 0:
             timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+            # retry_count travels on the message, so a root that was re-attempted and failed again
+            # comes back with its count intact and is not selected for another retry.
             skeletonization_refusal_root_ids_df = pd.concat([
-                skeletonization_refusal_root_ids_df, pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
+                skeletonization_refusal_root_ids_df,
+                pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid],
+                              REFUSAL_RETRY_COUNT_COLUMN: [int(retry_count)]})])
 
             csv_content = skeletonization_refusal_root_ids_df.to_csv(index=False)
             csv_content_bytes = BytesIO(csv_content.encode("utf-8")).getvalue()
@@ -756,6 +771,103 @@ class SkeletonService:
         else:
             if verbose_level >= 1:
                 SkeletonService.print(f"Rid {rid} already exists in the refusal list for datastack {datastack_name}. A duplicate entry wasn't added.")
+
+    @staticmethod
+    def remove_rids_from_refusal_list(bucket, entries, verbose_level_=0):
+        """Drop (datastack_name, rid) pairs from the refusal list. Returns the rows removed.
+
+        The list had no removal path at all, so anything that reached it was refused permanently --
+        including roots that only failed because their l2 cache was not yet computed.
+        """
+        global verbose_level
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+
+        refusal_df = SkeletonService._read_refusal_list(bucket)
+        if refusal_df.empty:
+            return refusal_df
+
+        wanted = {(str(ds), int(rid)) for ds, rid in entries}
+        keys = list(zip(refusal_df["DATASTACK_NAME"].astype(str), refusal_df["ROOT_ID"].astype("int64")))
+        mask = pd.Series([k in wanted for k in keys], index=refusal_df.index)
+        removed = refusal_df[mask]
+        if removed.empty:
+            return removed
+
+        csv_content = refusal_df[~mask].to_csv(index=False)
+        CloudFiles(f"{bucket}").put(
+            SKELETONIZATION_REFUSAL_LIST_FILENAME,
+            BytesIO(csv_content.encode("utf-8")).getvalue(), compress=True)
+        if verbose_level >= 1:
+            SkeletonService.print(f"Removed {len(removed)} entries from the refusal list in {bucket}")
+        return removed
+
+    @staticmethod
+    def retry_refusal_list(
+        bucket,
+        datastack_name=None,
+        max_retry_count=1,
+        root_resolution=(1, 1, 1),
+        collapse_soma=True,
+        collapse_radius=7500,
+        skeleton_version=None,
+        high_priority=False,
+        dry_run=False,
+        verbose_level_=0,
+    ):
+        """Give refused roots another chance, bounded to max_retry_count attempts each.
+
+        A refused root is removed from the list and re-queued. If it succeeds it is simply gone.
+        If it fails repeatedly it dead-letters and add_rid_to_refusal_list puts it back -- with
+        retry_count incremented, via the message attribute -- so it is not retried again. The
+        existing dead-letter path is the "put it back" half; nothing new is needed for that.
+
+        Returns the rows that were re-queued.
+        """
+        global verbose_level
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+        if skeleton_version is None:
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
+        refusal_df = SkeletonService._read_refusal_list(bucket)
+        if refusal_df.empty:
+            return refusal_df
+
+        eligible = refusal_df[refusal_df[REFUSAL_RETRY_COUNT_COLUMN] < int(max_retry_count)]
+        if datastack_name is not None:
+            eligible = eligible[eligible["DATASTACK_NAME"].astype(str) == str(datastack_name)]
+        if eligible.empty or dry_run:
+            if verbose_level >= 1:
+                SkeletonService.print(
+                    f"retry_refusal_list(): {len(eligible)} eligible entries"
+                    f"{' (dry run, nothing queued)' if dry_run else ''}")
+            return eligible
+
+        # Remove first, then publish: a root still on the list is refused by
+        # _check_root_id_against_refusal_list, so the retry would be rejected on arrival.
+        SkeletonService.remove_rids_from_refusal_list(
+            bucket, list(zip(eligible["DATASTACK_NAME"], eligible["ROOT_ID"])))
+
+        messaging_client = MessagingClientPublisher(len(eligible))
+        for _, row in eligible.iterrows():
+            SkeletonService.publish_skeleton_request(
+                messaging_client=messaging_client,
+                datastack_name=str(row["DATASTACK_NAME"]),
+                rid=int(row["ROOT_ID"]),
+                output_format="none",
+                bucket=bucket,
+                root_resolution=list(root_resolution),
+                collapse_soma=collapse_soma,
+                collapse_radius=collapse_radius,
+                skeleton_version=skeleton_version,
+                high_priority=high_priority,
+                verbose_level_=verbose_level_,
+                refusal_retry_count=int(row[REFUSAL_RETRY_COUNT_COLUMN]) + 1,
+            )
+        if verbose_level >= 1:
+            SkeletonService.print(f"retry_refusal_list(): re-queued {len(eligible)} refused roots")
+        return eligible
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -1655,6 +1767,7 @@ class SkeletonService:
         skeleton_version: int,
         high_priority: bool,
         verbose_level_: int = 0,
+        refusal_retry_count: int = 0,
     ):
         payload = b""
         attributes = {
@@ -1669,6 +1782,9 @@ class SkeletonService:
             "high_priority": f"{high_priority}",
             "session_timestamp": session_timestamp,  # f"{SkeletonService.get_session_timestamp()}",
             "verbose_level": f"{verbose_level_}",
+            # Survives the round trip so the dead-letter handler can re-refuse with the count
+            # incremented rather than reset, which is what bounds retries.
+            "refusal_retry_count": f"{refusal_retry_count}",
         }
 
         exchange = os.getenv(
