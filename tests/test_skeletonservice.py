@@ -466,10 +466,11 @@ class TestSkeletonsService:
         mock_downscoped_creds.token = fake_token
         mock_downscoped_creds.expiry = fake_expiry
 
+        # Only the credential lookup and the token refresh touch the network. AvailabilityCondition,
+        # AccessBoundaryRule and CredentialAccessBoundary are plain in-memory data objects, so they
+        # are built for real -- CredentialAccessBoundary isinstance-checks each rule, which raises
+        # "isinstance() arg 2 must be a type" if AccessBoundaryRule has been replaced by a mock.
         patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
-        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
         patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
         patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
 
@@ -499,10 +500,11 @@ class TestSkeletonsService:
         mock_downscoped_creds.token = "tok"
         mock_downscoped_creds.expiry = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
+        # Only the credential lookup and the token refresh touch the network. AvailabilityCondition,
+        # AccessBoundaryRule and CredentialAccessBoundary are plain in-memory data objects, so they
+        # are built for real -- CredentialAccessBoundary isinstance-checks each rule, which raises
+        # "isinstance() arg 2 must be a type" if AccessBoundaryRule has been replaced by a mock.
         patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
-        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
         patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
         patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
 
@@ -525,10 +527,11 @@ class TestSkeletonsService:
         mock_downscoped_creds.token = "tok"
         mock_downscoped_creds.expiry = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
+        # Only the credential lookup and the token refresh touch the network. AvailabilityCondition,
+        # AccessBoundaryRule and CredentialAccessBoundary are plain in-memory data objects, so they
+        # are built for real -- CredentialAccessBoundary isinstance-checks each rule, which raises
+        # "isinstance() arg 2 must be a type" if AccessBoundaryRule has been replaced by a mock.
         patch("google.auth.default", return_value=(MagicMock(), "test-project")).start()
-        patch("google.auth.downscoped.AvailabilityCondition", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundaryRule", return_value=MagicMock()).start()
-        patch("google.auth.downscoped.AccessBoundary", return_value=MagicMock(), create=True).start()
         patch("google.auth.downscoped.Credentials", return_value=mock_downscoped_creds).start()
         patch("google.auth.transport.requests.Request", return_value=MagicMock()).start()
 

@@ -19,16 +19,29 @@ import pytest
 
 @pytest.fixture
 def service(monkeypatch):
-    """Import service.py fresh so module-level env reads are re-evaluated."""
+    """Import service.py fresh so module-level env reads are re-evaluated.
+
+    importlib.reload() re-executes the module into its existing namespace, replacing the
+    SkeletonService class object. test_skeletonservice.py did `from ... import SkeletonService`
+    at collection time and still holds the original, so after a reload the class it patches is
+    no longer the one the service code calls -- which sent seven of its tests to real GCS.
+
+    The original class object stays alive (its subclasses reference it), so restoring the
+    snapshotted namespace afterwards puts it back and keeps the reload inside this test.
+    """
+    import skeletonservice.datasets.service as svc
+
+    original = svc.__dict__.copy()
 
     def _load(**env):
         for k, v in env.items():
             monkeypatch.setenv(k, v)
-        import skeletonservice.datasets.service as svc
-
         return importlib.reload(svc)
 
-    return _load
+    yield _load
+
+    svc.__dict__.clear()
+    svc.__dict__.update(original)
 
 
 class TestArchiveKillSwitch:
