@@ -190,3 +190,90 @@ class TestPutBackOnRepeatedFailure:
         assert bool(SkeletonService._check_root_id_against_refusal_list(BUCKET, DS, 111)) is True
         with mock.patch("skeletonservice.datasets.service.MessagingClientPublisher"):
             assert SkeletonService.retry_refusal_list(BUCKET).empty, "must not retry a second time"
+
+
+class TestSweepBounds:
+    """A scheduled sweep must be bounded in both dimensions.
+
+    Pub/Sub redelivery covers minutes to hours. This sweep covers days, for roots refused because a
+    long outage exhausted those attempts. But a root can fail by *hanging* -- a materialize query
+    that OOMs and never answers -- and each of its delivery attempts then occupies a worker for the
+    full 600s ack deadline. So limit caps roots per sweep, and max_retry_count caps sweeps per root.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _publisher(self):
+        with mock.patch("skeletonservice.datasets.service.MessagingClientPublisher") as P:
+            self.published = []
+            P.return_value.publish.side_effect = lambda ex, payload, attrs: self.published.append(attrs)
+            yield P
+
+    def test_limit_caps_how_many_are_requeued(self, cf):
+        cf.state["csv"] = _csv([[f"2026010{i}_000000", DS, 100 + i, 0] for i in range(1, 8)])
+
+        requeued = SkeletonService.retry_refusal_list(BUCKET, limit=3)
+
+        assert len(requeued) == 3
+        assert len(self.published) == 3
+
+    def test_limit_takes_the_oldest_first(self, cf):
+        cf.state["csv"] = _csv([
+            ["20260301_000000", DS, 303, 0],
+            ["20260101_000000", DS, 101, 0],
+            ["20260201_000000", DS, 202, 0],
+        ])
+
+        SkeletonService.retry_refusal_list(BUCKET, limit=2)
+
+        assert [a["skeleton_params_rid"] for a in self.published] == ["101", "202"]
+
+    def test_the_remainder_stays_on_the_list_for_the_next_sweep(self, cf):
+        cf.state["csv"] = _csv([["20260101_000000", DS, 101, 0], ["20260201_000000", DS, 202, 0]])
+
+        SkeletonService.retry_refusal_list(BUCKET, limit=1)
+
+        assert bool(SkeletonService._check_root_id_against_refusal_list(BUCKET, DS, 202)) is True
+        assert bool(SkeletonService._check_root_id_against_refusal_list(BUCKET, DS, 101)) is False
+
+    def test_no_limit_requeues_everything_eligible(self, cf):
+        cf.state["csv"] = _csv([["t", DS, 100 + i, 0] for i in range(5)])
+
+        assert len(SkeletonService.retry_refusal_list(BUCKET, limit=None)) == 5
+
+    def test_a_weeks_worth_of_sweeps_then_left_alone(self, cf):
+        """max_retry_count=7 => seven daily chances, then the root stops being retried."""
+        cf.state["csv"] = _csv([["t", DS, 111, 7]])
+
+        assert SkeletonService.retry_refusal_list(BUCKET, max_retry_count=7).empty
+        assert self.published == []
+        assert bool(SkeletonService._check_root_id_against_refusal_list(BUCKET, DS, 111)) is True
+
+    def test_sweeps_default_to_low_priority(self, cf):
+        """A sweep of old failures must not compete with interactive requests."""
+        SkeletonService.retry_refusal_list(BUCKET)
+
+        assert self.published[0]["high_priority"] == "False"
+
+
+class TestSweepCli:
+    def test_the_cli_refuses_to_guess_the_bucket(self, monkeypatch, capsys):
+        """Sweeping the wrong bucket would re-queue nothing and look like success."""
+        monkeypatch.delenv("SKELETON_CACHE_BUCKET", raising=False)
+        from skeletonservice.scripts import retry_refusal_list as cli
+
+        rc = cli.main([])
+
+        assert rc == 2
+        assert "--bucket" in capsys.readouterr().err
+
+    def test_the_cli_passes_its_arguments_through(self, cf):
+        from skeletonservice.scripts import retry_refusal_list as cli
+
+        with mock.patch.object(SkeletonService, "retry_refusal_list",
+                               return_value=SkeletonService._read_refusal_list(BUCKET).head(0)) as m:
+            cli.main(["--bucket", BUCKET, "--max-retry-count", "3", "--limit", "5", "--dry-run"])
+
+        kwargs = m.call_args.kwargs
+        assert kwargs["max_retry_count"] == 3
+        assert kwargs["limit"] == 5
+        assert kwargs["dry_run"] is True

@@ -807,6 +807,7 @@ class SkeletonService:
         bucket,
         datastack_name=None,
         max_retry_count=1,
+        limit=None,
         root_resolution=(1, 1, 1),
         collapse_soma=True,
         collapse_radius=7500,
@@ -837,6 +838,12 @@ class SkeletonService:
         eligible = refusal_df[refusal_df[REFUSAL_RETRY_COUNT_COLUMN] < int(max_retry_count)]
         if datastack_name is not None:
             eligible = eligible[eligible["DATASTACK_NAME"].astype(str) == str(datastack_name)]
+        if limit is not None and len(eligible) > int(limit):
+            # Oldest first, and bounded: a root that fails by hanging ties up a worker for the
+            # full ack deadline on every one of its delivery attempts, so a large sweep can cost
+            # far more worker time than its row count suggests. The remainder is picked up by the
+            # next sweep.
+            eligible = eligible.sort_values("TIMESTAMP").head(int(limit))
         if eligible.empty or dry_run:
             if verbose_level >= 1:
                 SkeletonService.print(
