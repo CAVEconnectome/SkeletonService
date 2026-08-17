@@ -7,6 +7,7 @@ import google.auth.downscoped
 import google.auth.transport.requests
 import logging
 import math
+import threading
 import time
 from timeit import default_timer
 from typing import List, Union
@@ -162,24 +163,58 @@ class _PhaseTimer:
     which per-phase log lines would not when 200 workers interleave.
     """
 
+    # The generation path runs through pcg_skel and several helpers that would all need a new
+    # argument to be timed. Thread-local instead of a plain global because the Flask API serves
+    # requests concurrently, where a global would interleave phases from different root ids.
+    _current = threading.local()
+
+    @classmethod
+    def current(cls):
+        """The timer for the message being processed on this thread, or None."""
+        return getattr(cls._current, "timer", None)
+
+    @classmethod
+    def mark_current(cls, name):
+        """Record a phase from code that has no reference to the timer."""
+        timer = cls.current()
+        if timer is not None:
+            timer.mark(name)
+
+    @classmethod
+    def emit_current(cls, outcome):
+        """Emit this thread's timer if nothing emitted it already.
+
+        get_skeleton_by_datastack_and_rid returns from many places and only the early exits
+        (refused, cache_hit, invalid) emitted, so the expensive generations -- the only ones worth
+        measuring -- produced no line at all. The message handler calls this in a finally, so every
+        message emits exactly once whichever way it left, failures included.
+        """
+        timer = cls.current()
+        if timer is not None:
+            timer.emit(outcome)
+
     def __init__(self, rid):
         self._rid = rid
         self._t0 = default_timer()
         self._last = self._t0
         self._phases = {}
         self._emitted = False
+        _PhaseTimer._current.timer = self
 
     def mark(self, name):
         if not log_phase_timings:
             return
         now = default_timer()
-        self._phases[name] = round(now - self._last, 3)
+        # Same phase reached twice (a retry, or a loop) accumulates rather than overwriting.
+        self._phases[name] = round(self._phases.get(name, 0) + (now - self._last), 3)
         self._last = now
 
     def emit(self, outcome):
         if not log_phase_timings or self._emitted:
             return
         self._emitted = True
+        if _PhaseTimer.current() is self:
+            _PhaseTimer._current.timer = None
         try:
             SkeletonService.print("PHASE_TIMINGS " + json.dumps({
                 "rid": str(self._rid),
@@ -838,6 +873,7 @@ class SkeletonService:
         root_ts, soma_location, soma_resolution = SkeletonService._get_root_soma(
             rid, cave_client, soma_tables
         )
+        _PhaseTimer.mark_current("gen_root_soma")
         if verbose_level >= 1:
             SkeletonService.print(f"soma_resolution: {soma_resolution}")
 
@@ -855,6 +891,7 @@ class SkeletonService:
         process_synapses = False
         try:
             synapse_table = cave_client.info.get_datastack_info().get('synapse_table')
+            _PhaseTimer.mark_current("gen_datastack_info")
             process_synapses = synapse_table is not None
             if verbose_level >= 1:
                 SkeletonService.print(f"Synapse table's presence and name: {process_synapses} ({synapse_table})")
@@ -873,6 +910,8 @@ class SkeletonService:
                 synapses='all',
                 synapse_table=synapse_table,
             )
+            # Suspected dominant cost: builds the L2 graph and pulls every pre/post synapse.
+            _PhaseTimer.mark_current("gen_pcg_meshwork")
 
             if process_synapses:
                 # Add synapse annotations.
@@ -886,6 +925,7 @@ class SkeletonService:
                     extend_to_segment=True,
                     n_times=1
                 )
+                _PhaseTimer.mark_current("gen_is_axon")
 
             # Add volumetric properties
             pcg_skel.features.add_volumetric_properties(
@@ -896,6 +936,7 @@ class SkeletonService:
                 # l2id_col_name: str = "lvl2_id",
                 # property_name: str = "vol_prop",
             )
+            _PhaseTimer.mark_current("gen_volumetric_props")
 
             # Add segment properties
             pcg_skel.features.add_segment_properties(
@@ -911,6 +952,7 @@ class SkeletonService:
                 # root_as_sphere: bool = True,
                 # comp_mask: str = "is_axon",
             )
+            _PhaseTimer.mark_current("gen_segment_props")
 
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']

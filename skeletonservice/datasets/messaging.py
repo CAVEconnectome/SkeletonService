@@ -5,7 +5,7 @@ import logging
 from timeit import default_timer
 from messagingclient import MessagingClientConsumer
 from messagingclient import RetryableError
-from .service import SkeletonService
+from .service import SkeletonService, _PhaseTimer
 
 # messagingclient logs one line per received message with the bare `logging` module, i.e. on the
 # ROOT logger, not on a 'messagingclient' logger (see messagingclient/client.py, _consume_round_robin).
@@ -158,6 +158,13 @@ def callback(payload):
         print("Skeleton Cache messaging message-processor suffered a failure that was not caught at lower granularity: ", repr(e))
         tb.print_exc()
     finally:
+        # Only the early exits (refused / cache_hit / invalid) emitted their own PHASE_TIMINGS, so
+        # generations -- the 150-800s messages we actually need to explain -- logged nothing. This
+        # emits whatever the timer accumulated, on every path including failures.
+        try:
+            _PhaseTimer.emit_current(message_outcome)
+        except Exception:
+            pass  # instrumentation must never affect message handling
         if log_phase_timings:
             try:
                 print("MESSAGE_TIMING " + json.dumps({
