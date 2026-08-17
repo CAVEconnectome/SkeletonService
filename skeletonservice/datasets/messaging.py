@@ -208,6 +208,25 @@ def callback(payload):
             except Exception:
                 pass  # instrumentation must never affect message handling
 
+# Which of the three subscriptions this process consumes: a comma separated selection of the keys
+# low, high and dead. Mandatory -- there is no default, because silently falling back to all three
+# would turn a chart that forgot to set it into a fleet quietly competing with the others.
+#
+# These are selector KEYS, not subscription names. The names come from the SKELETON_CACHE_*_
+# RETRIEVE_QUEUE variables and are used verbatim (they are conventionally upper case, e.g.
+# minniev7_SKELETON_CACHE_WORKER_LOW_PRIORITY); only the keys here are matched case-insensitively.
+#
+# One key per deployment gives a fleet per queue. That matters because the round-robin loop polls
+# every configured subscription in turn and a blocking pull against an empty one costs the whole
+# wait: measured on minniev7 2026-08-17, 50 workers sat at 23.5% occupancy with ~40s idle per
+# message while thousands of messages waited. Separate fleets also scale on their own backlog, so
+# the high-priority and dead-letter fleets can sit at zero while their queues are empty.
+#
+# All three queue-name variables must stay set whatever is consumed here: callback() distinguishes a
+# dead-letter message from a skeleton request by matching the dead-letter queue name against the
+# subscription the message arrived on.
+CONSUME_QUEUES_ENV = "SKELETON_CACHE_CONSUME_QUEUES"
+
 try:
     c = MessagingClientConsumer()
     skeletoncache_low_priority_queue = os.getenv("SKELETON_CACHE_LOW_PRIORITY_RETRIEVE_QUEUE", None)
@@ -215,10 +234,40 @@ try:
     skeletoncache_dead_letter_queue = os.getenv("SKELETON_CACHE_DEAD_LETTER_RETRIEVE_QUEUE", None)
     if not skeletoncache_low_priority_queue or not skeletoncache_high_priority_queue or not skeletoncache_dead_letter_queue:
         raise ValueError(f"Skeleton Cache messaging client: one or more of the messaging queues are not set: LOW:{skeletoncache_low_priority_queue}, HIGH:{skeletoncache_high_priority_queue}, DEAD:{skeletoncache_dead_letter_queue}")
-    c.consume_multiple([skeletoncache_low_priority_queue,
-                        skeletoncache_high_priority_queue,
-                        skeletoncache_dead_letter_queue],
-                        callback)
+
+    available = {
+        "low": skeletoncache_low_priority_queue,
+        "high": skeletoncache_high_priority_queue,
+        "dead": skeletoncache_dead_letter_queue,
+    }
+    raw = os.environ.get(CONSUME_QUEUES_ENV)
+    if raw is None or not raw.strip():
+        raise ValueError(
+            f"{CONSUME_QUEUES_ENV} is required and must be a comma separated selection of "
+            f"{sorted(available)} (it is not defaulted, so that a fleet cannot silently consume "
+            f"queues it was not meant to)")
+    keys = [k.strip().lower() for k in raw.split(",") if k.strip()]
+    unknown = [k for k in keys if k not in available]
+    if unknown:
+        raise ValueError(
+            f"{CONSUME_QUEUES_ENV}={raw!r} has unknown entries {unknown}; "
+            f"valid keys are {sorted(available)}")
+    if not keys:
+        raise ValueError(f"{CONSUME_QUEUES_ENV}={raw!r} resolved to no queues")
+    # dict.fromkeys: drop duplicates but keep the configured order, which is the round-robin order.
+    keys = list(dict.fromkeys(keys))
+    queues = [available[k] for k in keys]
+
+    print(f"Skeleton Cache messaging client consuming {keys} -> {queues}")
+
+    # consume_bounded rather than consume_multiple: the latter routes a single-queue list to
+    # consume(), a streaming-pull path whose callback wrapper acks unconditionally and knows nothing
+    # about RetryableError. A one-queue fleet would silently lose nack-based redelivery, the
+    # 60s..600s backoff and the retryable/fatal distinction, waiting out the 600s ack deadline
+    # instead. consume_bounded shares the round-robin engine and handles a list of length one, so
+    # the semantics are identical however many queues are configured. Unbounded here (no
+    # message_limit, no idle_timeout) matches the previous always-on behaviour.
+    c.consume_bounded(queues, callback)
     print("Skeleton Cache messaging client registered callback successfully (barring any exceptions that are trapped inside MessagingClientConsumer).")
 except Exception as e:
     print("Skeleton Cache messaging client failed to register callback: ", repr(e))
