@@ -74,6 +74,26 @@ def undo_started_patches():
     patch.stopall()
 
 
+@pytest.fixture(autouse=True)
+def clear_cave_client_cache():
+    """Empty the module-level CAVEclient cache around every test.
+
+    SkeletonService._get_cave_client memoises clients for CAVE_CLIENT_CACHE_TTL_S seconds, which
+    is process-wide state. Without this, a client built while `caveclient.CAVEclient` was patched
+    survives into later tests -- the patch is reverted by undo_started_patches above, but the mock
+    instance it produced is still sitting in the cache, so the next test silently receives a stale
+    mock instead of constructing its own. That made three async tests pass alone and fail in a
+    full run.
+
+    Cleared before as well as after so the ordering cannot matter.
+    """
+    from skeletonservice.datasets import service as _svc
+
+    _svc._cave_client_cache.clear()
+    yield
+    _svc._cave_client_cache.clear()
+
+
 # From MaterializationEngine:conftest.py
 # Setup Flask apps
 @pytest.fixture(scope="session")

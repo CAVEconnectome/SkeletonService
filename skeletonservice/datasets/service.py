@@ -38,6 +38,10 @@ import cloudvolume
 __version__ = "0.23.11"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+
+CAVE_CLIENT_CACHE_TTL_S = float(os.environ.get("CAVE_CLIENT_CACHE_TTL_S", 3600))
+_cave_client_cache = {}
+_cave_client_cache_lock = threading.Lock()
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
@@ -229,6 +233,43 @@ class _PhaseTimer:
         except Exception:
             pass  # instrumentation must never affect the request
 class SkeletonService:
+    @staticmethod
+    def _get_cave_client(datastack_name, server_address=None):
+        """A CAVEclient for this datastack, reused for up to CAVE_CLIENT_CACHE_TTL_S seconds.
+
+        Drop-in replacement for `caveclient.CAVEclient(datastack_name, server_address=...)`.
+        Reuse matters because caveclient memoises `.materialize` and `.materialize.tables` per
+        instance, so a per-message client re-bootstraps the TableManager every time -- five
+        sequential HTTP round trips before the first useful query. See CAVE_CLIENT_CACHE_TTL_S.
+
+        Thread-safe via double-checked locking: the cache is only read and written under the lock,
+        while the client is constructed outside it. Construction performs network I/O (datastack
+        info, table metadata), and holding the lock across that would serialise every worker
+        thread behind the first one. The cost is that a race may build two clients and discard
+        one, which is harmless and rare.
+        """
+        server_address = server_address or CAVE_CLIENT_SERVER
+        if not CAVE_CLIENT_CACHE_TTL_S:
+            return caveclient.CAVEclient(datastack_name, server_address=server_address)
+
+        key = (datastack_name, server_address)
+        now = time.monotonic()
+        with _cave_client_cache_lock:
+            entry = _cave_client_cache.get(key)
+            if entry is not None and (now - entry[1]) < CAVE_CLIENT_CACHE_TTL_S:
+                return entry[0]
+
+        client = caveclient.CAVEclient(datastack_name, server_address=server_address)
+
+        with _cave_client_cache_lock:
+            entry = _cave_client_cache.get(key)
+            # Another thread may have finished first; prefer its client so callers converge on
+            # one instance and share its memoised TableManager.
+            if entry is not None and (time.monotonic() - entry[1]) < CAVE_CLIENT_CACHE_TTL_S:
+                return entry[0]
+            _cave_client_cache[key] = (client, time.monotonic())
+        return client
+
     @staticmethod
     def get_session_timestamp():
         """
@@ -1868,10 +1909,7 @@ class SkeletonService:
         phases.mark("refusal_list")
 
         # Confirm the rid validity in a few ways
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         phases.mark("caveclient_init")
 
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
@@ -2489,10 +2527,7 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
 
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
 
         messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
@@ -2850,10 +2885,7 @@ class SkeletonService:
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             raise ValueError(f"Problematic root id: {rid} is in the refusal list")
         
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
@@ -2963,10 +2995,7 @@ class SkeletonService:
             if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                 raise ValueError(f"Problematic root id: {rid} is in the refusal list")
 
-            cave_client = caveclient.CAVEclient(
-                datastack_name,
-                server_address=CAVE_CLIENT_SERVER,
-            )
+            cave_client = SkeletonService._get_cave_client(datastack_name)
             cv = cave_client.info.segmentation_cloudvolume()
             if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
                 raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
@@ -3104,10 +3133,7 @@ class SkeletonService:
         if verbose_level_ >= 1:
             SkeletonService.print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
 
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
 
         messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
@@ -3183,10 +3209,7 @@ class SkeletonService:
         num_rids_submitted = len(rids)
 
         t0 = default_timer()
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
         t1 = default_timer()
         cv_et = t1 - t0
