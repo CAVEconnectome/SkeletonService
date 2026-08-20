@@ -222,6 +222,7 @@ class _PhaseTimer:
         self._t0 = default_timer()
         self._last = self._t0
         self._phases = {}
+        self._io = {}
         self._emitted = False
         _PhaseTimer._current.timer = self
 
@@ -233,6 +234,23 @@ class _PhaseTimer:
         self._phases[name] = round(self._phases.get(name, 0) + (now - self._last), 3)
         self._last = now
 
+    def add_io(self, bucket, seconds):
+        """Accumulate wall time spent in one outbound dependency.
+
+        Phases alone cannot explain where a skeleton's time goes. Measured on minniev7
+        2026-08-20: gen_pcg_meshwork was 1.86s of a 3.67s median skeleton, but multiplying the
+        fleet-wide ingress p50s by the measured calls-per-skeleton accounted for only ~0.3s of
+        it -- and the worker used just ~0.15 core-seconds of CPU for the whole 3.67s, so ~96% of
+        the time was spent waiting on something. Attributing it by hand meant multiplying
+        fleet-wide percentiles by call counts, which does not close: 4.02 materialize calls at
+        the fleet p50 of 0.509s already exceeds the 1.34s gen_root_soma phase that contains them.
+        This measures each wait in-process instead of inferring it.
+        """
+        if not log_phase_timings:
+            return
+        prev_s, prev_n = self._io.get(bucket, (0.0, 0))
+        self._io[bucket] = (prev_s + seconds, prev_n + 1)
+
     def emit(self, outcome):
         if not log_phase_timings or self._emitted:
             return
@@ -240,14 +258,109 @@ class _PhaseTimer:
         if _PhaseTimer.current() is self:
             _PhaseTimer._current.timer = None
         try:
+            total = default_timer() - self._t0
+            # Flattened rather than nested so the existing one-line-per-message grep/aggregate
+            # workflow still works: io_<dep>_s is seconds waited, io_<dep>_n the call count.
+            io = {}
+            io_total = 0.0
+            for bucket, (secs, count) in sorted(self._io.items()):
+                io[f"io_{bucket}_s"] = round(secs, 3)
+                io[f"io_{bucket}_n"] = count
+                io_total += secs
+            if self._io:
+                io["io_total_s"] = round(io_total, 3)
+                # What is left is local CPU, GCS via a non-requests transport, or lock/GIL waits.
+                # Naming it explicitly stops the next person inferring it by subtraction and
+                # getting it wrong, which is how gen_pcg_meshwork was blamed on pcg-read when
+                # pcg-read was 1% of the budget.
+                io["io_unaccounted_s"] = round(total - io_total, 3)
             SkeletonService.print("PHASE_TIMINGS " + json.dumps({
                 "rid": str(self._rid),
                 "outcome": outcome,
-                "total_s": round(default_timer() - self._t0, 3),
+                "total_s": round(total, 3),
                 **self._phases,
+                **io,
             }))
         except Exception:
             pass  # instrumentation must never affect the request
+# Per-dependency I/O timing. Installed once, process-wide, over requests' single network
+# chokepoint. See _PhaseTimer.add_io for why inference from fleet-wide percentiles was not enough.
+#
+# HTTPAdapter.send is the right hook: caveclient, CloudFiles/google-cloud-storage and
+# google.auth.transport.requests all end up there, so one patch covers every outbound HTTP call
+# without threading a timer through pcg_skel -- which is a third-party library we cannot annotate.
+# Anything that does NOT use requests (an aiohttp or grpc transport) is invisible here and will
+# show up in io_unaccounted_s rather than being silently attributed to a dependency.
+LOG_IO_TIMINGS = os.environ.get("LOG_IO_TIMINGS", "true").lower() not in ("false", "0", "no")
+
+# materialize, the chunkedgraph and l2cache all live on the SAME host and are distinguished only
+# by path prefix, so classifying by hostname alone would collapse them into one bucket.
+_IO_PATH_BUCKETS = (
+    ("/materialize", "materialize"),
+    ("/segmentation", "pcg"),
+    ("/l2cache", "l2cache"),
+    ("/schema", "schema"),
+    ("/info", "info"),
+    ("/auth", "auth"),
+    ("/sticky_auth", "auth"),
+)
+
+
+def _io_bucket(url):
+    """Short dependency name for a URL. Never raises; unknown traffic lands in 'other'."""
+    try:
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if "googleapis.com" in host or "google.internal" in host:
+            # storage.googleapis.com (CloudFiles/CloudVolume), oauth2, metadata server
+            return "gcs" if host.startswith("storage") else "google"
+        path = parts.path or ""
+        for prefix, name in _IO_PATH_BUCKETS:
+            if path.startswith(prefix):
+                return name
+        return "other"
+    except Exception:  # noqa: BLE001 - instrumentation must never affect the request
+        return "other"
+
+
+def _install_io_timing():
+    """Wrap requests' network call to record per-dependency wait time. Idempotent."""
+    if not LOG_IO_TIMINGS:
+        return False
+    try:
+        from requests.adapters import HTTPAdapter
+    except Exception:  # noqa: BLE001
+        return False
+    if getattr(HTTPAdapter, "_skeletonservice_io_timed", False):
+        return True
+    original_send = HTTPAdapter.send
+
+    def send(self, request, *args, **kwargs):
+        timer = _PhaseTimer.current()
+        if timer is None:
+            # No message in flight on this thread (Flask API paths, background threads).
+            return original_send(self, request, *args, **kwargs)
+        started = default_timer()
+        try:
+            return original_send(self, request, *args, **kwargs)
+        finally:
+            # In a finally so a failed or retried call still counts its wait -- a timeout is
+            # exactly the case we most need attributed.
+            try:
+                timer.add_io(_io_bucket(request.url), default_timer() - started)
+            except Exception:  # noqa: BLE001
+                pass
+
+    HTTPAdapter.send = send
+    HTTPAdapter._skeletonservice_io_timed = True
+    return True
+
+
+_io_timing_installed = _install_io_timing()
+
+
 class SkeletonService:
     @staticmethod
     def _cave_client_api_version(client):
