@@ -11,6 +11,7 @@
 """
 
 import importlib
+import json
 import logging
 from unittest import mock
 
@@ -19,16 +20,29 @@ import pytest
 
 @pytest.fixture
 def service(monkeypatch):
-    """Import service.py fresh so module-level env reads are re-evaluated."""
+    """Import service.py fresh so module-level env reads are re-evaluated.
+
+    importlib.reload() re-executes the module into its existing namespace, replacing the
+    SkeletonService class object. test_skeletonservice.py did `from ... import SkeletonService`
+    at collection time and still holds the original, so after a reload the class it patches is
+    no longer the one the service code calls -- which sent seven of its tests to real GCS.
+
+    The original class object stays alive (its subclasses reference it), so restoring the
+    snapshotted namespace afterwards puts it back and keeps the reload inside this test.
+    """
+    import skeletonservice.datasets.service as svc
+
+    original = svc.__dict__.copy()
 
     def _load(**env):
         for k, v in env.items():
             monkeypatch.setenv(k, v)
-        import skeletonservice.datasets.service as svc
-
         return importlib.reload(svc)
 
-    return _load
+    yield _load
+
+    svc.__dict__.clear()
+    svc.__dict__.update(original)
 
 
 class TestArchiveKillSwitch:
@@ -181,3 +195,72 @@ class TestPhaseTimer:
         t = svc._PhaseTimer(Unserializable())
         t.mark("x")
         t.emit("ok")  # must not raise
+
+
+class TestPhaseTimerCoversGeneration:
+    """The generation path must emit, since it is the only expensive one.
+
+    Live evidence (minniev7, 2026-08-17): 449 messages in 30 min, 145 of them real generations at
+    p50 145s / max 795s -- and every PHASE_TIMINGS line was outcome=cache_hit, because only the
+    early exits called emit(). The slow path, the one worth measuring, logged nothing.
+    """
+
+    def test_marks_reach_the_timer_without_being_passed_it(self, service):
+        """Nested code (pcg_skel helpers) marks via the thread-local rather than a new argument."""
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        t = svc._PhaseTimer(1)
+        svc._PhaseTimer.mark_current("gen_pcg_meshwork")
+
+        assert "gen_pcg_meshwork" in t._phases
+
+    def test_emit_current_emits_when_nothing_else_did(self, service, capsys):
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        svc._PhaseTimer(864691135528193883)
+        svc._PhaseTimer.emit_current("generated")
+
+        out = [l for l in capsys.readouterr().out.splitlines() if "PHASE_TIMINGS" in l]
+        assert len(out) == 1, out
+        assert json.loads(out[0].split("PHASE_TIMINGS ", 1)[1])["outcome"] == "generated"
+
+    def test_emit_current_does_not_double_emit(self, service, capsys):
+        """Early exits already emit; the finally-block fallback must not add a second line."""
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        t = svc._PhaseTimer(1)
+        t.emit("cache_hit")
+        svc._PhaseTimer.emit_current("ok")
+
+        lines = [l for l in capsys.readouterr().out.splitlines() if "PHASE_TIMINGS" in l]
+        assert len(lines) == 1, lines
+        assert json.loads(lines[0].split("PHASE_TIMINGS ", 1)[1])["outcome"] == "cache_hit"
+
+    def test_emit_current_is_safe_with_no_timer(self, service):
+        svc = service(LOG_PHASE_TIMINGS="true")
+        svc._PhaseTimer._current.timer = None
+
+        svc._PhaseTimer.emit_current("ok")  # must not raise
+
+    def test_repeated_phase_accumulates(self, service):
+        """A retried call should add to its phase, not silently overwrite the earlier time."""
+        svc = service(LOG_PHASE_TIMINGS="true")
+
+        t = svc._PhaseTimer(1)
+        t.mark("gen_pcg_meshwork")
+        first = t._phases["gen_pcg_meshwork"]
+        t.mark("gen_pcg_meshwork")
+
+        assert t._phases["gen_pcg_meshwork"] >= first
+
+    def test_v4_generation_is_instrumented(self):
+        """Guard the marks themselves: the black box must stay broken open."""
+        from pathlib import Path
+        import re
+
+        src = Path("skeletonservice/datasets/service.py").read_text()
+        start = src.index("def _generate_v4_skeleton")
+        body = src[start:start + 12000]
+        for phase in ("gen_root_soma", "gen_pcg_meshwork", "gen_volumetric_props",
+                      "gen_segment_props"):
+            assert f'mark_current("{phase}")' in body, phase

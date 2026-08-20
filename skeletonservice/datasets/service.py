@@ -7,13 +7,14 @@ import google.auth.downscoped
 import google.auth.transport.requests
 import logging
 import math
+import threading
 import time
 from timeit import default_timer
 from typing import List, Union
 import os
 import traceback
 import datetime
-from messagingclient import MessagingClientPublisher
+from messagingclient import MessagingClientPublisher, RetryableError
 import numpy as np
 import json
 import gzip
@@ -37,6 +38,26 @@ import cloudvolume
 __version__ = "0.23.11"
 
 CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-apis.com")
+
+CAVE_CLIENT_CACHE_TTL_S = float(os.environ.get("CAVE_CLIENT_CACHE_TTL_S", 3600))
+_cave_client_cache = {}
+_cave_client_cache_lock = threading.Lock()
+
+# Lowest materialize API version whose client can serve table queries.
+#
+# caveclient resolves the version at construction with
+# `_api_endpoints(api_version, ..., fallback_version=2, ...)`, which SILENTLY falls back to 2 when
+# it cannot reach the version endpoint. MaterializationClient.tables then takes its
+# `Version(...) < Version("3")` branch, which calls get_tables_metadata() and raises
+# ServerIncompatibilityError on every access. The client looks fine but is permanently unusable.
+#
+# Rejecting such a client matters far more now that clients are cached. On minniev7 2026-08-20
+# between 02:20 and 03:00 PDT, 17,570 of 25,000 messages failed this way -- 70% of the window --
+# each in milliseconds, which read as a throughput spike to ~40/s while completing nothing. The
+# dead-letter subscription never rose above 0, so those root ids were acked and lost. Before the
+# cache a transient discovery failure cost one message; cached for CAVE_CLIENT_CACHE_TTL_S it cost
+# every message that worker touched for the next hour.
+_MIN_MATERIALIZE_API_VERSION = 3
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
@@ -52,6 +73,10 @@ DATASTACK_NAME_REMAPPING = ast.literal_eval(os.environ.get('SKELETON_DATASTACK_N
 MESHWORK_VERSION = 1
 SKELETONIZATION_TIMES_FILENAME = "skeletonization_times_v2.csv"
 SKELETONIZATION_REFUSAL_LIST_FILENAME = "skeletonization_refusal_root_ids.csv"
+# Number of times a refused root has been re-attempted. Refused roots are not necessarily
+# permanently unskeletonizable -- an incomplete l2 cache used to dead-letter them -- so each
+# is given a bounded number of second chances rather than being blacklisted forever.
+REFUSAL_RETRY_COUNT_COLUMN = "RETRY_COUNT"
 SKELETON_DEFAULT_VERSION_PARAMS = [-1, 0]  # -1 for latest version, 0 for Neuroglancer version
 SKELETON_VERSION_PARAMS = {
     # V1: Basic skeletons
@@ -162,34 +187,254 @@ class _PhaseTimer:
     which per-phase log lines would not when 200 workers interleave.
     """
 
+    # The generation path runs through pcg_skel and several helpers that would all need a new
+    # argument to be timed. Thread-local instead of a plain global because the Flask API serves
+    # requests concurrently, where a global would interleave phases from different root ids.
+    _current = threading.local()
+
+    @classmethod
+    def current(cls):
+        """The timer for the message being processed on this thread, or None."""
+        return getattr(cls._current, "timer", None)
+
+    @classmethod
+    def mark_current(cls, name):
+        """Record a phase from code that has no reference to the timer."""
+        timer = cls.current()
+        if timer is not None:
+            timer.mark(name)
+
+    @classmethod
+    def emit_current(cls, outcome):
+        """Emit this thread's timer if nothing emitted it already.
+
+        get_skeleton_by_datastack_and_rid returns from many places and only the early exits
+        (refused, cache_hit, invalid) emitted, so the expensive generations -- the only ones worth
+        measuring -- produced no line at all. The message handler calls this in a finally, so every
+        message emits exactly once whichever way it left, failures included.
+        """
+        timer = cls.current()
+        if timer is not None:
+            timer.emit(outcome)
+
     def __init__(self, rid):
         self._rid = rid
         self._t0 = default_timer()
         self._last = self._t0
         self._phases = {}
+        self._io = {}
         self._emitted = False
+        _PhaseTimer._current.timer = self
 
     def mark(self, name):
         if not log_phase_timings:
             return
         now = default_timer()
-        self._phases[name] = round(now - self._last, 3)
+        # Same phase reached twice (a retry, or a loop) accumulates rather than overwriting.
+        self._phases[name] = round(self._phases.get(name, 0) + (now - self._last), 3)
         self._last = now
+
+    def add_io(self, bucket, seconds):
+        """Accumulate wall time spent in one outbound dependency.
+
+        Phases alone cannot explain where a skeleton's time goes. Measured on minniev7
+        2026-08-20: gen_pcg_meshwork was 1.86s of a 3.67s median skeleton, but multiplying the
+        fleet-wide ingress p50s by the measured calls-per-skeleton accounted for only ~0.3s of
+        it -- and the worker used just ~0.15 core-seconds of CPU for the whole 3.67s, so ~96% of
+        the time was spent waiting on something. Attributing it by hand meant multiplying
+        fleet-wide percentiles by call counts, which does not close: 4.02 materialize calls at
+        the fleet p50 of 0.509s already exceeds the 1.34s gen_root_soma phase that contains them.
+        This measures each wait in-process instead of inferring it.
+        """
+        if not log_phase_timings:
+            return
+        prev_s, prev_n = self._io.get(bucket, (0.0, 0))
+        self._io[bucket] = (prev_s + seconds, prev_n + 1)
 
     def emit(self, outcome):
         if not log_phase_timings or self._emitted:
             return
         self._emitted = True
+        if _PhaseTimer.current() is self:
+            _PhaseTimer._current.timer = None
         try:
+            total = default_timer() - self._t0
+            # Flattened rather than nested so the existing one-line-per-message grep/aggregate
+            # workflow still works: io_<dep>_s is seconds waited, io_<dep>_n the call count.
+            io = {}
+            io_total = 0.0
+            for bucket, (secs, count) in sorted(self._io.items()):
+                io[f"io_{bucket}_s"] = round(secs, 3)
+                io[f"io_{bucket}_n"] = count
+                io_total += secs
+            if self._io:
+                io["io_total_s"] = round(io_total, 3)
+                # What is left is local CPU, GCS via a non-requests transport, or lock/GIL waits.
+                # Naming it explicitly stops the next person inferring it by subtraction and
+                # getting it wrong, which is how gen_pcg_meshwork was blamed on pcg-read when
+                # pcg-read was 1% of the budget.
+                io["io_unaccounted_s"] = round(total - io_total, 3)
             SkeletonService.print("PHASE_TIMINGS " + json.dumps({
                 "rid": str(self._rid),
                 "outcome": outcome,
-                "total_s": round(default_timer() - self._t0, 3),
+                "total_s": round(total, 3),
                 **self._phases,
+                **io,
             }))
         except Exception:
             pass  # instrumentation must never affect the request
+# Per-dependency I/O timing. Installed once, process-wide, over requests' single network
+# chokepoint. See _PhaseTimer.add_io for why inference from fleet-wide percentiles was not enough.
+#
+# HTTPAdapter.send is the right hook: caveclient, CloudFiles/google-cloud-storage and
+# google.auth.transport.requests all end up there, so one patch covers every outbound HTTP call
+# without threading a timer through pcg_skel -- which is a third-party library we cannot annotate.
+# Anything that does NOT use requests (an aiohttp or grpc transport) is invisible here and will
+# show up in io_unaccounted_s rather than being silently attributed to a dependency.
+LOG_IO_TIMINGS = os.environ.get("LOG_IO_TIMINGS", "true").lower() not in ("false", "0", "no")
+
+# materialize, the chunkedgraph and l2cache all live on the SAME host and are distinguished only
+# by path prefix, so classifying by hostname alone would collapse them into one bucket.
+_IO_PATH_BUCKETS = (
+    ("/materialize", "materialize"),
+    ("/segmentation", "pcg"),
+    ("/l2cache", "l2cache"),
+    ("/schema", "schema"),
+    ("/info", "info"),
+    ("/auth", "auth"),
+    ("/sticky_auth", "auth"),
+)
+
+
+def _io_bucket(url):
+    """Short dependency name for a URL. Never raises; unknown traffic lands in 'other'."""
+    try:
+        from urllib.parse import urlsplit
+
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        if "googleapis.com" in host or "google.internal" in host:
+            # storage.googleapis.com (CloudFiles/CloudVolume), oauth2, metadata server
+            return "gcs" if host.startswith("storage") else "google"
+        path = parts.path or ""
+        for prefix, name in _IO_PATH_BUCKETS:
+            if path.startswith(prefix):
+                return name
+        return "other"
+    except Exception:  # noqa: BLE001 - instrumentation must never affect the request
+        return "other"
+
+
+def _install_io_timing():
+    """Wrap requests' network call to record per-dependency wait time. Idempotent."""
+    if not LOG_IO_TIMINGS:
+        return False
+    try:
+        from requests.adapters import HTTPAdapter
+    except Exception:  # noqa: BLE001
+        return False
+    if getattr(HTTPAdapter, "_skeletonservice_io_timed", False):
+        return True
+    original_send = HTTPAdapter.send
+
+    def send(self, request, *args, **kwargs):
+        timer = _PhaseTimer.current()
+        if timer is None:
+            # No message in flight on this thread (Flask API paths, background threads).
+            return original_send(self, request, *args, **kwargs)
+        started = default_timer()
+        try:
+            return original_send(self, request, *args, **kwargs)
+        finally:
+            # In a finally so a failed or retried call still counts its wait -- a timeout is
+            # exactly the case we most need attributed.
+            try:
+                timer.add_io(_io_bucket(request.url), default_timer() - started)
+            except Exception:  # noqa: BLE001
+                pass
+
+    HTTPAdapter.send = send
+    HTTPAdapter._skeletonservice_io_timed = True
+    return True
+
+
+_io_timing_installed = _install_io_timing()
+
+
 class SkeletonService:
+    @staticmethod
+    def _cave_client_api_version(client):
+        """Major materialize API version this client resolved, or None if it cannot be read.
+
+        Reading `client.materialize` also forces the sub-client to be constructed, so a failure in
+        that construction surfaces here rather than at first real use.
+        """
+        try:
+            return int(str(client.materialize.api_version).split(".")[0])
+        except Exception:  # noqa: BLE001 - any failure means "not usable"
+            return None
+
+    @staticmethod
+    def _build_checked_cave_client(datastack_name, server_address):
+        """Construct a CAVEclient, refusing one whose version discovery fell back.
+
+        Raises RetryableError so the consumer nacks the message and Pub/Sub redelivers it. The
+        alternative -- letting the client through -- means the caller hits
+        ServerIncompatibilityError from `.tables`, which is not an HTTP error and so falls to the
+        catch-all in messaging.callback, gets acked, and the root id is lost with no dead-letter
+        record. See _MIN_MATERIALIZE_API_VERSION.
+        """
+        client = caveclient.CAVEclient(datastack_name, server_address=server_address)
+        major = SkeletonService._cave_client_api_version(client)
+        if major is None or major < _MIN_MATERIALIZE_API_VERSION:
+            msg = (
+                f"CAVEclient for {datastack_name} at {server_address} resolved materialize "
+                f"api_version={major!r}, below {_MIN_MATERIALIZE_API_VERSION}; version discovery "
+                "likely failed. Not caching this client; returning the message for redelivery."
+            )
+            logging.warning("SkeletonService: %s", msg)
+            raise RetryableError(msg)
+        return client
+
+    @staticmethod
+    def _get_cave_client(datastack_name, server_address=None):
+        """A CAVEclient for this datastack, reused for up to CAVE_CLIENT_CACHE_TTL_S seconds.
+
+        Drop-in replacement for `caveclient.CAVEclient(datastack_name, server_address=...)`.
+        Reuse matters because caveclient memoises `.materialize` and `.materialize.tables` per
+        instance, so a per-message client re-bootstraps the TableManager every time -- five
+        sequential HTTP round trips before the first useful query. See CAVE_CLIENT_CACHE_TTL_S.
+
+        Thread-safe via double-checked locking: the cache is only read and written under the lock,
+        while the client is constructed outside it. Construction performs network I/O (datastack
+        info, table metadata), and holding the lock across that would serialise every worker
+        thread behind the first one. The cost is that a race may build two clients and discard
+        one, which is harmless and rare.
+        """
+        server_address = server_address or CAVE_CLIENT_SERVER
+        if not CAVE_CLIENT_CACHE_TTL_S:
+            return SkeletonService._build_checked_cave_client(datastack_name, server_address)
+
+        key = (datastack_name, server_address)
+        now = time.monotonic()
+        with _cave_client_cache_lock:
+            entry = _cave_client_cache.get(key)
+            if entry is not None and (now - entry[1]) < CAVE_CLIENT_CACHE_TTL_S:
+                return entry[0]
+
+        # Checked BEFORE the cache write below: a client that resolved the wrong API version must
+        # never be stored, or it poisons every later message for the whole TTL.
+        client = SkeletonService._build_checked_cave_client(datastack_name, server_address)
+
+        with _cave_client_cache_lock:
+            entry = _cave_client_cache.get(key)
+            # Another thread may have finished first; prefer its client so callers converge on
+            # one instance and share its memoised TableManager.
+            if entry is not None and (time.monotonic() - entry[1]) < CAVE_CLIENT_CACHE_TTL_S:
+                return entry[0]
+            _cave_client_cache[key] = (client, time.monotonic())
+        return client
+
     @staticmethod
     def get_session_timestamp():
         """
@@ -638,15 +883,22 @@ class SkeletonService:
             skeletonization_refusal_root_ids_csv = cf.get(SKELETONIZATION_REFUSAL_LIST_FILENAME).decode("utf-8")
             refusal_df = pd.read_csv(BytesIO(skeletonization_refusal_root_ids_csv.encode("utf-8")))
             # refusal_df['ROOT_ID'] = refusal_df['ROOT_ID'].astype(np.int64)
+            if REFUSAL_RETRY_COUNT_COLUMN not in refusal_df.columns:
+                # Files written before retries existed have no count; treat them as never retried.
+                refusal_df[REFUSAL_RETRY_COUNT_COLUMN] = 0
+            refusal_df[REFUSAL_RETRY_COUNT_COLUMN] = (
+                refusal_df[REFUSAL_RETRY_COUNT_COLUMN].fillna(0).astype(int))
             return refusal_df
         SkeletonService.print(f"Refusal list ({SKELETONIZATION_REFUSAL_LIST_FILENAME}) not found in bucket {bucket}. Returning empty DataFrame.")
-        return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID"])
+        return pd.DataFrame([], columns=["TIMESTAMP", "DATASTACK_NAME", "ROOT_ID", REFUSAL_RETRY_COUNT_COLUMN])
     
     @staticmethod
     def _read_refusal_list_without_timestamps(bucket):
         skeletonization_refusal_root_ids_df = SkeletonService._read_refusal_list(bucket)
-        skeletonization_refusal_root_ids_df_without_timestamps = skeletonization_refusal_root_ids_df.drop(columns=["TIMESTAMP"])
-        return skeletonization_refusal_root_ids_df_without_timestamps
+        # Select the identity columns rather than dropping TIMESTAMP: the caller compares this
+        # frame positionally against [datastack_name, rid], so any extra column (RETRY_COUNT)
+        # would silently make every refusal check return False.
+        return skeletonization_refusal_root_ids_df[["DATASTACK_NAME", "ROOT_ID"]]
     
     @staticmethod
     def _check_root_id_against_refusal_list(bucket, datastack_name, rid):
@@ -674,7 +926,7 @@ class SkeletonService:
         return value < min_int64 or value > max_int64
     
     @staticmethod
-    def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0):
+    def add_rid_to_refusal_list(bucket, datastack_name, rid, verbose_level_=0, retry_count=0):
         """
         Add the root id to the list of root ids for which skeletonization should be refused.
         """
@@ -707,8 +959,12 @@ class SkeletonService:
         mask = (skeletonization_refusal_root_ids_df['DATASTACK_NAME'] == datastack_name) & (skeletonization_refusal_root_ids_df['ROOT_ID'] == rid)
         if mask.sum() == 0:
             timestamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+            # retry_count travels on the message, so a root that was re-attempted and failed again
+            # comes back with its count intact and is not selected for another retry.
             skeletonization_refusal_root_ids_df = pd.concat([
-                skeletonization_refusal_root_ids_df, pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid]})])
+                skeletonization_refusal_root_ids_df,
+                pd.DataFrame({'TIMESTAMP': [timestamp], 'DATASTACK_NAME': [datastack_name], 'ROOT_ID': [rid],
+                              REFUSAL_RETRY_COUNT_COLUMN: [int(retry_count)]})])
 
             csv_content = skeletonization_refusal_root_ids_df.to_csv(index=False)
             csv_content_bytes = BytesIO(csv_content.encode("utf-8")).getvalue()
@@ -721,6 +977,110 @@ class SkeletonService:
         else:
             if verbose_level >= 1:
                 SkeletonService.print(f"Rid {rid} already exists in the refusal list for datastack {datastack_name}. A duplicate entry wasn't added.")
+
+    @staticmethod
+    def remove_rids_from_refusal_list(bucket, entries, verbose_level_=0):
+        """Drop (datastack_name, rid) pairs from the refusal list. Returns the rows removed.
+
+        The list had no removal path at all, so anything that reached it was refused permanently --
+        including roots that only failed because their l2 cache was not yet computed.
+        """
+        global verbose_level
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+
+        refusal_df = SkeletonService._read_refusal_list(bucket)
+        if refusal_df.empty:
+            return refusal_df
+
+        wanted = {(str(ds), int(rid)) for ds, rid in entries}
+        keys = list(zip(refusal_df["DATASTACK_NAME"].astype(str), refusal_df["ROOT_ID"].astype("int64")))
+        mask = pd.Series([k in wanted for k in keys], index=refusal_df.index)
+        removed = refusal_df[mask]
+        if removed.empty:
+            return removed
+
+        csv_content = refusal_df[~mask].to_csv(index=False)
+        CloudFiles(f"{bucket}").put(
+            SKELETONIZATION_REFUSAL_LIST_FILENAME,
+            BytesIO(csv_content.encode("utf-8")).getvalue(), compress=True)
+        if verbose_level >= 1:
+            SkeletonService.print(f"Removed {len(removed)} entries from the refusal list in {bucket}")
+        return removed
+
+    @staticmethod
+    def retry_refusal_list(
+        bucket,
+        datastack_name=None,
+        max_retry_count=1,
+        limit=None,
+        root_resolution=(1, 1, 1),
+        collapse_soma=True,
+        collapse_radius=7500,
+        skeleton_version=None,
+        high_priority=False,
+        dry_run=False,
+        verbose_level_=0,
+    ):
+        """Give refused roots another chance, bounded to max_retry_count attempts each.
+
+        A refused root is removed from the list and re-queued. If it succeeds it is simply gone.
+        If it fails repeatedly it dead-letters and add_rid_to_refusal_list puts it back -- with
+        retry_count incremented, via the message attribute -- so it is not retried again. The
+        existing dead-letter path is the "put it back" half; nothing new is needed for that.
+
+        Returns the rows that were re-queued.
+        """
+        global verbose_level
+        if verbose_level_ > verbose_level:
+            verbose_level = verbose_level_
+        if skeleton_version is None:
+            skeleton_version = HIGHEST_SKELETON_VERSION
+
+        refusal_df = SkeletonService._read_refusal_list(bucket)
+        if refusal_df.empty:
+            return refusal_df
+
+        eligible = refusal_df[refusal_df[REFUSAL_RETRY_COUNT_COLUMN] < int(max_retry_count)]
+        if datastack_name is not None:
+            eligible = eligible[eligible["DATASTACK_NAME"].astype(str) == str(datastack_name)]
+        if limit is not None and len(eligible) > int(limit):
+            # Oldest first, and bounded: a root that fails by hanging ties up a worker for the
+            # full ack deadline on every one of its delivery attempts, so a large sweep can cost
+            # far more worker time than its row count suggests. The remainder is picked up by the
+            # next sweep.
+            eligible = eligible.sort_values("TIMESTAMP").head(int(limit))
+        if eligible.empty or dry_run:
+            if verbose_level >= 1:
+                SkeletonService.print(
+                    f"retry_refusal_list(): {len(eligible)} eligible entries"
+                    f"{' (dry run, nothing queued)' if dry_run else ''}")
+            return eligible
+
+        # Remove first, then publish: a root still on the list is refused by
+        # _check_root_id_against_refusal_list, so the retry would be rejected on arrival.
+        SkeletonService.remove_rids_from_refusal_list(
+            bucket, list(zip(eligible["DATASTACK_NAME"], eligible["ROOT_ID"])))
+
+        messaging_client = MessagingClientPublisher(len(eligible))
+        for _, row in eligible.iterrows():
+            SkeletonService.publish_skeleton_request(
+                messaging_client=messaging_client,
+                datastack_name=str(row["DATASTACK_NAME"]),
+                rid=int(row["ROOT_ID"]),
+                output_format="none",
+                bucket=bucket,
+                root_resolution=list(root_resolution),
+                collapse_soma=collapse_soma,
+                collapse_radius=collapse_radius,
+                skeleton_version=skeleton_version,
+                high_priority=high_priority,
+                verbose_level_=verbose_level_,
+                refusal_retry_count=int(row[REFUSAL_RETRY_COUNT_COLUMN]) + 1,
+            )
+        if verbose_level >= 1:
+            SkeletonService.print(f"retry_refusal_list(): re-queued {len(eligible)} refused roots")
+        return eligible
 
     @staticmethod
     def _get_root_soma(rid, client, soma_tables=None):
@@ -838,6 +1198,7 @@ class SkeletonService:
         root_ts, soma_location, soma_resolution = SkeletonService._get_root_soma(
             rid, cave_client, soma_tables
         )
+        _PhaseTimer.mark_current("gen_root_soma")
         if verbose_level >= 1:
             SkeletonService.print(f"soma_resolution: {soma_resolution}")
 
@@ -855,6 +1216,7 @@ class SkeletonService:
         process_synapses = False
         try:
             synapse_table = cave_client.info.get_datastack_info().get('synapse_table')
+            _PhaseTimer.mark_current("gen_datastack_info")
             process_synapses = synapse_table is not None
             if verbose_level >= 1:
                 SkeletonService.print(f"Synapse table's presence and name: {process_synapses} ({synapse_table})")
@@ -873,6 +1235,8 @@ class SkeletonService:
                 synapses='all',
                 synapse_table=synapse_table,
             )
+            # Suspected dominant cost: builds the L2 graph and pulls every pre/post synapse.
+            _PhaseTimer.mark_current("gen_pcg_meshwork")
 
             if process_synapses:
                 # Add synapse annotations.
@@ -886,6 +1250,7 @@ class SkeletonService:
                     extend_to_segment=True,
                     n_times=1
                 )
+                _PhaseTimer.mark_current("gen_is_axon")
 
             # Add volumetric properties
             pcg_skel.features.add_volumetric_properties(
@@ -896,6 +1261,7 @@ class SkeletonService:
                 # l2id_col_name: str = "lvl2_id",
                 # property_name: str = "vol_prop",
             )
+            _PhaseTimer.mark_current("gen_volumetric_props")
 
             # Add segment properties
             pcg_skel.features.add_segment_properties(
@@ -911,6 +1277,7 @@ class SkeletonService:
                 # root_as_sphere: bool = True,
                 # comp_mask: str = "is_axon",
             )
+            _PhaseTimer.mark_current("gen_segment_props")
 
             # del nrn.anno['pre_syn']
             # del nrn.anno['post_syn']
@@ -1613,6 +1980,7 @@ class SkeletonService:
         skeleton_version: int,
         high_priority: bool,
         verbose_level_: int = 0,
+        refusal_retry_count: int = 0,
     ):
         payload = b""
         attributes = {
@@ -1627,6 +1995,9 @@ class SkeletonService:
             "high_priority": f"{high_priority}",
             "session_timestamp": session_timestamp,  # f"{SkeletonService.get_session_timestamp()}",
             "verbose_level": f"{verbose_level_}",
+            # Survives the round trip so the dead-letter handler can re-refuse with the count
+            # incremented rather than reset, which is what bounds retries.
+            "refusal_retry_count": f"{refusal_retry_count}",
         }
 
         exchange = os.getenv(
@@ -1703,10 +2074,7 @@ class SkeletonService:
         phases.mark("refusal_list")
 
         # Confirm the rid validity in a few ways
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         phases.mark("caveclient_init")
 
         # Confirm that the rid is actually a root id and not some other sort of arbitrary number, e.g., a supervoxel id arriving via request from Neuroglancer
@@ -2324,10 +2692,7 @@ class SkeletonService:
             if verbose_level >= 1:
                 SkeletonService.print(f"get_skeletons_bulk_by_datastack_and_rids() Truncating rids to {MAX_BULK_SYNCHRONOUS_SKELETONS}")
 
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
 
         messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
@@ -2685,10 +3050,7 @@ class SkeletonService:
         if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
             raise ValueError(f"Problematic root id: {rid} is in the refusal list")
         
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
         if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
             raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
@@ -2798,10 +3160,7 @@ class SkeletonService:
             if SkeletonService._check_root_id_against_refusal_list(bucket, datastack_name, rid):
                 raise ValueError(f"Problematic root id: {rid} is in the refusal list")
 
-            cave_client = caveclient.CAVEclient(
-                datastack_name,
-                server_address=CAVE_CLIENT_SERVER,
-            )
+            cave_client = SkeletonService._get_cave_client(datastack_name)
             cv = cave_client.info.segmentation_cloudvolume()
             if cv.meta.decode_layer_id(rid) != cv.meta.n_layers:
                 raise ValueError(f"Invalid root id: {rid} (perhaps this is an id corresponding to a different level of the PCG, e.g., a supervoxel id)")
@@ -2939,10 +3298,7 @@ class SkeletonService:
         if verbose_level_ >= 1:
             SkeletonService.print(f"generate_meshworks_bulk_by_datastack_and_rids_async() datastack_name: {datastack_name}, rids: {rids}, bucket: {bucket}")
 
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
 
         messaging_client = MessagingClientPublisher(PUBSUB_BATCH_SIZE)
@@ -3018,10 +3374,7 @@ class SkeletonService:
         num_rids_submitted = len(rids)
 
         t0 = default_timer()
-        cave_client = caveclient.CAVEclient(
-            datastack_name,
-            server_address=CAVE_CLIENT_SERVER,
-        )
+        cave_client = SkeletonService._get_cave_client(datastack_name)
         cv = cave_client.info.segmentation_cloudvolume()
         t1 = default_timer()
         cv_et = t1 - t0

@@ -134,3 +134,72 @@ class TestCallbackPropagation:
         assert len(line) == 1, line
         import json
         assert json.loads(line[0].split("MESSAGE_TIMING ", 1)[1])["outcome"] == "retryable"
+
+
+class TestIncompleteL2Cache:
+    """A skeleton that fails only because the l2 cache is not populated must come back.
+
+    pcg_skel raises CompleteDataException when any level 2 id in the root lacks rep_coord_nm.
+    Requesting those ids is what makes pcgl2cache enqueue them, so the work becomes possible
+    shortly afterwards -- dropping the message throws away a skeleton that would have succeeded
+    on the next attempt. Measured on minniev7: 30% of generations, and one missing id out of
+    13,065 is enough to fail the whole root.
+    """
+
+    def test_the_real_exception_is_recognised(self):
+        from pcg_skel.chunk_tools import CompleteDataException
+
+        exc = CompleteDataException("Some chunk indices are not yet computed")
+
+        assert messaging._is_incomplete_l2_cache(exc) is True
+
+    def test_recognised_by_name_when_the_import_is_unavailable(self, monkeypatch):
+        """Guards the fallback: pcg_skel could restructure without us noticing."""
+        monkeypatch.setattr(messaging, "CompleteDataException", None)
+
+        class CompleteDataException(Exception):
+            pass
+
+        assert messaging._is_incomplete_l2_cache(CompleteDataException("x")) is True
+
+    def test_a_message_that_merely_mentions_it_is_not_matched(self):
+        """Discriminates on type, not text -- a rid or log line could contain the word."""
+        assert messaging._is_incomplete_l2_cache(Exception("CompleteDataException")) is False
+        assert messaging._is_incomplete_l2_cache(ValueError("structural")) is False
+
+    def test_it_is_not_classified_as_an_http_retry(self):
+        """Kept separate from _retryable_status; it is not an HTTP condition."""
+        from pcg_skel.chunk_tools import CompleteDataException
+
+        assert messaging._retryable_status(CompleteDataException("x")) is None
+
+    def test_callback_returns_the_message_instead_of_dropping_it(self, monkeypatch):
+        from pcg_skel.chunk_tools import CompleteDataException
+
+        exc = CompleteDataException("Some chunk indices are not yet computed")
+        monkeypatch.setattr(
+            messaging.SkeletonService, "get_skeleton_by_datastack_and_rid",
+            staticmethod(lambda *a, **k: (_ for _ in ()).throw(exc)),
+        )
+
+        with pytest.raises(RetryableError):
+            messaging.callback(TestCallbackPropagation._Payload())
+
+    def test_outcome_is_reported_as_retryable(self, monkeypatch, capsys):
+        """It must stop showing up as error:CompleteDataException in MESSAGE_TIMING."""
+        from pcg_skel.chunk_tools import CompleteDataException
+
+        monkeypatch.setattr(messaging, "log_phase_timings", True)
+        monkeypatch.setattr(
+            messaging.SkeletonService, "get_skeleton_by_datastack_and_rid",
+            staticmethod(lambda *a, **k: (_ for _ in ()).throw(
+                CompleteDataException("Some chunk indices are not yet computed"))),
+        )
+
+        with pytest.raises(RetryableError):
+            messaging.callback(TestCallbackPropagation._Payload())
+
+        import json
+        line = [l for l in capsys.readouterr().out.splitlines() if "MESSAGE_TIMING" in l]
+        assert len(line) == 1, line
+        assert json.loads(line[0].split("MESSAGE_TIMING ", 1)[1])["outcome"] == "retryable"

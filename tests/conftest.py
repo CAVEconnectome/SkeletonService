@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import patch
 
 import pytest
 
@@ -44,6 +45,54 @@ class CloudVolumeMock:
     
     def __init__(self):
         self.meta = CloudVolumeMock.CloudVolumeMockMetaMock()
+
+@pytest.fixture(autouse=True)
+def no_real_pubsub():
+    """Keep PublisherClient construction offline.
+
+    MessagingClientPublisher.__init__ builds a real pubsub_v1.PublisherClient, so every test that
+    constructs one -- directly, or indirectly through the bulk generate paths -- needs Application
+    Default Credentials. That made the suite pass on a workstation with gcloud configured and fail
+    in the container, which is backwards for unit tests.
+    """
+    with patch("google.cloud.pubsub_v1.PublisherClient"):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def undo_started_patches():
+    """Undo any `patch(...).start()` a test left running.
+
+    The suite starts patches without stopping them, so a class or method one test replaces
+    stays replaced for every test that follows. That makes results order-dependent: the same
+    test passes alone and fails in a full run, depending on what ran before it.
+
+    patch.stopall() only reverts patches started via `start()`, so it is a no-op for tests
+    that already use `with patch(...)` or a decorator.
+    """
+    yield
+    patch.stopall()
+
+
+@pytest.fixture(autouse=True)
+def clear_cave_client_cache():
+    """Empty the module-level CAVEclient cache around every test.
+
+    SkeletonService._get_cave_client memoises clients for CAVE_CLIENT_CACHE_TTL_S seconds, which
+    is process-wide state. Without this, a client built while `caveclient.CAVEclient` was patched
+    survives into later tests -- the patch is reverted by undo_started_patches above, but the mock
+    instance it produced is still sitting in the cache, so the next test silently receives a stale
+    mock instead of constructing its own. That made three async tests pass alone and fail in a
+    full run.
+
+    Cleared before as well as after so the ordering cannot matter.
+    """
+    from skeletonservice.datasets import service as _svc
+
+    _svc._cave_client_cache.clear()
+    yield
+    _svc._cave_client_cache.clear()
+
 
 # From MaterializationEngine:conftest.py
 # Setup Flask apps
