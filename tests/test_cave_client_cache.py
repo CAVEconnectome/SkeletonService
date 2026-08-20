@@ -14,6 +14,8 @@ from unittest.mock import patch
 import pytest
 
 from skeletonservice.datasets import service as svc
+from messagingclient import RetryableError
+
 from skeletonservice.datasets.service import SkeletonService
 
 
@@ -24,21 +26,35 @@ def clear_cache():
     svc._cave_client_cache.clear()
 
 
+class FakeMaterialize:
+    def __init__(self, api_version):
+        self.api_version = api_version
+
+
 class FakeClient:
-    """Stands in for CAVEclient; counts how many were built."""
+    """Stands in for CAVEclient; counts how many were built.
+
+    `api_version` mirrors what caveclient resolves at construction. It defaults to 3 because a
+    client that resolved 2 is rejected by the guard in _build_checked_cave_client -- caveclient
+    falls back to 2 when version discovery fails, and such a client raises
+    ServerIncompatibilityError on every `.tables` access.
+    """
 
     instances = 0
+    api_version = 3
 
     def __init__(self, datastack_name, server_address=None):
         FakeClient.instances += 1
         self.datastack_name = datastack_name
         self.server_address = server_address
         self.id = FakeClient.instances
+        self.materialize = FakeMaterialize(type(self).api_version)
 
 
 @pytest.fixture
 def fake_caveclient(monkeypatch):
     FakeClient.instances = 0
+    FakeClient.api_version = 3
     monkeypatch.setattr(svc.caveclient, "CAVEclient", FakeClient)
     return FakeClient
 
@@ -137,6 +153,76 @@ class TestConcurrency:
         monkeypatch.setattr(svc.caveclient, "CAVEclient", SlowClient)
         SkeletonService._get_cave_client("ds")
         assert held_during_build == [False]
+
+
+class TestApiVersionGuard:
+    """A client whose version discovery fell back must never be cached.
+
+    caveclient's _api_endpoints(..., fallback_version=2, ...) silently degrades to api_version 2
+    when it cannot reach the version endpoint; MaterializationClient.tables then raises
+    ServerIncompatibilityError on every access. Caching such a client turned one transient blip
+    into 17,570 acked-and-dropped messages on minniev7 2026-08-20.
+    """
+
+    def test_v2_client_raises_and_is_not_cached(self, fake_caveclient, monkeypatch):
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 300)
+        fake_caveclient.api_version = 2
+        with pytest.raises(RetryableError):
+            SkeletonService._get_cave_client("ds")
+        assert svc._cave_client_cache == {}, (
+            "a rejected client must leave no cache entry, or it poisons the whole TTL"
+        )
+
+    def test_raises_retryable_so_the_message_is_redelivered_not_dropped(
+        self, fake_caveclient, monkeypatch
+    ):
+        """RetryableError is what messaging.callback nacks on; anything else is acked and lost."""
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 300)
+        fake_caveclient.api_version = 2
+        with pytest.raises(RetryableError):
+            SkeletonService._get_cave_client("ds")
+
+    @pytest.mark.parametrize("version", [3, "3", "3.0.0", 4])
+    def test_usable_versions_are_accepted_and_cached(self, fake_caveclient, monkeypatch, version):
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 300)
+        fake_caveclient.api_version = version
+        c = SkeletonService._get_cave_client("ds")
+        assert SkeletonService._get_cave_client("ds") is c
+        assert fake_caveclient.instances == 1
+
+    def test_unreadable_materialize_is_rejected(self, monkeypatch):
+        """If the materialize sub-client cannot even be built, that is not usable either."""
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 300)
+
+        class Exploding:
+            def __init__(self, datastack_name, server_address=None):
+                pass
+
+            @property
+            def materialize(self):
+                raise RuntimeError("datastack info unreachable")
+
+        monkeypatch.setattr(svc.caveclient, "CAVEclient", Exploding)
+        with pytest.raises(RetryableError):
+            SkeletonService._get_cave_client("ds")
+        assert svc._cave_client_cache == {}
+
+    def test_ttl_zero_path_also_validates(self, fake_caveclient, monkeypatch):
+        """Caching disabled must not mean validation disabled."""
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 0)
+        fake_caveclient.api_version = 2
+        with pytest.raises(RetryableError):
+            SkeletonService._get_cave_client("ds")
+
+    def test_a_rejection_does_not_poison_later_attempts(self, fake_caveclient, monkeypatch):
+        """The whole point: recovery must be immediate once discovery works again."""
+        monkeypatch.setattr(svc, "CAVE_CLIENT_CACHE_TTL_S", 300)
+        fake_caveclient.api_version = 2
+        with pytest.raises(RetryableError):
+            SkeletonService._get_cave_client("ds")
+        fake_caveclient.api_version = 3
+        good = SkeletonService._get_cave_client("ds")
+        assert SkeletonService._get_cave_client("ds") is good
 
 
 class TestCallSites:

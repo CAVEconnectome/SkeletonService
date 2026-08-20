@@ -14,7 +14,7 @@ from typing import List, Union
 import os
 import traceback
 import datetime
-from messagingclient import MessagingClientPublisher
+from messagingclient import MessagingClientPublisher, RetryableError
 import numpy as np
 import json
 import gzip
@@ -42,6 +42,22 @@ CAVE_CLIENT_SERVER = os.environ.get("GLOBAL_SERVER_URL", "https://global.daf-api
 CAVE_CLIENT_CACHE_TTL_S = float(os.environ.get("CAVE_CLIENT_CACHE_TTL_S", 3600))
 _cave_client_cache = {}
 _cave_client_cache_lock = threading.Lock()
+
+# Lowest materialize API version whose client can serve table queries.
+#
+# caveclient resolves the version at construction with
+# `_api_endpoints(api_version, ..., fallback_version=2, ...)`, which SILENTLY falls back to 2 when
+# it cannot reach the version endpoint. MaterializationClient.tables then takes its
+# `Version(...) < Version("3")` branch, which calls get_tables_metadata() and raises
+# ServerIncompatibilityError on every access. The client looks fine but is permanently unusable.
+#
+# Rejecting such a client matters far more now that clients are cached. On minniev7 2026-08-20
+# between 02:20 and 03:00 PDT, 17,570 of 25,000 messages failed this way -- 70% of the window --
+# each in milliseconds, which read as a throughput spike to ~40/s while completing nothing. The
+# dead-letter subscription never rose above 0, so those root ids were acked and lost. Before the
+# cache a transient discovery failure cost one message; cached for CAVE_CLIENT_CACHE_TTL_S it cost
+# every message that worker touched for the next hour.
+_MIN_MATERIALIZE_API_VERSION = 3
 CACHE_NON_H5_SKELETONS = os.environ.get("CACHE_NON_H5_SKELETONS", "0").lower() not in ['false', '0', 'no']  # Timing experiments have confirmed minimal benefit from caching non-H5 skeletons
 CACHE_MESHWORK = False
 # DEBUG_SKELETON_CACHE_LOC = "/Users/keith.wiley/Work/Code/SkeletonService/skeletons/"
@@ -234,6 +250,40 @@ class _PhaseTimer:
             pass  # instrumentation must never affect the request
 class SkeletonService:
     @staticmethod
+    def _cave_client_api_version(client):
+        """Major materialize API version this client resolved, or None if it cannot be read.
+
+        Reading `client.materialize` also forces the sub-client to be constructed, so a failure in
+        that construction surfaces here rather than at first real use.
+        """
+        try:
+            return int(str(client.materialize.api_version).split(".")[0])
+        except Exception:  # noqa: BLE001 - any failure means "not usable"
+            return None
+
+    @staticmethod
+    def _build_checked_cave_client(datastack_name, server_address):
+        """Construct a CAVEclient, refusing one whose version discovery fell back.
+
+        Raises RetryableError so the consumer nacks the message and Pub/Sub redelivers it. The
+        alternative -- letting the client through -- means the caller hits
+        ServerIncompatibilityError from `.tables`, which is not an HTTP error and so falls to the
+        catch-all in messaging.callback, gets acked, and the root id is lost with no dead-letter
+        record. See _MIN_MATERIALIZE_API_VERSION.
+        """
+        client = caveclient.CAVEclient(datastack_name, server_address=server_address)
+        major = SkeletonService._cave_client_api_version(client)
+        if major is None or major < _MIN_MATERIALIZE_API_VERSION:
+            msg = (
+                f"CAVEclient for {datastack_name} at {server_address} resolved materialize "
+                f"api_version={major!r}, below {_MIN_MATERIALIZE_API_VERSION}; version discovery "
+                "likely failed. Not caching this client; returning the message for redelivery."
+            )
+            logging.warning("SkeletonService: %s", msg)
+            raise RetryableError(msg)
+        return client
+
+    @staticmethod
     def _get_cave_client(datastack_name, server_address=None):
         """A CAVEclient for this datastack, reused for up to CAVE_CLIENT_CACHE_TTL_S seconds.
 
@@ -250,7 +300,7 @@ class SkeletonService:
         """
         server_address = server_address or CAVE_CLIENT_SERVER
         if not CAVE_CLIENT_CACHE_TTL_S:
-            return caveclient.CAVEclient(datastack_name, server_address=server_address)
+            return SkeletonService._build_checked_cave_client(datastack_name, server_address)
 
         key = (datastack_name, server_address)
         now = time.monotonic()
@@ -259,7 +309,9 @@ class SkeletonService:
             if entry is not None and (now - entry[1]) < CAVE_CLIENT_CACHE_TTL_S:
                 return entry[0]
 
-        client = caveclient.CAVEclient(datastack_name, server_address=server_address)
+        # Checked BEFORE the cache write below: a client that resolved the wrong API version must
+        # never be stored, or it poisons every later message for the whole TTL.
+        client = SkeletonService._build_checked_cave_client(datastack_name, server_address)
 
         with _cave_client_cache_lock:
             entry = _cave_client_cache.get(key)
